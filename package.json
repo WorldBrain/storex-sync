@@ -1,0 +1,42 @@
+{
+  "name": "@worldbrain/storex-sync",
+  "version": "0.1.0",
+  "description": "Offline-first syncing between multiple databases using Storex",
+  "main": "lib/index.js",
+  "typings": "lib/index",
+  "scripts": {
+    "prepare": "tsc",
+    "prepare:watch": "npm run prepare -- -w",
+    "test": "mocha --require ts-node/register 'ts/**/*.test.ts'",
+    "test:watch": "mocha -r source-map-support/register -r ts-node/register 'ts/**/*.test.ts' --watch --watch-extensions ts"
+  },
+  "keywords": [
+    "storage",
+    "graph",
+    "database",
+    "typescript",
+    "sync",
+    "offline-first",
+    "conflict-resolution"
+  ],
+  "author": "Vincent den Boer",
+  "dependencies": {
+    "@worldbrain/storex": "^0.1.1",
+    "lodash": "^4.17.10",
+    "source-map-support": "^0.4.18"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.0.6",
+    "@types/events": "^1.2.0",
+    "@types/mocha": "^2.2.44",
+    "@types/node": "^10.12.11",
+    "@worldbrain/storex-backend-dexie": "^0.1.0",
+    "chai": "^4.1.2",
+    "expect": "^23.5.0",
+    "fake-indexeddb": "^2.0.4",
+    "mocha": "^4.0.1",
+    "sinon": "^4.1.2",
+    "ts-node": "^7.0.1",
+    "typescript": "^3.0.1"
+  }
+}
