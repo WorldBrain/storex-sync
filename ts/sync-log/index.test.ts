@@ -69,4 +69,30 @@ describe('Client sync log', () => {
             {...TEST_LOG_ENTRIES[2], id: 2},
         ])
     })
+
+    it('should mark entries as synched', async () => {
+        const { syncLogStorage } = await setupTest()
+
+        await syncLogStorage.insertEntries([TEST_LOG_ENTRIES[0], TEST_LOG_ENTRIES[1], TEST_LOG_ENTRIES[2]])
+        await syncLogStorage.updateSyncedUntil({until: 3, syncedOn: 6})
+
+        expect(await syncLogStorage.getEntriesCreatedAfter(2)).toEqual([
+            {...TEST_LOG_ENTRIES[0], id: 1, syncedOn: 6},
+            {...TEST_LOG_ENTRIES[1], id: 2, syncedOn: 6},
+            {...TEST_LOG_ENTRIES[2], id: 3},
+        ])
+    })
+
+    it('should retrieve unsynced entries in order of createdOn', async () => {
+        const { syncLogStorage } = await setupTest()
+
+        await syncLogStorage.insertEntries([TEST_LOG_ENTRIES[0], TEST_LOG_ENTRIES[2]])
+        await syncLogStorage.insertEntries([TEST_LOG_ENTRIES[1]])
+        await syncLogStorage.updateSyncedUntil({until: 2, syncedOn: 6})
+
+        expect(await syncLogStorage.getUnsyncedEntries()).toEqual([
+            {...TEST_LOG_ENTRIES[1], id: 3},
+            {...TEST_LOG_ENTRIES[2], id: 2},
+        ])
+    })
 })

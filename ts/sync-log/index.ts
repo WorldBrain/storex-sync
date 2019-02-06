@@ -43,6 +43,21 @@ export class SyncLogStorage extends StorageModule {
                     args: [
                         {createdOn: {$gte: '$timestamp:timestamp'}},
                     ]
+                },
+                updateSyncedUntil: {
+                    operation: 'updateObjects',
+                    collection: 'syncLog',
+                    args: [
+                        {createdOn: {$lte: '$until:timestamp'}},
+                        {syncedOn: '$syncedOn:timestamp'}
+                    ]
+                },
+                findUnsyncedEntries: {
+                    operation: 'findObjects',
+                    collection: 'syncLog',
+                    args: {
+                        syncedOn: {$eq: null},
+                    }
                 }
             }
         }
@@ -56,5 +71,13 @@ export class SyncLogStorage extends StorageModule {
 
     async getEntriesCreatedAfter(timestamp : number) : Promise<ClientSyncLogEntry[]> {
         return sortBy(await this.operation('findEntriesCreatedAfter', {timestamp}), 'createdOn')
+    }
+
+    async updateSyncedUntil({until, syncedOn} : {until : number, syncedOn : number}) {
+        await this.operation('updateSyncedUntil', {until, syncedOn})
+    }
+
+    async getUnsyncedEntries() {
+        return sortBy(await this.operation('findUnsyncedEntries', {}), 'createdOn')
     }
 }
