@@ -9,7 +9,7 @@ export interface ExecutableOperation {
 type Modifications = {[collection : string] : {[pk : string] : {
     isDeleted : boolean
     shouldBeDeleted : boolean
-    fields : {[field : string] : {timestamp : number, value : any}}
+    fields : {[field : string] : {createdOn : number, syncedOn? : number, value : any}}
 }}}
 
 export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : ExecutableOperation[] {
@@ -19,7 +19,7 @@ export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : Executable
         const pkAsJson = JSON.stringify(logEntry.pk)
         const objectModifications = collectionModifications[pkAsJson]
         if (logEntry.operation === 'modify') {
-            const updates = {timestamp: logEntry.createdOn, value: logEntry.value}
+            const updates = {createdOn: logEntry.createdOn, syncedOn: logEntry.syncedOn, value: logEntry.value}
             if (!objectModifications) {
                 collectionModifications[pkAsJson] = {
                     isDeleted: !!logEntry.syncedOn,
@@ -32,7 +32,7 @@ export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : Executable
             const fieldModifications = objectModifications.fields[logEntry.field]
             if (!fieldModifications) {
                 objectModifications[logEntry.field] = updates
-            } else if (logEntry.createdOn > fieldModifications.timestamp) {
+            } else if (logEntry.createdOn > fieldModifications.createdOn) {
                 Object.assign(fieldModifications, updates)
             }
         } else if (logEntry.operation === 'delete') {
@@ -57,7 +57,9 @@ export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : Executable
             }
 
             for (const [fieldName, fieldModification] of Object.entries(objectModifications.fields)) {
-                operations.push({operation: 'updateOneObject', collection, args: [{pk}, {[fieldName]: fieldModification.value}]})
+                if (!fieldModification.syncedOn) {
+                    operations.push({operation: 'updateOneObject', collection, args: [{pk}, {[fieldName]: fieldModification.value}]})
+                }
             }
         }
     }

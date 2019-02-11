@@ -72,5 +72,22 @@ describe('Reconciliation', () => {
         ]})
     })
 
-    it('should work with compound keys')
+    it('should work with deletes having compound keys', () => {
+        const logEntries : ClientSyncLogEntry[] = [
+            {operation: 'delete', createdOn: 4, syncedOn: null, collection: 'listEntry', pk: ['list-one', 3]},
+        ]
+
+        test({logEntries, expectedOperations: [
+            {operation: 'deleteOneObject', collection: 'listEntry', args: [{pk: ['list-one', 3]}]}
+        ]})
+    })
+
+    it('should ignore writes that are already synced', () => {
+        const logEntries : ClientSyncLogEntry[] = [
+            {operation: 'modify', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'modify', createdOn: 2, syncedOn: 3, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+        ]
+
+        test({logEntries, expectedOperations: []})
+    })
 })
