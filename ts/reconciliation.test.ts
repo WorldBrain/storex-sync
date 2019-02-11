@@ -134,5 +134,25 @@ describe('Reconciliation', () => {
         expect(() => test({logEntries})).toThrow(`Detected double create in collection 'lists', pk '"list-one"'`)
     })
 
-    it('should complain about modifications made to an object before creation')
+    it('should complain about modifications made to an object before creation', () => {
+        const logEntries : ClientSyncLogEntry[] = [
+            {operation: 'modify', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'create', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
+        ]
+
+        expect(() => test({logEntries})).toThrow(
+            `Detected modification to collection 'lists', pk '"list-one"' before it was created (likely pk collision)`
+        )
+    })
+
+    it('should complain about modifications made to an object before creation even if received in the right order', () => {
+        const logEntries : ClientSyncLogEntry[] = [
+            {operation: 'create', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
+            {operation: 'modify', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+        ]
+
+        expect(() => test({logEntries})).toThrow(
+            `Detected modification to collection 'lists', pk '"list-one"' before it was created (likely pk collision)`
+        )
+    })
 })

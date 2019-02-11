@@ -8,10 +8,18 @@ export interface ExecutableOperation {
 
 type Modifications = {[collection : string] : {[pk : string] : {
     shouldBeCreated : boolean
+    createdOn? : number
     isDeleted : boolean
     shouldBeDeleted : boolean
     fields : {[field : string] : {createdOn : number, syncedOn? : number, value : any}}
 }}}
+
+function _throwModificationBeforeCreation(logEntry : ClientSyncLogEntry) {
+    throw new Error(
+        `Detected modification to collection '${logEntry.collection}', ` +
+        `pk '${JSON.stringify(logEntry.pk)}' before it was created (likely pk collision)`
+    )
+}
 
 export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : ExecutableOperation[] {
     const modificationsByObject : Modifications = {}
@@ -29,6 +37,9 @@ export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : Executable
                     fields: {[logEntry.field]: updates}
                 }
                 continue
+            }
+            if (objectModifications.shouldBeCreated && objectModifications.createdOn > logEntry.createdOn) {
+                _throwModificationBeforeCreation(logEntry)
             }
             
             const fieldModifications = objectModifications.fields[logEntry.field]
@@ -50,7 +61,11 @@ export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : Executable
                 for (const [key, value] of Object.entries(logEntry.value)) {
                     fields[key] = {value, createdOn: logEntry.createdOn, syncedOn: logEntry.syncedOn}
                 }
-                collectionModifications[pkAsJson] = {shouldBeCreated: true, isDeleted: false, shouldBeDeleted: false, fields}
+                collectionModifications[pkAsJson] = {
+                    shouldBeCreated: true, createdOn: logEntry.createdOn,
+                    isDeleted: false, shouldBeDeleted: false,
+                    fields
+                }
             } else {
                 if (objectModifications.shouldBeCreated) {
                     throw new Error(`Detected double create in collection '${logEntry.collection}', pk '${JSON.stringify(logEntry.pk)}'`)
@@ -58,12 +73,14 @@ export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : Executable
 
                 const fields = objectModifications.fields
                 for (const [key, value] of Object.entries(logEntry.value)) {
-                    //  || logEntry.createdOn > fields[key].createdOn
                     if (!fields[key]) {
                         fields[key] = {value, createdOn: logEntry.createdOn, syncedOn: logEntry.syncedOn}
+                    } else if (logEntry.createdOn > fields[key].createdOn) {
+                        _throwModificationBeforeCreation(logEntry)
                     }
                 }
                 objectModifications.shouldBeCreated = true
+                objectModifications.createdOn = logEntry.createdOn
             }
         }
     }
