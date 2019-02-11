@@ -52,6 +52,10 @@ export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : Executable
                 }
                 collectionModifications[pkAsJson] = {shouldBeCreated: true, isDeleted: false, shouldBeDeleted: false, fields}
             } else {
+                if (objectModifications.shouldBeCreated) {
+                    throw new Error(`Detected double create in collection '${logEntry.collection}', pk '${JSON.stringify(logEntry.pk)}'`)
+                }
+
                 const fields = objectModifications.fields
                 for (const [key, value] of Object.entries(logEntry.value)) {
                     //  || logEntry.createdOn > fields[key].createdOn

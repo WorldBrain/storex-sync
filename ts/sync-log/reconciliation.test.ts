@@ -2,8 +2,11 @@ import * as expect from 'expect'
 import { ClientSyncLogEntry } from './types';
 import { reconcileSyncLog, ExecutableOperation } from './reconciliation';
 
-function test({logEntries, expectedOperations} : {logEntries : ClientSyncLogEntry[], expectedOperations : ExecutableOperation[]}) {
-    expect(reconcileSyncLog(logEntries)).toEqual(expectedOperations)
+function test({logEntries, expectedOperations} : {logEntries : ClientSyncLogEntry[], expectedOperations? : ExecutableOperation[]}) {
+    const reconciled = reconcileSyncLog(logEntries)
+    if (expectedOperations) {
+        expect(reconciled).toEqual(expectedOperations)
+    }
 }
 
 describe('Reconciliation', () => {
@@ -119,11 +122,17 @@ describe('Reconciliation', () => {
             {operation: 'delete', createdOn: 3, syncedOn: null, collection: 'lists', pk: 'list-one'},
         ]
 
-        test({logEntries, expectedOperations: [
-        ]})
+        test({logEntries, expectedOperations: []})
     })
 
-    it('should complain about double creates')
+    it('should complain about double creates', () => {
+        const logEntries : ClientSyncLogEntry[] = [
+            {operation: 'create', createdOn: 1, syncedOn: 1, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
+            {operation: 'create', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
+        ]
+        
+        expect(() => test({logEntries})).toThrow(`Detected double create in collection 'lists', pk '"list-one"'`)
+    })
 
     it('should complain about modifications made to an object before creation')
 })
