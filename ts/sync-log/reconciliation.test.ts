@@ -90,4 +90,40 @@ describe('Reconciliation', () => {
 
         test({logEntries, expectedOperations: []})
     })
+
+    it('should create objects', () => {
+        const logEntries : ClientSyncLogEntry[] = [
+            {operation: 'create', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first'}}
+        ]
+
+        test({logEntries, expectedOperations: [
+            {operation: 'createObject', collection: 'lists', args: [{pk: 'list-one', title: 'first'}]}
+        ]})
+    })
+    
+    it('should consolidate object creation with object updates', () => {
+        const logEntries : ClientSyncLogEntry[] = [
+            {operation: 'modify', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'create', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
+        ]
+
+        test({logEntries, expectedOperations: [
+            {operation: 'createObject', collection: 'lists', args: [{pk: 'list-one', title: 'second', prio: 5}]}
+        ]})
+    })
+    
+    it('should consolidate object creation with object deletion', () => {
+        const logEntries : ClientSyncLogEntry[] = [
+            {operation: 'modify', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'create', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
+            {operation: 'delete', createdOn: 3, syncedOn: null, collection: 'lists', pk: 'list-one'},
+        ]
+
+        test({logEntries, expectedOperations: [
+        ]})
+    })
+
+    it('should complain about double creates')
+
+    it('should complain about modifications made to an object before creation')
 })

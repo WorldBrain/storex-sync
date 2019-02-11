@@ -7,6 +7,7 @@ export interface ExecutableOperation {
 }
 
 type Modifications = {[collection : string] : {[pk : string] : {
+    shouldBeCreated : boolean
     isDeleted : boolean
     shouldBeDeleted : boolean
     fields : {[field : string] : {createdOn : number, syncedOn? : number, value : any}}
@@ -22,6 +23,7 @@ export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : Executable
             const updates = {createdOn: logEntry.createdOn, syncedOn: logEntry.syncedOn, value: logEntry.value}
             if (!objectModifications) {
                 collectionModifications[pkAsJson] = {
+                    shouldBeCreated: false,
                     isDeleted: !!logEntry.syncedOn,
                     shouldBeDeleted: false,
                     fields: {[logEntry.field]: updates}
@@ -38,10 +40,27 @@ export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : Executable
         } else if (logEntry.operation === 'delete') {
             const updates = {isDeleted: !!logEntry.syncedOn, shouldBeDeleted: true, fields: {}}
             if (!objectModifications) {
-                collectionModifications[pkAsJson] = updates
+                collectionModifications[pkAsJson] = {shouldBeCreated: false, ...updates}
             } else (
                 Object.assign(objectModifications, updates)
             )
+        } else if (logEntry.operation === 'create') {
+            if (!objectModifications) {
+                const fields = {}
+                for (const [key, value] of Object.entries(logEntry.value)) {
+                    fields[key] = {value, createdOn: logEntry.createdOn, syncedOn: logEntry.syncedOn}
+                }
+                collectionModifications[pkAsJson] = {shouldBeCreated: true, isDeleted: false, shouldBeDeleted: false, fields}
+            } else {
+                const fields = objectModifications.fields
+                for (const [key, value] of Object.entries(logEntry.value)) {
+                    //  || logEntry.createdOn > fields[key].createdOn
+                    if (!fields[key]) {
+                        fields[key] = {value, createdOn: logEntry.createdOn, syncedOn: logEntry.syncedOn}
+                    }
+                }
+                objectModifications.shouldBeCreated = true
+            }
         }
     }
 
@@ -50,15 +69,20 @@ export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : Executable
         for (const [pkAsJson, objectModifications] of Object.entries(collectionModifications)) {
             const pk = JSON.parse(pkAsJson)
             if (objectModifications.shouldBeDeleted) {
-                if (!objectModifications.isDeleted) {
+                if (!objectModifications.isDeleted && !objectModifications.shouldBeCreated) {
                     operations.push({operation: 'deleteOneObject', collection, args: [{pk}]})
                 }
-                continue
-            }
-
-            for (const [fieldName, fieldModification] of Object.entries(objectModifications.fields)) {
-                if (!fieldModification.syncedOn) {
-                    operations.push({operation: 'updateOneObject', collection, args: [{pk}, {[fieldName]: fieldModification.value}]})
+            } else if (objectModifications.shouldBeCreated) {
+                const object = {}
+                for (const [key, fieldModification] of Object.entries(objectModifications.fields)) {
+                    object[key] = fieldModification.value
+                }
+                operations.push({operation: 'createObject', collection, args: [object]})
+            } else {
+                for (const [fieldName, fieldModification] of Object.entries(objectModifications.fields)) {
+                    if (!fieldModification.syncedOn) {
+                        operations.push({operation: 'updateOneObject', collection, args: [{pk}, {[fieldName]: fieldModification.value}]})
+                    }
                 }
             }
         }
