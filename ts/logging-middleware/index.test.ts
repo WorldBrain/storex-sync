@@ -103,7 +103,8 @@ describe('Sync logging middleware', () => {
         }})
         await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
         await storageManager.collection('user').createObject({id: 54, firstName: 'Jane', lastName: 'Doe'})
-        await storageManager.collection('user').updateObjects({firstName: 'John'}, {lastName: 'Trump'})
+        await storageManager.collection('user').createObject({id: 55, firstName: 'Jack', lastName: 'Daniels'})
+        await storageManager.collection('user').updateObjects({lastName: 'Doe'}, {lastName: 'Trump'})
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 id: expect.anything(),
@@ -120,9 +121,75 @@ describe('Sync logging middleware', () => {
             {
                 id: expect.anything(),
                 createdOn: 5,
+                collection: 'user', pk: 56,
+                operation: 'create', value: {firstName: 'Jack', lastName: 'Daniels'}
+            },
+            {
+                id: expect.anything(),
+                createdOn: 6,
                 collection: 'user', pk: 53,
                 operation: 'modify', field: 'lastName',
                 value: 'Trump',
+            },
+            {
+                id: expect.anything(),
+                createdOn: 7,
+                collection: 'user', pk: 54,
+                operation: 'modify', field: 'lastName',
+                value: 'Trump',
+            },
+        ])
+    })
+    
+    it('should write updateObjects operations done on multiple fields to the ClientSyncLog in a batch write', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now, userFields: {
+            firstName: {type: 'string'},
+            lastName: {type: 'string'},
+        }})
+        await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
+        await storageManager.collection('user').createObject({id: 54, firstName: 'Jane', lastName: 'Doe'})
+        await storageManager.collection('user').createObject({id: 55, firstName: 'Jack', lastName: 'Daniels'})
+        await storageManager.collection('user').updateObjects({lastName: 'Doe'}, {firstName: 'Pinata', lastName: 'Trump'})
+        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+            {
+                id: expect.anything(),
+                createdOn: 3,
+                collection: 'user', pk: 53,
+                operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
+            },
+            {
+                id: expect.anything(),
+                createdOn: 4,
+                collection: 'user', pk: 54,
+                operation: 'create', value: {firstName: 'Jane', lastName: 'Doe'}
+            },
+            {
+                id: expect.anything(),
+                createdOn: 5,
+                collection: 'user', pk: 56,
+                operation: 'create', value: {firstName: 'Jack', lastName: 'Daniels'}
+            },
+            {
+                id: expect.anything(),
+                createdOn: 5,
+                collection: 'user', pk: 53,
+                operation: 'modify', field: 'firstName',
+                value: 'Pinata',
+            },
+            {
+                id: expect.anything(),
+                createdOn: 5,
+                collection: 'user', pk: 53,
+                operation: 'modify', field: 'lastName',
+                value: 'Trump',
+            },
+            {
+                id: expect.anything(),
+                createdOn: 6,
+                collection: 'user', pk: 54,
+                operation: 'modify', field: 'firstName',
+                value: 'Pinata',
             },
             {
                 id: expect.anything(),
@@ -133,6 +200,4 @@ describe('Sync logging middleware', () => {
             },
         ])
     })
-    
-    it('should write updateObject operations done on multiple fields to the ClientSyncLog in a batch write')
 })
