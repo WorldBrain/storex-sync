@@ -1,5 +1,5 @@
 import * as expect from 'expect'
-import StorageManager from '@worldbrain/storex'
+import StorageManager, { CollectionFields } from '@worldbrain/storex'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
 import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
 import { registerModuleCollections } from '@worldbrain/storex-pattern-modules';
@@ -7,13 +7,13 @@ import { ClientSyncLogStorage } from '../client-sync-log';
 import { SyncLoggingMiddleware } from '.';
 
 
-async function setupTest({now} : {now : () => number}) {
+async function setupTest({now, userFields} : {now : () => number, userFields? : CollectionFields}) {
     const backend = new DexieStorageBackend({idbImplementation: inMemory(), dbName: 'unittest'})
     const storageManager = new StorageManager({backend: backend as any})
     storageManager.registry.registerCollections({
         user: {
             version: new Date('2019-02-19'),
-            fields: {
+            fields: userFields || {
                 displayName: {type: 'string'}
             }
         }
@@ -62,7 +62,37 @@ describe('Sync logging middleware', () => {
             },
         ])
 
-        it('should write updateObject operations done by pk on multiple fields to the ClientSyncLog in a batch write')
+        it('should write updateObject operations done by pk on multiple fields to the ClientSyncLog in a batch write', async () => {
+            let now = 2
+            const { storageManager, clientSyncLog } = await setupTest({now: () => ++now, userFields: {
+                firstName: {type: 'string'},
+                lastName: {type: 'string'},
+            }})
+            await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
+            await storageManager.collection('user').updateOneObject({id: 53}, {firstName: 'Jack', lastName: 'Trump'})
+            expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+                {
+                    id: expect.anything(),
+                    createdOn: 3,
+                    collection: 'user', pk: 53,
+                    operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
+                },
+                {
+                    id: expect.anything(),
+                    createdOn: 4,
+                    collection: 'user', pk: 53,
+                    operation: 'modify', field: 'firstName',
+                    value: 'Jack',
+                },
+                {
+                    id: expect.anything(),
+                    createdOn: 4,
+                    collection: 'user', pk: 53,
+                    operation: 'modify', field: 'lastName',
+                    value: 'Trump',
+                },
+            ])
+        })
 
         // it('should write updateObject operations done by non-pk filters on a single field to the ClientSyncLog in a batch write')
         
