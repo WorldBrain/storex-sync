@@ -1,6 +1,6 @@
 import { StorageMiddleware } from '@worldbrain/storex/lib/types/middleware'
 import { ClientSyncLogStorage } from "../client-sync-log";
-import StorageManager from '@worldbrain/storex';
+import StorageManager, { OperationBatch } from '@worldbrain/storex';
 import { getObjectWithoutPk, getObjectPk } from '../utils';
 
 export class SyncLoggingMiddleware implements StorageMiddleware {
@@ -15,8 +15,11 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
     async process({next, operation} : {next : {process: ({operation}) => any}, operation : any[]}) {
         const operationType = (operation[0] as string)
         if (operationType === 'createObject') {
-            const [collection, value] = [operation[1], operation[2]]
+            const [collection, value] = operation.slice(1)
             return this._processCreateObject(next, collection, value)
+        } else if (operationType === 'updateObject') {
+            const [collection, where, updates] = operation.slice(1)
+            return this._processUpdateObject(next, collection, where, updates)
         }
 
         return next.process({operation})
@@ -46,5 +49,29 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
 
     _getNow() {
         return Date.now()
+    }
+
+    async _processUpdateObject(next, collection : string, where : any, updates : any) {
+        const pk = getObjectPk(where, collection, this._storageManager.registry);
+        const batch : OperationBatch = [{placeholder: 'object', operation: 'updateObjects', collection, where, updates}]
+        for (const [fieldName, newValue] of Object.entries(updates)) {
+            batch.push({
+                placeholder: 'logEntry',
+                operation: 'createObject',
+                collection: 'clientSyncLog',
+                args: {
+                    createdOn: this._getNow(),
+                    field: fieldName,
+                    collection,
+                    operation: 'modify',
+                    pk: pk,
+                    value: newValue
+                }
+            })
+        }
+        const result = await next.process({operation: [
+            'executeBatch',
+            batch
+        ]})
     }
 }

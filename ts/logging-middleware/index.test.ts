@@ -28,7 +28,7 @@ async function setupTest({now} : {now : () => number}) {
 }
 
 describe('Sync logging middleware', () => {
-    it('should write creations to the ClientSyncLog in a batch write', async () => {
+    it('should write createObject operations to the ClientSyncLog in a batch write', async () => {
         const { storageManager, clientSyncLog } = await setupTest({now: () => 3})
         await storageManager.collection('user').createObject({id: 53, displayName: 'John Doe'})
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
@@ -39,5 +39,33 @@ describe('Sync logging middleware', () => {
                 operation: 'create', value: {displayName: 'John Doe'}
             },
         ])
+    })
+
+    it('should write updateObject operations done by pk on a single field to the ClientSyncLog in a batch write', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.collection('user').createObject({id: 53, displayName: 'John Doe'})
+        await storageManager.collection('user').updateOneObject({id: 53}, {displayName: 'Jack Doe'})
+        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+            {
+                id: expect.anything(),
+                createdOn: 3,
+                collection: 'user', pk: 53,
+                operation: 'create', value: {displayName: 'John Doe'}
+            },
+            {
+                id: expect.anything(),
+                createdOn: 4,
+                collection: 'user', pk: 53,
+                operation: 'modify', field: 'displayName',
+                value: 'Jack Doe',
+            },
+        ])
+
+        it('should write updateObject operations done by pk on multiple fields to the ClientSyncLog in a batch write')
+
+        // it('should write updateObject operations done by non-pk filters on a single field to the ClientSyncLog in a batch write')
+        
+        // it('should write updateObject operations done by non-pk filters on multiple fields to the ClientSyncLog in a batch write')
     })
 })
