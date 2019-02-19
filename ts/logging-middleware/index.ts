@@ -20,6 +20,9 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         } else if (operationType === 'updateObject') {
             const [collection, where, updates] = operation.slice(1)
             return this._processUpdateObject(next, collection, where, updates)
+        } else if (operationType === 'updateObjects') {
+            const [collection, where, updates] = operation.slice(1)
+            return this._processUpdateObjects(next, collection, where, updates)
         }
 
         return next.process({operation})
@@ -69,7 +72,35 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
                 }
             })
         }
-        const result = await next.process({operation: [
+        await next.process({operation: [
+            'executeBatch',
+            batch
+        ]})
+    }
+
+    async _processUpdateObjects(next, collection : string, where : any, updates : any) {
+        const affected = await next.process({operation: ['findObjects', collection, {where}]})
+        const batch : OperationBatch = [{placeholder: 'object', operation: 'updateObjects', collection, where, updates}]
+        for (const object of affected) {
+            const pk = getObjectPk(object, collection, this._storageManager.registry)
+            for (const [fieldName, newValue] of Object.entries(updates)) {
+                batch.push({
+                    placeholder: 'logEntry',
+                    operation: 'createObject',
+                    collection: 'clientSyncLog',
+                    args: {
+                        createdOn: this._getNow(),
+                        field: fieldName,
+                        collection,
+                        operation: 'modify',
+                        pk: pk,
+                        value: newValue
+                    }
+                })
+            }
+        }
+        
+        await next.process({operation: [
             'executeBatch',
             batch
         ]})

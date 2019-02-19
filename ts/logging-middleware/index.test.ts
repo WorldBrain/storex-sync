@@ -61,41 +61,78 @@ describe('Sync logging middleware', () => {
                 value: 'Jack Doe',
             },
         ])
-
-        it('should write updateObject operations done by pk on multiple fields to the ClientSyncLog in a batch write', async () => {
-            let now = 2
-            const { storageManager, clientSyncLog } = await setupTest({now: () => ++now, userFields: {
-                firstName: {type: 'string'},
-                lastName: {type: 'string'},
-            }})
-            await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
-            await storageManager.collection('user').updateOneObject({id: 53}, {firstName: 'Jack', lastName: 'Trump'})
-            expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
-                {
-                    id: expect.anything(),
-                    createdOn: 3,
-                    collection: 'user', pk: 53,
-                    operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
-                },
-                {
-                    id: expect.anything(),
-                    createdOn: 4,
-                    collection: 'user', pk: 53,
-                    operation: 'modify', field: 'firstName',
-                    value: 'Jack',
-                },
-                {
-                    id: expect.anything(),
-                    createdOn: 4,
-                    collection: 'user', pk: 53,
-                    operation: 'modify', field: 'lastName',
-                    value: 'Trump',
-                },
-            ])
-        })
-
-        // it('should write updateObject operations done by non-pk filters on a single field to the ClientSyncLog in a batch write')
-        
-        // it('should write updateObject operations done by non-pk filters on multiple fields to the ClientSyncLog in a batch write')
     })
+
+    it('should write updateObject operations done by pk on multiple fields to the ClientSyncLog in a batch write', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now, userFields: {
+            firstName: {type: 'string'},
+            lastName: {type: 'string'},
+        }})
+        await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
+        await storageManager.collection('user').updateOneObject({id: 53}, {firstName: 'Jack', lastName: 'Trump'})
+        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+            {
+                id: expect.anything(),
+                createdOn: 3,
+                collection: 'user', pk: 53,
+                operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
+            },
+            {
+                id: expect.anything(),
+                createdOn: 4,
+                collection: 'user', pk: 53,
+                operation: 'modify', field: 'firstName',
+                value: 'Jack',
+            },
+            {
+                id: expect.anything(),
+                createdOn: 5,
+                collection: 'user', pk: 53,
+                operation: 'modify', field: 'lastName',
+                value: 'Trump',
+            },
+        ])
+    })
+
+    it('should write updateObjects operations done on a single field to the ClientSyncLog in a batch write', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now, userFields: {
+            firstName: {type: 'string'},
+            lastName: {type: 'string'},
+        }})
+        await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
+        await storageManager.collection('user').createObject({id: 54, firstName: 'Jane', lastName: 'Doe'})
+        await storageManager.collection('user').updateObjects({firstName: 'John'}, {lastName: 'Trump'})
+        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+            {
+                id: expect.anything(),
+                createdOn: 3,
+                collection: 'user', pk: 53,
+                operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
+            },
+            {
+                id: expect.anything(),
+                createdOn: 4,
+                collection: 'user', pk: 54,
+                operation: 'create', value: {firstName: 'Jane', lastName: 'Doe'}
+            },
+            {
+                id: expect.anything(),
+                createdOn: 5,
+                collection: 'user', pk: 53,
+                operation: 'modify', field: 'lastName',
+                value: 'Trump',
+            },
+            {
+                id: expect.anything(),
+                createdOn: 6,
+                collection: 'user', pk: 54,
+                operation: 'modify', field: 'lastName',
+                value: 'Trump',
+            },
+        ])
+    })
+    
+    it('should write updateObject operations done on multiple fields to the ClientSyncLog in a batch write')
 })
