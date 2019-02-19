@@ -16,28 +16,32 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         const operationType = (operation[0] as string)
         if (operationType === 'createObject') {
             const [collection, value] = [operation[1], operation[2]]
-            const batch = [{placeholder: 'object', operation: operationType, collection, args: value}]
-            batch.push({
-                placeholder: 'logEntry',
-                operation: 'createObject',
-                collection: 'clientSyncLog',
-                args: {
-                    collection,
-                    createdOn: this._getNow(),
-                    operation: 'create',
-                    pk: getObjectPk(value, collection, this._storageManager.registry),
-                    value: getObjectWithoutPk(value, collection, this._storageManager.registry)
-                }
-            })
-            const result = await next.process({operation: [
-                'executeBatch',
-                batch
-            ]})
-            const object = result.info.object.object
-            return {object}
+            return this._processCreateObject(next, collection, value)
         }
 
         return next.process({operation})
+    }
+
+    async _processCreateObject(next, collection : string, value : any) {
+        const batch = [{placeholder: 'object', operation: 'createObject', collection, args: value}]
+        batch.push({
+            placeholder: 'logEntry',
+            operation: 'createObject',
+            collection: 'clientSyncLog',
+            args: {
+                collection,
+                createdOn: this._getNow(),
+                operation: 'create',
+                pk: getObjectPk(value, collection, this._storageManager.registry),
+                value: getObjectWithoutPk(value, collection, this._storageManager.registry)
+            }
+        })
+        const result = await next.process({operation: [
+            'executeBatch',
+            batch
+        ]})
+        const object = result.info.object.object
+        return {object}
     }
 
     _getNow() {
