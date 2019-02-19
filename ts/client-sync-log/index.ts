@@ -3,7 +3,7 @@ import StorageManager from "@worldbrain/storex"
 import { StorageModule, StorageModuleCollections, StorageModuleConfig, _defaultOperationExecutor } from '@worldbrain/storex-pattern-modules'
 import { ClientSyncLogEntry } from "./types"
 
-export class SyncLogStorage extends StorageModule {
+export class ClientSyncLogStorage extends StorageModule {
     private _storageManager : StorageManager
 
     constructor({storageManager} : {storageManager : StorageManager}) {
@@ -18,7 +18,7 @@ export class SyncLogStorage extends StorageModule {
     getConfig() : StorageModuleConfig {
         return {
             collections: {
-                'syncLog': {
+                'clientSyncLog': {
                     version: new Date(2019, 2, 5),
                     fields: {
                         createdOn: {type: 'timestamp'},
@@ -35,18 +35,18 @@ export class SyncLogStorage extends StorageModule {
             operations: {
                 createEntry: {
                     operation: 'createObject',
-                    collection: 'syncLog',
+                    collection: 'clientSyncLog',
                 },
                 findEntriesCreatedAfter: {
                     operation: 'findObjects',
-                    collection: 'syncLog',
+                    collection: 'clientSyncLog',
                     args: [
                         {createdOn: {$gte: '$timestamp:timestamp'}},
                     ]
                 },
                 updateSyncedUntil: {
                     operation: 'updateObjects',
-                    collection: 'syncLog',
+                    collection: 'clientSyncLog',
                     args: [
                         {createdOn: {$lte: '$until:timestamp'}},
                         {syncedOn: '$syncedOn:timestamp'}
@@ -54,7 +54,7 @@ export class SyncLogStorage extends StorageModule {
                 },
                 findUnsyncedEntries: {
                     operation: 'findObjects',
-                    collection: 'syncLog',
+                    collection: 'clientSyncLog',
                     args: {
                         syncedOn: {$eq: null},
                     }

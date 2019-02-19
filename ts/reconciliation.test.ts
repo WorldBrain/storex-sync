@@ -1,5 +1,5 @@
 import * as expect from 'expect'
-import { ClientSyncLogEntry } from './sync-log/types';
+import { ClientSyncLogEntry } from './client-sync-log/types';
 import { reconcileSyncLog, ExecutableOperation } from './reconciliation';
 
 function test({logEntries, expectedOperations} : {logEntries : ClientSyncLogEntry[], expectedOperations? : ExecutableOperation[]}) {

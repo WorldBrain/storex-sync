@@ -2,7 +2,7 @@ import * as expect from 'expect'
 import StorageManager from '@worldbrain/storex'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
 import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
-import { SyncLogStorage } from './';
+import { ClientSyncLogStorage } from './';
 import { registerModuleCollections } from '@worldbrain/storex-pattern-modules';
 import { ClientSyncLogEntry } from './types';
 
@@ -36,7 +36,7 @@ const TEST_LOG_ENTRIES : ClientSyncLogEntry[] = [
 async function setupTest() {
     const backend = new DexieStorageBackend({idbImplementation: inMemory(), dbName: 'unittest'})
     const storageManager = new StorageManager({backend: backend as any})
-    const syncLogStorage = new SyncLogStorage({storageManager})
+    const syncLogStorage = new ClientSyncLogStorage({storageManager})
     registerModuleCollections(storageManager.registry, syncLogStorage)
     await storageManager.finishInitialization()
     return { syncLogStorage }

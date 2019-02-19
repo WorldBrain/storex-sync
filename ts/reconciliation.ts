@@ -1,4 +1,4 @@
-import { ClientSyncLogEntry, ClientSyncLogCreationEntry, ClientSyncLogDeletionEntry, ClientSyncLogModificationEntry } from "./sync-log/types"
+import { ClientSyncLogEntry, ClientSyncLogCreationEntry, ClientSyncLogDeletionEntry, ClientSyncLogModificationEntry } from "./client-sync-log/types"
 
 export interface ExecutableOperation {
     operation : string
