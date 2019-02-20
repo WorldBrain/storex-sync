@@ -35,6 +35,7 @@ describe('Sync logging middleware', () => {
             {
                 id: expect.anything(),
                 createdOn: 3,
+                syncedOn: null,
                 collection: 'user', pk: 53,
                 operation: 'create', value: {displayName: 'John Doe'}
             },
@@ -50,12 +51,14 @@ describe('Sync logging middleware', () => {
             {
                 id: expect.anything(),
                 createdOn: 3,
+                syncedOn: null,
                 collection: 'user', pk: 53,
                 operation: 'create', value: {displayName: 'John Doe'}
             },
             {
                 id: expect.anything(),
                 createdOn: 4,
+                syncedOn: null,
                 collection: 'user', pk: 53,
                 operation: 'modify', field: 'displayName',
                 value: 'Jack Doe',
@@ -75,12 +78,14 @@ describe('Sync logging middleware', () => {
             {
                 id: expect.anything(),
                 createdOn: 3,
+                syncedOn: null,
                 collection: 'user', pk: 53,
                 operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
             },
             {
                 id: expect.anything(),
                 createdOn: 4,
+                syncedOn: null,
                 collection: 'user', pk: 53,
                 operation: 'modify', field: 'firstName',
                 value: 'Jack',
@@ -88,6 +93,7 @@ describe('Sync logging middleware', () => {
             {
                 id: expect.anything(),
                 createdOn: 5,
+                syncedOn: null,
                 collection: 'user', pk: 53,
                 operation: 'modify', field: 'lastName',
                 value: 'Trump',
@@ -109,24 +115,28 @@ describe('Sync logging middleware', () => {
             {
                 id: expect.anything(),
                 createdOn: 3,
+                syncedOn: null,
                 collection: 'user', pk: 53,
                 operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
             },
             {
                 id: expect.anything(),
                 createdOn: 4,
+                syncedOn: null,
                 collection: 'user', pk: 54,
                 operation: 'create', value: {firstName: 'Jane', lastName: 'Doe'}
             },
             {
                 id: expect.anything(),
                 createdOn: 5,
+                syncedOn: null,
                 collection: 'user', pk: 55,
                 operation: 'create', value: {firstName: 'Jack', lastName: 'Daniels'}
             },
             {
                 id: expect.anything(),
                 createdOn: 6,
+                syncedOn: null,
                 collection: 'user', pk: 53,
                 operation: 'modify', field: 'lastName',
                 value: 'Trump',
@@ -134,6 +144,7 @@ describe('Sync logging middleware', () => {
             {
                 id: expect.anything(),
                 createdOn: 7,
+                syncedOn: null,
                 collection: 'user', pk: 54,
                 operation: 'modify', field: 'lastName',
                 value: 'Trump',
@@ -155,24 +166,28 @@ describe('Sync logging middleware', () => {
             {
                 id: expect.anything(),
                 createdOn: 3,
+                syncedOn: null,
                 collection: 'user', pk: 53,
                 operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
             },
             {
                 id: expect.anything(),
                 createdOn: 4,
+                syncedOn: null,
                 collection: 'user', pk: 54,
                 operation: 'create', value: {firstName: 'Jane', lastName: 'Doe'}
             },
             {
                 id: expect.anything(),
                 createdOn: 5,
+                syncedOn: null,
                 collection: 'user', pk: 55,
                 operation: 'create', value: {firstName: 'Jack', lastName: 'Daniels'}
             },
             {
                 id: expect.anything(),
                 createdOn: 6,
+                syncedOn: null,
                 collection: 'user', pk: 53,
                 operation: 'modify', field: 'firstName',
                 value: 'Pinata',
@@ -180,6 +195,7 @@ describe('Sync logging middleware', () => {
             {
                 id: expect.anything(),
                 createdOn: 7,
+                syncedOn: null,
                 collection: 'user', pk: 53,
                 operation: 'modify', field: 'lastName',
                 value: 'Trump',
@@ -187,6 +203,7 @@ describe('Sync logging middleware', () => {
             {
                 id: expect.anything(),
                 createdOn: 8,
+                syncedOn: null,
                 collection: 'user', pk: 54,
                 operation: 'modify', field: 'firstName',
                 value: 'Pinata',
@@ -194,6 +211,7 @@ describe('Sync logging middleware', () => {
             {
                 id: expect.anything(),
                 createdOn: 9,
+                syncedOn: null,
                 collection: 'user', pk: 54,
                 operation: 'modify', field: 'lastName',
                 value: 'Trump',
