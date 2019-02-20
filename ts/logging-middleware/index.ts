@@ -79,7 +79,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
     }
 
     async _processUpdateObjects(next, collection : string, where : any, updates : any) {
-        const affected = await next.process({operation: ['findObjects', collection, {where}]})
+        const affected = await next.process({operation: ['findObjects', collection, where]})
         const batch : OperationBatch = [{placeholder: 'object', operation: 'updateObjects', collection, where, updates}]
         for (const object of affected) {
             const pk = getObjectPk(object, collection, this._storageManager.registry)

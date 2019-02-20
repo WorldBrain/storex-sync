@@ -121,7 +121,7 @@ describe('Sync logging middleware', () => {
             {
                 id: expect.anything(),
                 createdOn: 5,
-                collection: 'user', pk: 56,
+                collection: 'user', pk: 55,
                 operation: 'create', value: {firstName: 'Jack', lastName: 'Daniels'}
             },
             {
@@ -167,33 +167,33 @@ describe('Sync logging middleware', () => {
             {
                 id: expect.anything(),
                 createdOn: 5,
-                collection: 'user', pk: 56,
+                collection: 'user', pk: 55,
                 operation: 'create', value: {firstName: 'Jack', lastName: 'Daniels'}
             },
             {
                 id: expect.anything(),
-                createdOn: 5,
+                createdOn: 6,
                 collection: 'user', pk: 53,
                 operation: 'modify', field: 'firstName',
                 value: 'Pinata',
             },
             {
                 id: expect.anything(),
-                createdOn: 5,
+                createdOn: 7,
                 collection: 'user', pk: 53,
                 operation: 'modify', field: 'lastName',
                 value: 'Trump',
             },
             {
                 id: expect.anything(),
-                createdOn: 6,
+                createdOn: 8,
                 collection: 'user', pk: 54,
                 operation: 'modify', field: 'firstName',
                 value: 'Pinata',
             },
             {
                 id: expect.anything(),
-                createdOn: 6,
+                createdOn: 9,
                 collection: 'user', pk: 54,
                 operation: 'modify', field: 'lastName',
                 value: 'Trump',
