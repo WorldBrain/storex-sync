@@ -21,7 +21,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
                 batch.push({
                     placeholder: 'logEntry',
                     operation: 'createObject',
-                    collection: 'clientSyncLog',
+                    collection: 'clientSyncLogEntry',
                     args: logEntry
                 })
             }

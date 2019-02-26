@@ -6,7 +6,7 @@ export class ClientSyncLogStorage extends StorageModule {
     getConfig() : StorageModuleConfig {
         return {
             collections: {
-                'clientSyncLog': {
+                clientSyncLogEntry: {
                     version: new Date(2019, 2, 5),
                     fields: {
                         createdOn: {type: 'timestamp'},
@@ -23,18 +23,18 @@ export class ClientSyncLogStorage extends StorageModule {
             operations: {
                 createEntry: {
                     operation: 'createObject',
-                    collection: 'clientSyncLog',
+                    collection: 'clientSyncLogEntry',
                 },
                 findEntriesCreatedAfter: {
                     operation: 'findObjects',
-                    collection: 'clientSyncLog',
+                    collection: 'clientSyncLogEntry',
                     args: [
                         {createdOn: {$gte: '$timestamp:timestamp'}},
                     ]
                 },
                 updateSyncedUntil: {
                     operation: 'updateObjects',
-                    collection: 'clientSyncLog',
+                    collection: 'clientSyncLogEntry',
                     args: [
                         {createdOn: {$lte: '$until:timestamp'}},
                         {syncedOn: '$syncedOn:timestamp'}
@@ -42,7 +42,7 @@ export class ClientSyncLogStorage extends StorageModule {
                 },
                 findUnsyncedEntries: {
                     operation: 'findObjects',
-                    collection: 'clientSyncLog',
+                    collection: 'clientSyncLogEntry',
                     args: {
                         syncedOn: {$eq: null},
                     }

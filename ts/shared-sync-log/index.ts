@@ -3,7 +3,11 @@ import { StorageModule, StorageModuleConfig } from '@worldbrain/storex-pattern-m
 export class SharedSyncLogStorage extends StorageModule {
     getConfig() : StorageModuleConfig {
         return {
-            collections: {},
+            collections: {
+                sharedSyncLogEntry: {
+                    
+                }
+            },
             operations: {}
         }
     }
