@@ -1,20 +1,8 @@
 const sortBy = require('lodash/sortBy')
-import StorageManager from "@worldbrain/storex"
-import { StorageModule, StorageModuleCollections, StorageModuleConfig, _defaultOperationExecutor } from '@worldbrain/storex-pattern-modules'
+import { StorageModule, StorageModuleConfig } from '@worldbrain/storex-pattern-modules'
 import { ClientSyncLogEntry } from "./types"
 
 export class ClientSyncLogStorage extends StorageModule {
-    private _storageManager : StorageManager
-
-    constructor({storageManager} : {storageManager : StorageManager}) {
-        super({storageManager, operationExecuter: _defaultOperationExecutor(
-            storageManager,
-            // true
-        )})
-
-        this._storageManager = storageManager
-    }
-
     getConfig() : StorageModuleConfig {
         return {
             collections: {

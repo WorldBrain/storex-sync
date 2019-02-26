@@ -2,8 +2,8 @@ import * as expect from 'expect'
 import StorageManager from '@worldbrain/storex'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
 import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
-import { ClientSyncLogStorage } from './';
 import { registerModuleCollections } from '@worldbrain/storex-pattern-modules';
+import { ClientSyncLogStorage } from './';
 import { ClientSyncLogEntry } from './types';
 
 const TEST_LOG_ENTRIES : ClientSyncLogEntry[] = [
