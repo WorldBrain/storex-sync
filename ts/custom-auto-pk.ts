@@ -46,7 +46,6 @@ export class CustomAutoPkMiddleware implements StorageMiddleware {
         }
 
         const batchResult = await next.process({ operation: ['executeBatch', batch] })
-        console.log(batchResult.info)
         reconstructCreatedObjectFromBatchResult({
             object, collection: mainCollection, storageRegistry: this._storageRegistry,
             operationDissection, batchResultInfo: batchResult.info

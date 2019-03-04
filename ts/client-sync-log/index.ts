@@ -1,6 +1,7 @@
 const sortBy = require('lodash/sortBy')
 import { StorageModule, StorageModuleConfig } from '@worldbrain/storex-pattern-modules'
 import { ClientSyncLogEntry } from "./types"
+import { SharedSyncLogEntry } from '../shared-sync-log/types';
 
 export class ClientSyncLogStorage extends StorageModule {
     getConfig() : StorageModuleConfig {
@@ -10,14 +11,18 @@ export class ClientSyncLogStorage extends StorageModule {
                     version: new Date(2019, 2, 5),
                     fields: {
                         createdOn: {type: 'timestamp'},
-                        syncedOn: {type: 'timestamp', optional: true},
+                        sharedOn: {type: 'timestamp', optional: true}, // when was this sent or received?
+                        needsIntegration: {type: 'boolean', optional: true},
                         collection: {type: 'string'},
                         pk: {type: 'json'},
                         field: {type: 'string', optional: true},
                         operation: {type: 'string'},
                         value: {type: 'json', optional: true},
                     },
-                    indices: [{field: 'createdOn'}]
+                    indices: [
+                        {field: 'createdOn'},
+                        {field: ['collection', 'pk']}
+                    ]
                 }
             },
             operations: {
@@ -32,20 +37,44 @@ export class ClientSyncLogStorage extends StorageModule {
                         {createdOn: {$gte: '$timestamp:timestamp'}},
                     ]
                 },
-                updateSyncedUntil: {
+                updateSharedUntil: {
                     operation: 'updateObjects',
                     collection: 'clientSyncLogEntry',
                     args: [
                         {createdOn: {$lte: '$until:timestamp'}},
-                        {syncedOn: '$syncedOn:timestamp'}
+                        {sharedOn: '$sharedOn:timestamp'}
                     ]
                 },
-                findUnsyncedEntries: {
+                findUnsharedEntries: {
                     operation: 'findObjects',
                     collection: 'clientSyncLogEntry',
                     args: {
-                        syncedOn: {$eq: null},
+                        sharedOn: {$eq: null},
                     }
+                },
+                markAsIntegrated: {
+                    operation: 'updateObjects',
+                    collection: 'clientSyncLogEntry',
+                    args: [
+                        {id: {$in: '$ids:array:pk'}},
+                        {needsIntegration: false}
+                    ]
+                },
+                findFirstUnintegratedEntry: {
+                    operation: 'findObjects',
+                    collection: 'clientSyncLogEntry',
+                    args: [
+                        { needsIntegration: true },
+                        { sort: [['createdOn', 'asc']], limit: 1 }
+                    ]
+                },
+                findEntriesByObjectPk: {
+                    operation: 'findObjects',
+                    collection: 'clientSyncLogEntry',
+                    args: [
+                        { collection: '$collection:string', pk: '$pk' },
+                        { sort: [['createdOn', 'asc']] }
+                    ]
                 }
             }
         }
@@ -57,15 +86,47 @@ export class ClientSyncLogStorage extends StorageModule {
         }
     }
 
+    async insertReceivedEntries(sharedEntries : SharedSyncLogEntry[], options : {now : number}) {
+        await this.insertEntries(sharedEntries.map(sharedEntry => {
+            const data = JSON.parse(sharedEntry.data)
+            const clientEntry : ClientSyncLogEntry = {
+                createdOn: sharedEntry.createdOn,
+                sharedOn: options.now,
+                needsIntegration: true,
+                operation: data.operation,
+                collection: data.collection,
+                pk: data.pk,
+                field: data.field,
+                value: data.value,
+            }
+            return clientEntry
+        }))
+    }
+
     async getEntriesCreatedAfter(timestamp : number) : Promise<ClientSyncLogEntry[]> {
         return sortBy(await this.operation('findEntriesCreatedAfter', {timestamp}), 'createdOn')
     }
 
-    async updateSyncedUntil({until, syncedOn} : {until : number, syncedOn : number}) {
-        await this.operation('updateSyncedUntil', {until, syncedOn})
+    async updateSharedUntil({until, sharedOn} : {until : number, sharedOn : number}) {
+        await this.operation('updateSharedUntil', {until, sharedOn})
     }
 
-    async getUnsyncedEntries() {
-        return sortBy(await this.operation('findUnsyncedEntries', {}), 'createdOn')
+    async getUnsharedEntries() {
+        return sortBy(await this.operation('findUnsharedEntries', {}), 'createdOn')
+    }
+
+    async markAsIntegrated(entries : ClientSyncLogEntry[]) {
+        await this.operation('markAsIntegrated', {ids: entries.map(entry => entry.id)})
+    }
+
+    async getNextEntriesToIntgrate() : Promise<ClientSyncLogEntry[]> {
+        const firstEntryList = await this.operation('findFirstUnintegratedEntry', {})
+        if (!firstEntryList.length) {
+            return null
+        }
+
+        const firstEntry = firstEntryList[0]
+        const entries = await this.operation('findEntriesByObjectPk', {collection: firstEntry.collection, pk: firstEntry.pk})
+        return entries
     }
 }

@@ -25,7 +25,8 @@ async function _processCreateObject({operation, executeAndLog, getNow, storageRe
         [{
             collection,
             createdOn: getNow(),
-            syncedOn: null,
+            needsIntegration: false,
+            sharedOn: null,
             operation: 'create',
             pk: getObjectPk(value, collection, storageRegistry),
             value: getObjectWithoutPk(value, collection, storageRegistry)
@@ -42,7 +43,8 @@ async function _processUpdateObject({operation, executeAndLog, getNow, storageRe
     for (const [fieldName, newValue] of Object.entries(updates)) {
         logEntries.push({
             createdOn: getNow(),
-            syncedOn: null,
+            sharedOn: null,
+            needsIntegration: false,
             field: fieldName,
             collection,
             operation: 'modify',
@@ -65,7 +67,8 @@ async function _processUpdateObjects({next, operation, executeAndLog, getNow, st
         for (const [fieldName, newValue] of Object.entries(updates)) {
             logEntries.push({
                 createdOn: getNow(),
-                syncedOn: null,
+                sharedOn: null,
+                needsIntegration: false,
                 field: fieldName,
                 collection,
                 operation: 'modify',

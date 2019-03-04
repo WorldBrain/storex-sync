@@ -12,8 +12,8 @@ function test({logEntries, expectedOperations} : {logEntries : ClientSyncLogEntr
 describe('Reconciliation', () => {
     it('should choose the newest write when finding two entries for the same object field', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'modify', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
-            {operation: 'modify', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'first'},
+            {operation: 'modify', createdOn: 2, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'modify', createdOn: 1, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', field: 'title', value: 'first'},
         ]
 
         test({logEntries, expectedOperations: [
@@ -23,9 +23,9 @@ describe('Reconciliation', () => {
 
     it('should choose the newest write when finding more than two entries for the same object field', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'modify', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
-            {operation: 'modify', createdOn: 3, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'third'},
-            {operation: 'modify', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'first'},
+            {operation: 'modify', createdOn: 2, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'modify', createdOn: 3, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', field: 'title', value: 'third'},
+            {operation: 'modify', createdOn: 1, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', field: 'title', value: 'first'},
         ]
 
         test({logEntries, expectedOperations: [
@@ -35,8 +35,8 @@ describe('Reconciliation', () => {
 
     it('should ignore writes to an object that needs deletion', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'modify', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
-            {operation: 'delete', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one'},
+            {operation: 'modify', createdOn: 2, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'delete', createdOn: 1, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one'},
         ]
 
         test({logEntries, expectedOperations: [
@@ -46,9 +46,9 @@ describe('Reconciliation', () => {
 
     it('should ignore writes to an already deleted object', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'modify', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
-            {operation: 'delete', createdOn: 4, syncedOn: 3, collection: 'lists', pk: 'list-one'},
-            {operation: 'delete', createdOn: 1, syncedOn: 3, collection: 'lists', pk: 'list-one'},
+            {operation: 'modify', createdOn: 2, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'delete', createdOn: 4, sharedOn: 3, needsIntegration: true, collection: 'lists', pk: 'list-one'},
+            {operation: 'delete', createdOn: 1, sharedOn: 3, needsIntegration: true, collection: 'lists', pk: 'list-one'},
         ]
 
         test({logEntries, expectedOperations: []})
@@ -56,7 +56,7 @@ describe('Reconciliation', () => {
 
     it('should work with only one delete', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'delete', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one'},
+            {operation: 'delete', createdOn: 1, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one'},
         ]
 
         test({logEntries, expectedOperations:  [
@@ -66,8 +66,8 @@ describe('Reconciliation', () => {
 
     it('should ignore double deletes', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'delete', createdOn: 4, syncedOn: null, collection: 'lists', pk: 'list-one'},
-            {operation: 'delete', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one'},
+            {operation: 'delete', createdOn: 4, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one'},
+            {operation: 'delete', createdOn: 1, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one'},
         ]
 
         test({logEntries, expectedOperations: [
@@ -77,7 +77,7 @@ describe('Reconciliation', () => {
 
     it('should work with deletes having compound keys', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'delete', createdOn: 4, syncedOn: null, collection: 'listEntry', pk: ['list-one', 3]},
+            {operation: 'delete', createdOn: 4, sharedOn: null, needsIntegration: true, collection: 'listEntry', pk: ['list-one', 3]},
         ]
 
         test({logEntries, expectedOperations: [
@@ -87,8 +87,8 @@ describe('Reconciliation', () => {
 
     it('should ignore writes that are already synced', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'modify', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
-            {operation: 'modify', createdOn: 2, syncedOn: 3, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'modify', createdOn: 1, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'modify', createdOn: 2, sharedOn: 3, needsIntegration: true, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
         ]
 
         test({logEntries, expectedOperations: []})
@@ -96,7 +96,7 @@ describe('Reconciliation', () => {
 
     it('should create objects', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'create', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first'}}
+            {operation: 'create', createdOn: 1, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first'}}
         ]
 
         test({logEntries, expectedOperations: [
@@ -106,8 +106,8 @@ describe('Reconciliation', () => {
     
     it('should consolidate object creation with object updates', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'modify', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
-            {operation: 'create', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
+            {operation: 'modify', createdOn: 2, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'create', createdOn: 1, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
         ]
 
         test({logEntries, expectedOperations: [
@@ -117,9 +117,9 @@ describe('Reconciliation', () => {
     
     it('should consolidate object creation with object deletion', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'modify', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
-            {operation: 'create', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
-            {operation: 'delete', createdOn: 3, syncedOn: null, collection: 'lists', pk: 'list-one'},
+            {operation: 'modify', createdOn: 2, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'create', createdOn: 1, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
+            {operation: 'delete', createdOn: 3, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one'},
         ]
 
         test({logEntries, expectedOperations: []})
@@ -127,8 +127,8 @@ describe('Reconciliation', () => {
 
     it('should complain about double creates', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'create', createdOn: 1, syncedOn: 1, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
-            {operation: 'create', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
+            {operation: 'create', createdOn: 1, sharedOn: 1, needsIntegration: true, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
+            {operation: 'create', createdOn: 2, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
         ]
         
         expect(() => test({logEntries})).toThrow(`Detected double create in collection 'lists', pk '"list-one"'`)
@@ -136,8 +136,8 @@ describe('Reconciliation', () => {
 
     it('should complain about modifications made to an object before creation', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'modify', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
-            {operation: 'create', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
+            {operation: 'modify', createdOn: 1, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'create', createdOn: 2, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
         ]
 
         expect(() => test({logEntries})).toThrow(
@@ -147,8 +147,8 @@ describe('Reconciliation', () => {
 
     it('should complain about modifications made to an object before creation even if received in the right order', () => {
         const logEntries : ClientSyncLogEntry[] = [
-            {operation: 'create', createdOn: 2, syncedOn: null, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
-            {operation: 'modify', createdOn: 1, syncedOn: null, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
+            {operation: 'create', createdOn: 2, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', value: {pk: 'list-one', title: 'first', prio: 5}},
+            {operation: 'modify', createdOn: 1, sharedOn: null, needsIntegration: true, collection: 'lists', pk: 'list-one', field: 'title', value: 'second'},
         ]
 
         expect(() => test({logEntries})).toThrow(

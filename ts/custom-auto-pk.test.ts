@@ -56,4 +56,6 @@ describe('CustomAutoPkMiddleware', () => {
     it('should be able to set custom auto PKs on batches')
 
     it('should be able to migrate from normal to custom auto PKs')
+
+    it('should not override manually provided PKs')
 })

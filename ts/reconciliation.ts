@@ -57,7 +57,7 @@ export function _processCreationEntry(
     if (!objectModifications) {
         const fields = {}
         for (const [key, value] of Object.entries(logEntry.value)) {
-            fields[key] = {value, createdOn: logEntry.createdOn, syncedOn: logEntry.syncedOn}
+            fields[key] = {value, createdOn: logEntry.createdOn, syncedOn: logEntry.sharedOn}
         }
         collectionModifications[pkAsJson] = {
             shouldBeCreated: true, createdOn: logEntry.createdOn,
@@ -72,7 +72,7 @@ export function _processCreationEntry(
         const fields = objectModifications.fields
         for (const [key, value] of Object.entries(logEntry.value)) {
             if (!fields[key]) {
-                fields[key] = {value, createdOn: logEntry.createdOn, syncedOn: logEntry.syncedOn}
+                fields[key] = {value, createdOn: logEntry.createdOn, syncedOn: logEntry.sharedOn}
             } else if (logEntry.createdOn > fields[key].createdOn) {
                 _throwModificationBeforeCreation(logEntry)
             }
@@ -87,7 +87,7 @@ export function _processDeletionEntry(
     {objectModifications : ObjectModifications, logEntry : ClientSyncLogDeletionEntry,
      collectionModifications : CollectionModifications, pkAsJson : any}
 ) {
-    const updates = {isDeleted: !!logEntry.syncedOn, shouldBeDeleted: true, fields: {}}
+    const updates = {isDeleted: !!logEntry.sharedOn, shouldBeDeleted: true, fields: {}}
     if (!objectModifications) {
         collectionModifications[pkAsJson] = {shouldBeCreated: false, ...updates}
     } else (
@@ -100,11 +100,11 @@ export function _processModificationEntry(
     {objectModifications : ObjectModifications, logEntry : ClientSyncLogModificationEntry,
      collectionModifications : CollectionModifications, pkAsJson : any}
 ) {
-    const updates = {createdOn: logEntry.createdOn, syncedOn: logEntry.syncedOn, value: logEntry.value}
+    const updates = {createdOn: logEntry.createdOn, syncedOn: logEntry.sharedOn, value: logEntry.value}
     if (!objectModifications) {
         collectionModifications[pkAsJson] = {
             shouldBeCreated: false,
-            isDeleted: !!logEntry.syncedOn,
+            isDeleted: !!logEntry.sharedOn,
             shouldBeDeleted: false,
             fields: {[logEntry.field]: updates}
         }

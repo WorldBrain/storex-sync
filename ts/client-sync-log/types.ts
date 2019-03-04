@@ -1,7 +1,8 @@
 interface ClientSyncLogEntryBase {
     id?: any
     createdOn : number
-    syncedOn : number
+    sharedOn? : number
+    needsIntegration : boolean
     collection : string
     pk : any
 }
