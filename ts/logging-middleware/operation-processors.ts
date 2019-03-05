@@ -68,6 +68,20 @@ async function _processUpdateObject({operation, executeAndLog, getNow, storageRe
 
 async function _processUpdateObjects({next, operation, executeAndLog, getNow, storageRegistry} : OperationProcessorArgs) {
     const [collection, where, updates] = operation.slice(1)
+    const logEntries : ClientSyncLogEntry[] = await _logEntriesForUpdateObjects({
+        next, collection, where, updates, getNow, storageRegistry
+    })
+    
+    await executeAndLog(
+        {placeholder: 'update', operation: 'updateObjects', collection, where, updates},
+        logEntries,
+    )
+}
+
+async function _logEntriesForUpdateObjects(
+    {next, collection, where, updates, getNow, storageRegistry} :
+    {next : {process: ({operation}) => any}, collection : string, where, updates, getNow : () => number, storageRegistry : StorageRegistry}
+) {
     const affected = await next.process({operation: ['findObjects', collection, where]})
     const logEntries : ClientSyncLogEntry[] = []
     for (const object of affected) {
@@ -85,11 +99,7 @@ async function _processUpdateObjects({next, operation, executeAndLog, getNow, st
             })
         }
     }
-    
-    await executeAndLog(
-        {placeholder: 'update', operation: 'updateObjects', collection, where, updates},
-        logEntries,
-    )
+    return logEntries
 }
 
 async function _processExecuteBatch({next, operation, executeAndLog, getNow, storageRegistry} : OperationProcessorArgs) {
