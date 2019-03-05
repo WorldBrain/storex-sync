@@ -16,7 +16,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
     
     async process({next, operation} : {next : {process: ({operation}) => any}, operation : any[]}) {
         const executeAndLog = (originalOperation, logEntries : ClientSyncLogEntry[]) => {
-            const batch = [originalOperation]
+            const batch = originalOperation instanceof Array ? originalOperation : [originalOperation]
             for (const logEntry of logEntries) {
                 batch.push({
                     placeholder: 'logEntry',

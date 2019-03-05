@@ -2,7 +2,8 @@ import { StorageModule, StorageModuleConfig } from '@worldbrain/storex-pattern-m
 import { SharedSyncLogEntry } from './types'
 
 export interface SharedSyncLog {
-    writeEntries(entries : SharedSyncLogEntry[], options : { deviceId }) : Promise<void>
+    createDeviceId(options : {userId, sharedUntil : number}) : Promise<string>
+    writeEntries(entries : SharedSyncLogEntry[], options : { userId, deviceId }) : Promise<void>
     getUnsyncedEntries(options : { deviceId }) : Promise<SharedSyncLogEntry[]>
     updateSharedUntil(args : { until : number, deviceId }) : Promise<void>
 }
@@ -27,7 +28,6 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                         userId: {type: 'string'},
                         sharedUntil: {type: 'timestamp'},
                     },
-                    uniqueTogether: [['id', 'userId']]
                 }
             },
             operations: {

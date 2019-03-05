@@ -4,11 +4,10 @@ import { ClientSyncLogEntry } from "./client-sync-log/types"
 import { SharedSyncLog } from "./shared-sync-log"
 import { ExecutableOperation } from "./reconciliation"
 
-export async function shareLogEntries(args : {clientSyncLog : ClientSyncLogStorage, sharedSyncLog : SharedSyncLog, deviceId}) {
-    const sharedOn = Date.now()
+export async function shareLogEntries(args : {clientSyncLog : ClientSyncLogStorage, sharedSyncLog : SharedSyncLog, userId, deviceId, now : number}) {
     const entries = await args.clientSyncLog.getUnsharedEntries()
-    await args.sharedSyncLog.writeEntries(entries, {deviceId: args.deviceId})
-    await args.clientSyncLog.updateSharedUntil({until: entries.slice(-1)[0], sharedOn})
+    await args.sharedSyncLog.writeEntries(entries, {userId: args.userId, deviceId: args.deviceId})
+    await args.clientSyncLog.updateSharedUntil({until: entries.slice(-1)[0], sharedOn: args.now})
 }
 
 export async function receiveLogEntries(args : {clientSyncLog : ClientSyncLogStorage, sharedSyncLog : SharedSyncLog, deviceId}) {
@@ -25,15 +24,16 @@ export async function writeReconcilation(args : {
     await args.storageManager.operation('executeBatch', args.reconciliation)
 }
 
-export async function sync({clientSyncLog, sharedSyncLog, storageManager, reconciler, now, deviceId} : {
+export async function sync({clientSyncLog, sharedSyncLog, storageManager, reconciler, now, userId, deviceId} : {
     clientSyncLog : ClientSyncLogStorage,
     sharedSyncLog : SharedSyncLog,
     storageManager : StorageManager,
     reconciler : (logEntries : ClientSyncLogEntry[]) => Promise<ExecutableOperation[]> | ExecutableOperation[],
     now : number,
-    deviceId : string,
+    userId,
+    deviceId,
 }) {
-    await shareLogEntries({clientSyncLog, sharedSyncLog, deviceId})
+    await shareLogEntries({clientSyncLog, sharedSyncLog, userId, deviceId, now})
     await receiveLogEntries({clientSyncLog, sharedSyncLog, deviceId})
 
     while (true) {

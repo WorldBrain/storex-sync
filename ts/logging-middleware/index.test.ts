@@ -236,4 +236,41 @@ describe('Sync logging middleware', () => {
             },
         ])
     })
+
+    it('should correctly process batch operations with createObject operations', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.operation('executeBatch', [
+            {
+                placeholder: 'john',
+                operation: 'createObject',
+                collection: 'user',
+                args: {id: 53, displayName: 'John Doe'}
+            },
+            {
+                placeholder: 'jane',
+                operation: 'createObject',
+                collection: 'user',
+                args: {id: 54, displayName: 'Jane Does'}
+            },
+        ])
+        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+            {
+                id: expect.anything(),
+                createdOn: 3,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'create', value: {displayName: 'John Doe'}
+            },
+            {
+                id: expect.anything(),
+                createdOn: 4,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 54,
+                operation: 'create', value: {displayName: 'Jane Does'}
+            },
+        ])
+    })
 })

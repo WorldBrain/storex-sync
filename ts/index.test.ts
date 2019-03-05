@@ -9,6 +9,7 @@ import { shareLogEntries } from '.';
 describe('Storex sync integration tests', () => {
     async function setupBackend(options) {
         return setupStorexTest<{sharedSyncLog : SharedSyncLogStorage}>({
+            dbName: 'backend',
             collections: {},
             modules: {
                 sharedSyncLog: ({storageManager}) => new SharedSyncLogStorage({storageManager})
@@ -16,8 +17,9 @@ describe('Storex sync integration tests', () => {
         })
     }
 
-    async function setupClient(options : {backend, pkGenerator : () => string}) {
+    async function setupClient(options : {backend, clientName : string, pkGenerator : () => string}) {
         const { storageManager, modules } = await setupStorexTest<{clientSyncLog : ClientSyncLogStorage}>({
+            dbName: `client-${options.clientName}`,
             collections: {
                 user: {
                     version: new Date('2019-01-01'),
@@ -59,11 +61,18 @@ describe('Storex sync integration tests', () => {
             const pkGenerator = () => `id-${++idsGenerated}`
     
             const backend = await setupBackend({})
-            const client1 = await setupClient({backend, pkGenerator})
+            const client1 = await setupClient({backend, clientName: 'one', pkGenerator})
             client1.objects['1'] = (await client1.storageManager.collection('user').createObject({displayName: 'Joe', emails: [{address: 'joe@doe.com'}]})).object
+            // console.log(await client1.modules.clientSyncLog.getEntriesCreatedAfter(1))
 
-            await shareLogEntries({sharedSyncLog: backend.modules.sharedSyncLog, clientSyncLog: client1.modules.clientSyncLog, deviceId: 1})
-            expect(backend.modules.sharedSyncLog.getUnsyncedEntries({deviceId: 2})).toEqual([
+            const userId = 1
+            const device1 = await backend.modules.sharedSyncLog.createDeviceId({ userId, sharedUntil: 10 })
+            const device2 = await backend.modules.sharedSyncLog.createDeviceId({ userId, sharedUntil: 10 })
+            await shareLogEntries({
+                sharedSyncLog: backend.modules.sharedSyncLog, clientSyncLog: client1.modules.clientSyncLog,
+                userId: 1, deviceId: device1, now: 55
+            })
+            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({deviceId: device2})).toEqual([
 
             ])
         })

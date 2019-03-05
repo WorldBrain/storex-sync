@@ -105,6 +105,7 @@ describe('Client sync log', () => {
         await syncLogStorage.insertReceivedEntries(TEST_LOG_ENTRIES.slice(0, 1).map(entry => ({
             userId: 'test-user-1',
             createdOn: entry.createdOn,
+            sharedOn: now - 10,
             data: JSON.stringify({
                 collection: entry.collection,
                 pk: entry.pk,
