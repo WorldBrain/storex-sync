@@ -111,7 +111,7 @@ async function _processExecuteBatch({next, operation, executeAndLog, getNow, sto
         }
     }
 
-    await executeAndLog(
+    return executeAndLog(
         batch,
         logEntries,
     )
