@@ -14,7 +14,7 @@ export async function shareLogEntries(args : {clientSyncLog : ClientSyncLogStora
 export async function receiveLogEntries(args : {clientSyncLog : ClientSyncLogStorage, sharedSyncLog : SharedSyncLog, deviceId}) {
     const sharedUntil = Date.now()
     const entries = await args.sharedSyncLog.getUnsyncedEntries({deviceId: args.deviceId})
-    await args.clientSyncLog.insertReceivedEntries(entries)
+    await args.clientSyncLog.insertReceivedEntries(entries, {now: sharedUntil})
     await args.sharedSyncLog.updateSharedUntil({until: sharedUntil, deviceId: args.deviceId})
 }
 
