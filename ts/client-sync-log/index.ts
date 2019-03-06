@@ -111,7 +111,7 @@ export class ClientSyncLogStorage extends StorageModule {
         await this.operation('updateSharedUntil', {until, sharedOn})
     }
 
-    async getUnsharedEntries() {
+    async getUnsharedEntries() : Promise<ClientSyncLogEntry[]> {
         return sortBy(await this.operation('findUnsharedEntries', {}), 'createdOn')
     }
 

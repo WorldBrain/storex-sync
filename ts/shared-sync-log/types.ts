@@ -1,5 +1,6 @@
 export interface SharedSyncLogEntry {
-    userId : string
+    userId : any
+    deviceId : any
     createdOn : number
     sharedOn : number
     data : string

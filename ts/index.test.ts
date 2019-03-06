@@ -17,7 +17,7 @@ describe('Storex sync integration tests', () => {
         })
     }
 
-    async function setupClient(options : {backend, clientName : string, pkGenerator : () => string}) {
+    async function setupClient(options : {backend, clientName : string, getNow : () => number, pkGenerator : () => string}) {
         const { storageManager, modules } = await setupStorexTest<{clientSyncLog : ClientSyncLogStorage}>({
             dbName: `client-${options.clientName}`,
             collections: {
@@ -41,11 +41,16 @@ describe('Storex sync integration tests', () => {
                 clientSyncLog: ({storageManager}) => new ClientSyncLogStorage({storageManager})
             }
         })
+        
         const pkMiddleware = new CustomAutoPkMiddleware({ pkGenerator: options.pkGenerator })
         pkMiddleware.setup({ storageRegistry: storageManager.registry, collections: ['user', 'email'] })
+
+        const syncLoggingMiddleware = new SyncLoggingMiddleware({ storageManager, clientSyncLog: modules.clientSyncLog })
+        syncLoggingMiddleware._getNow = options.getNow
+
         storageManager.setMiddleware([
             pkMiddleware,
-            new SyncLoggingMiddleware({storageManager, clientSyncLog: modules.clientSyncLog})
+            syncLoggingMiddleware
         ])
 
         const sync = async () => {
@@ -59,12 +64,13 @@ describe('Storex sync integration tests', () => {
         it('should correctly share log entries', async () => {
             let idsGenerated = 0
             const pkGenerator = () => `id-${++idsGenerated}`
+
+            let now = 1
     
             const backend = await setupBackend({})
-            const client1 = await setupClient({backend, clientName: 'one', pkGenerator})
+            const client1 = await setupClient({backend, clientName: 'one', getNow: () => ++now, pkGenerator})
             client1.objects['1'] = (await client1.storageManager.collection('user').createObject({displayName: 'Joe', emails: [{address: 'joe@doe.com'}]})).object
-            // console.log(await client1.modules.clientSyncLog.getEntriesCreatedAfter(1))
-
+            
             const userId = 1
             const device1 = await backend.modules.sharedSyncLog.createDeviceId({ userId, sharedUntil: 10 })
             const device2 = await backend.modules.sharedSyncLog.createDeviceId({ userId, sharedUntil: 10 })
@@ -72,8 +78,24 @@ describe('Storex sync integration tests', () => {
                 sharedSyncLog: backend.modules.sharedSyncLog, clientSyncLog: client1.modules.clientSyncLog,
                 userId: 1, deviceId: device1, now: 55
             })
-            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({deviceId: device2})).toEqual([
 
+            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({deviceId: device2})).toEqual([
+                {
+                    id: expect.anything(),
+                    userId: 1,
+                    deviceId: 1,
+                    createdOn: 2,
+                    sharedOn: 55,
+                    data: '{"operation":"create","collection":"user","pk":"id-1","field":null,"value":{"displayName":"Joe"}}',
+                },
+                {
+                    id: expect.anything(),
+                    userId: 1,
+                    deviceId: 1,
+                    createdOn: 3,
+                    sharedOn: 55,
+                    data: '{"operation":"create","collection":"email","pk":"id-2","field":null,"value":{"address":"joe@doe.com"}}',
+                },
             ])
         })
     })
