@@ -35,7 +35,7 @@ export async function writeReconcilation(args : {
     await args.storageManager.operation('executeBatch', args.reconciliation)
 }
 
-export async function sync({clientSyncLog, sharedSyncLog, storageManager, reconciler, now, userId, deviceId} : {
+export async function doSync({clientSyncLog, sharedSyncLog, storageManager, reconciler, now, userId, deviceId} : {
     clientSyncLog : ClientSyncLogStorage,
     sharedSyncLog : SharedSyncLog,
     storageManager : StorageManager,
@@ -44,9 +44,9 @@ export async function sync({clientSyncLog, sharedSyncLog, storageManager, reconc
     userId,
     deviceId,
 }) {
-    await shareLogEntries({clientSyncLog, sharedSyncLog, userId, deviceId, now})
     await receiveLogEntries({clientSyncLog, sharedSyncLog, deviceId, now})
-
+    await shareLogEntries({clientSyncLog, sharedSyncLog, userId, deviceId, now})
+    
     while (true) {
         const entries = await clientSyncLog.getNextEntriesToIntgrate()
         if (!entries) {

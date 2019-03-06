@@ -4,7 +4,8 @@ import { SharedSyncLogStorage } from './shared-sync-log';
 import { ClientSyncLogStorage } from './client-sync-log';
 import { CustomAutoPkMiddleware } from './custom-auto-pk';
 import { SyncLoggingMiddleware } from './logging-middleware';
-import { shareLogEntries, receiveLogEntries } from '.';
+import { shareLogEntries, receiveLogEntries, doSync } from '.';
+import { reconcileSyncLog } from './reconciliation';
 
 type PromiseContentType<T> = T extends Promise<infer U> ? U : T
 
@@ -60,11 +61,7 @@ describe('Storex sync integration tests', () => {
             syncLoggingMiddleware
         ])
 
-        const sync = async () => {
-            
-        }
-
-        return { storageManager, modules, sync, deviceId: null, objects: {} }
+        return { storageManager, modules, deviceId: null, objects: {} }
     }
 
     async function setupTest(options : {clients? : {name : string}[], getNow : () => number}) {
@@ -203,17 +200,31 @@ describe('Storex sync integration tests', () => {
         })
     })
 
-    // it('should work when pulling changes after being offline', async () => {
-    //     let idsGenerated = 0
-    //     const pkGenerator = () => `id-${++idsGenerated}`
+    describe('doSync()', () => {
+        async function setupSyncTest() {
+            const { backend, clients, userId } = await setupTest({ clients: [{ name: 'one' }, { name: 'two' }], getNow: createGetNow({ start: 50 }) })
+            const sync = async (options : {clientName : string, now : number}) => {
+                const client = clients[options.clientName]
+                await doSync({
+                    clientSyncLog: client.modules.clientSyncLog,
+                    sharedSyncLog: backend.modules.sharedSyncLog,
+                    storageManager: client.storageManager,
+                    reconciler: reconcileSyncLog,
+                    now: options.now,
+                    userId,
+                    deviceId: client.deviceId
+                })
+            }
+            return { clients, sync }
+        }
 
-    //     const backend = await setupBackend({})
-    //     const client1 = await setupClient({backend, pkGenerator})
-    //     client1.objects['1'] = (await client1.storageManager.collection('user').createObject({displayName: 'Joe', emails: [{address: 'joe@doe.com'}]})).object
-    //     await client1.sync()
-    //     const client2 = await setupClient({backend, pkGenerator})
-    //     await client2.sync()
-    //     client2.objects['1'] = await client2.storageManager.collection('user').findObject({id: client1.objects['1'].id})
-    //     expect(client2.objects['1']).toEqual(client1.objects['1'])
-    // })
+        it('should work when pulling changes after being offline', async () => {
+            const { clients, sync } = await setupSyncTest()
+            clients.one.objects['1'] = (await clients.one.storageManager.collection('user').createObject({displayName: 'Joe', emails: [{address: 'joe@doe.com'}]})).object
+            await sync({clientName: 'one', now: 55})
+            // await sync({clientName: 'two', now: 60})
+            // clients.two.objects['1'] = await clients.two.storageManager.collection('user').findObject({id: clients.one.objects['1'].id})
+            // expect(clients.two.objects['1']).toEqual(clients.one.objects['1'])
+        })
+    })
 })
