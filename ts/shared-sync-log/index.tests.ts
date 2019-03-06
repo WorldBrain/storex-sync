@@ -1,25 +1,14 @@
 import * as expect from 'expect'
-import { setupStorexTest } from "@worldbrain/storex-pattern-modules/lib/index.tests";
-import { SharedSyncLogStorage } from ".";
-import { SharedSyncLogEntry } from './types';
+import { SharedSyncLog, SharedSyncLogEntry } from './types';
 
-describe('SharedSyncLogStorage', () => {
-    async function setupTest() {
-        return setupStorexTest<{sharedSyncLog : SharedSyncLogStorage}>({
-            collections: {},
-            modules: {
-                sharedSyncLog: (({ storageManager }) => new SharedSyncLogStorage({ storageManager }))
-            }
-        })
-    }
-
+export async function runTests(options : {createLog : () => Promise<SharedSyncLog>, cleanUp? : () => Promise<void>}) {
     it('should work', async () => {
-        const { modules: { sharedSyncLog } } = await setupTest()
+        const sharedSyncLog = await options.createLog()
         const entries : SharedSyncLogEntry[] = [
             {userId: 'joe', deviceId: 'joe1', createdOn: 2, sharedOn: 4, data: 'joe-1'},
             {userId: 'joe', deviceId: 'joe1', createdOn: 6, sharedOn: 8, data: 'joe-2'},
         ]
-
+    
         const firstDeviceId = await sharedSyncLog.createDeviceId({ userId: 1, sharedUntil: 2 })
         const secondDeviceId = await sharedSyncLog.createDeviceId({ userId: 1, sharedUntil: 2 })
         await sharedSyncLog.writeEntries(entries, { userId: 1, deviceId: firstDeviceId })
@@ -30,4 +19,4 @@ describe('SharedSyncLogStorage', () => {
         await sharedSyncLog.updateSharedUntil({ until: 8, deviceId: secondDeviceId })
         expect(await sharedSyncLog.getUnsyncedEntries({ deviceId: secondDeviceId })).toEqual([])
     })
-})
+}

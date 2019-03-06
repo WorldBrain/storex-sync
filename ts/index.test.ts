@@ -1,6 +1,6 @@
 import * as expect from 'expect'
 import { setupStorexTest } from '@worldbrain/storex-pattern-modules/lib/index.tests'
-import { SharedSyncLogStorage } from './shared-sync-log';
+import { SharedSyncLogStorage } from './shared-sync-log/storex';
 import { ClientSyncLogStorage } from './client-sync-log';
 import { CustomAutoPkMiddleware } from './custom-auto-pk';
 import { SyncLoggingMiddleware } from './logging-middleware';
