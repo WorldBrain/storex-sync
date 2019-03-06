@@ -16,8 +16,8 @@ describe('SharedSyncLogStorage', () => {
     it('should work', async () => {
         const { modules: { sharedSyncLog } } = await setupTest()
         const entries : SharedSyncLogEntry[] = [
-            {userId: 'joe', createdOn: 2, sharedOn: 4, data: 'joe-1'},
-            {userId: 'joe', createdOn: 6, sharedOn: 8, data: 'joe-2'},
+            {userId: 'joe', deviceId: 'joe1', createdOn: 2, sharedOn: 4, data: 'joe-1'},
+            {userId: 'joe', deviceId: 'joe1', createdOn: 6, sharedOn: 8, data: 'joe-2'},
         ]
 
         const firstDeviceId = await sharedSyncLog.createDeviceId({ userId: 1, sharedUntil: 2 })

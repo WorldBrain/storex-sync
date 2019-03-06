@@ -17,6 +17,11 @@ describe('Storex sync integration tests', () => {
         })
     }
 
+    function createGetNow(options : {start : number}) {
+        let now = options.start
+        return () => now++
+    }
+
     async function setupClient(options : {backend, clientName : string, getNow : () => number, pkGenerator : () => string}) {
         const { storageManager, modules } = await setupStorexTest<{clientSyncLog : ClientSyncLogStorage}>({
             dbName: `client-${options.clientName}`,
@@ -61,25 +66,33 @@ describe('Storex sync integration tests', () => {
     }
 
     describe('shareLogEntries()', () => {
-        it('should correctly share log entries', async () => {
+        async function setupShareTest() {
             let idsGenerated = 0
             const pkGenerator = () => `id-${++idsGenerated}`
 
-            let now = 1
-    
             const backend = await setupBackend({})
-            const client1 = await setupClient({backend, clientName: 'one', getNow: () => ++now, pkGenerator})
+            const client1 = await setupClient({backend, clientName: 'one', getNow: createGetNow({start: 2}), pkGenerator})
             client1.objects['1'] = (await client1.storageManager.collection('user').createObject({displayName: 'Joe', emails: [{address: 'joe@doe.com'}]})).object
             
             const userId = 1
-            const device1 = await backend.modules.sharedSyncLog.createDeviceId({ userId, sharedUntil: 10 })
-            const device2 = await backend.modules.sharedSyncLog.createDeviceId({ userId, sharedUntil: 10 })
-            await shareLogEntries({
+            const devices = {
+                one: await backend.modules.sharedSyncLog.createDeviceId({ userId, sharedUntil: 10 }),
+                two: await backend.modules.sharedSyncLog.createDeviceId({ userId, sharedUntil: 10 }),
+            }
+            
+            const share = (options : {now: number}) => shareLogEntries({
                 sharedSyncLog: backend.modules.sharedSyncLog, clientSyncLog: client1.modules.clientSyncLog,
-                userId: 1, deviceId: device1, now: 55
+                userId: 1, deviceId: devices.one, now: options.now
             })
 
-            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({deviceId: device2})).toEqual([
+            return { backend, share, devices }
+        }
+
+        it('should correctly share log entries', async () => {
+            const { backend, share, devices } = await setupShareTest()
+
+            await share({now: 55})
+            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({deviceId: devices.two})).toEqual([
                 {
                     id: expect.anything(),
                     userId: 1,
@@ -97,6 +110,21 @@ describe('Storex sync integration tests', () => {
                     data: '{"operation":"create","collection":"email","pk":"id-2","field":null,"value":{"address":"joe@doe.com"}}',
                 },
             ])
+        })
+
+        it('should not reshare entries that are already shared', async () => {
+            const { backend, share, devices } = await setupShareTest()
+
+            await share({now: 55})
+            const entries = await backend.modules.sharedSyncLog.getUnsyncedEntries({deviceId: devices.two})
+            await share({now: 60})
+            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({deviceId: devices.two})).toEqual(entries)
+        })
+    })
+
+    describe('receiveLogEntries()', () => {
+        it('should correctly receive unsynced entries and write them to the local log marked as needing integration', async () => {
+            
         })
     })
 
