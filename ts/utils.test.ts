@@ -1,6 +1,6 @@
 import * as expect from 'expect'
 import StorageManager, { CollectionDefinitionMap } from '@worldbrain/storex';
-import { getObjectPk, getObjectWithoutPk } from './utils';
+import { getObjectPk, getObjectWithoutPk, setObjectPk } from './utils';
 
 describe('Primary key utils', () => {
     async function setupTest(config : {collections : CollectionDefinitionMap}) {
@@ -68,6 +68,41 @@ describe('Primary key utils', () => {
                 }
             }})
             expect(getObjectWithoutPk({firstName: 'Joe', lastName: 'Doe', email: 'bla@bla.com'}, 'user', storageManager.registry)).toEqual({email: 'bla@bla.com'})
+        })
+    })
+
+    describe('setObjectPk()', () => {
+        it('should work for an object with a single field pk', async () => {
+            const { storageManager } = await setupTest({collections: {
+                user: {
+                    version: new Date('2019-02-19'),
+                    fields: {
+                        displayName: {type: 'string'}
+                    }
+                }
+            }})
+
+            const object = {displayName: 'Joe'}
+            setObjectPk(object, 2, 'user', storageManager.registry)
+            expect(object).toEqual({id: 2, displayName: 'Joe'})
+        })
+
+        it('should work for an object with a compound pk', async () => {
+            const { storageManager } = await setupTest({collections: {
+                user: {
+                    version: new Date('2019-02-19'),
+                    fields: {
+                        firstName: {type: 'string'},
+                        lastName: {type: 'string'},
+                        email: {type: 'string'}
+                    },
+                    pkIndex: ['firstName', 'lastName']
+                }
+            }})
+
+            const object = {email: 'joe@doe.com'}
+            setObjectPk(object, ['Joe', 'Doe'], 'user', storageManager.registry)
+            expect(object).toEqual({firstName: 'Joe', lastName: 'Doe', email: 'joe@doe.com'})
         })
     })
 })

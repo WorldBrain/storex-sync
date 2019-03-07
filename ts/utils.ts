@@ -35,3 +35,20 @@ export function getObjectWithoutPk(object, collection : string, registry : Stora
     }
     return object
 }
+
+export function setObjectPk(object, pk, collection : string, registry : StorageRegistry) {
+    const pkIndex = registry.collections[collection].pkIndex
+    if (typeof pkIndex === 'string') {
+        object[pkIndex] = pk
+        return
+    }
+
+    let indexFieldIdx = 0
+    for (const indexField of pkIndex) {
+        if (typeof indexField === 'string') {
+            object[indexField] = pk[indexFieldIdx++]
+        } else {
+            throw new Error(`setObjectPk() called with relationship as pk, which is not supported yet.`)
+        }
+    }
+}
