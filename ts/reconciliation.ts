@@ -1,4 +1,6 @@
+import { StorageRegistry } from "@worldbrain/storex";
 import { ClientSyncLogEntry, ClientSyncLogCreationEntry, ClientSyncLogDeletionEntry, ClientSyncLogModificationEntry } from "./client-sync-log/types"
+import { setObjectPk } from "./utils";
 
 export interface ExecutableOperation {
     operation : string
@@ -24,7 +26,7 @@ function _throwModificationBeforeCreation(logEntry : ClientSyncLogEntry) {
     )
 }
 
-export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : ExecutableOperation[] {
+export function reconcileSyncLog(logEntries : ClientSyncLogEntry[], options : {storageRegistry : StorageRegistry}) : ExecutableOperation[] {
     const modificationsByObject : Modifications = {}
     for (const logEntry of logEntries) {
         const collectionModifications = modificationsByObject[logEntry.collection] = modificationsByObject[logEntry.collection] || {}
@@ -43,7 +45,7 @@ export function reconcileSyncLog(logEntries : ClientSyncLogEntry[]) : Executable
     for (const [collection, collectionModifications] of Object.entries(modificationsByObject)) {
         for (const [pkAsJson, objectModifications] of Object.entries(collectionModifications)) {
             const pk = JSON.parse(pkAsJson)
-            operations.push(...(_processModifications({objectModifications, collection, pk}) || []))
+            operations.push(...(_processModifications({objectModifications, collection, pk, storageRegistry: options.storageRegistry}) || []))
         }
     }
     return operations
@@ -123,24 +125,25 @@ export function _processModificationEntry(
 }
 
 export function _processModifications(
-    {objectModifications, collection, pk} :
-    {objectModifications : ObjectModifications, collection : string, pk : any}
+    {objectModifications, collection, pk, storageRegistry} :
+    {objectModifications : ObjectModifications, collection : string, pk : any, storageRegistry : StorageRegistry}
 ) {
+    const pkFields = setObjectPk({}, pk, collection, storageRegistry)
     if (objectModifications.shouldBeDeleted) {
         if (!objectModifications.isDeleted && !objectModifications.shouldBeCreated) {
-            return [{operation: 'deleteOneObject', collection, args: [{pk}]}]
+            return [{operation: 'deleteOneObject', collection, args: [pkFields]}]
         }
     } else if (objectModifications.shouldBeCreated) {
         const object = {}
         for (const [key, fieldModification] of Object.entries(objectModifications.fields)) {
             object[key] = fieldModification.value
         }
-        return [{operation: 'createObject', collection, args: [object]}]
+        return [{operation: 'createObject', collection, args: [{...pkFields, ...object}]}]
     } else {
         const operations = []
         for (const [fieldName, fieldModification] of Object.entries(objectModifications.fields)) {
             if (!fieldModification.syncedOn) {
-                operations.push({operation: 'updateOneObject', collection, args: [{pk}, {[fieldName]: fieldModification.value}]})
+                operations.push({operation: 'updateOneObject', collection, args: [pkFields, {[fieldName]: fieldModification.value}]})
             }
         }
         return operations

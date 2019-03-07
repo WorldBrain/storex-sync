@@ -37,10 +37,15 @@ export function getObjectWithoutPk(object, collection : string, registry : Stora
 }
 
 export function setObjectPk(object, pk, collection : string, registry : StorageRegistry) {
-    const pkIndex = registry.collections[collection].pkIndex
+    const collectionDefinition = registry.collections[collection]
+    if (!collectionDefinition) {
+        throw new Error(`Could not find collection definition for '${collection}'`)
+    }
+
+    const pkIndex = collectionDefinition.pkIndex
     if (typeof pkIndex === 'string') {
         object[pkIndex] = pk
-        return
+        return object
     }
 
     let indexFieldIdx = 0
@@ -51,4 +56,6 @@ export function setObjectPk(object, pk, collection : string, registry : StorageR
             throw new Error(`setObjectPk() called with relationship as pk, which is not supported yet.`)
         }
     }
+
+    return object
 }

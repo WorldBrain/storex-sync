@@ -83,8 +83,9 @@ describe('Primary key utils', () => {
             }})
 
             const object = {displayName: 'Joe'}
-            setObjectPk(object, 2, 'user', storageManager.registry)
+            const returned = setObjectPk(object, 2, 'user', storageManager.registry)
             expect(object).toEqual({id: 2, displayName: 'Joe'})
+            expect(returned).toEqual(object)
         })
 
         it('should work for an object with a compound pk', async () => {
@@ -101,8 +102,9 @@ describe('Primary key utils', () => {
             }})
 
             const object = {email: 'joe@doe.com'}
-            setObjectPk(object, ['Joe', 'Doe'], 'user', storageManager.registry)
+            const returned = setObjectPk(object, ['Joe', 'Doe'], 'user', storageManager.registry)
             expect(object).toEqual({firstName: 'Joe', lastName: 'Doe', email: 'joe@doe.com'})
+            expect(returned).toEqual(object)
         })
     })
 })
