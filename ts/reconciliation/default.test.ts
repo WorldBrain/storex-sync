@@ -1,7 +1,8 @@
-import * as expect from 'expect'
-import { ClientSyncLogEntry } from './client-sync-log/types';
-import { reconcileSyncLog, ExecutableOperation } from './reconciliation';
 import { StorageRegistry } from '@worldbrain/storex';
+import * as expect from 'expect'
+import { ClientSyncLogEntry } from '../client-sync-log/types';
+import { ExecutableOperation } from './types';
+import { reconcileSyncLog } from './default';
 
 function test({logEntries, expectedOperations} : {logEntries : ClientSyncLogEntry[], expectedOperations? : ExecutableOperation[]}) {
     const storageRegistry = new StorageRegistry()

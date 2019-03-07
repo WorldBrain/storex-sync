@@ -33,6 +33,7 @@
     "@worldbrain/storex-backend-dexie": "^0.1.0",
     "chai": "^4.1.2",
     "expect": "^23.5.0",
+    "fake-fs": "^0.5.0",
     "fake-indexeddb": "^2.0.4",
     "mocha": "^4.0.1",
     "sinon": "^4.1.2",

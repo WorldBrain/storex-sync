@@ -1,12 +1,7 @@
 import { StorageRegistry } from "@worldbrain/storex";
-import { ClientSyncLogEntry, ClientSyncLogCreationEntry, ClientSyncLogDeletionEntry, ClientSyncLogModificationEntry } from "./client-sync-log/types"
-import { setObjectPk } from "./utils";
-
-export interface ExecutableOperation {
-    operation : string
-    collection : string
-    args : any[]
-}
+import { ClientSyncLogEntry, ClientSyncLogCreationEntry, ClientSyncLogDeletionEntry, ClientSyncLogModificationEntry } from "../client-sync-log/types"
+import { setObjectPk } from "../utils";
+import { ExecutableOperation, ReconcilerFunction } from "./types";
 
 type Modifications = {[collection : string] : CollectionModifications}
 type CollectionModifications = {[pk : string] : ObjectModifications}
@@ -26,7 +21,7 @@ function _throwModificationBeforeCreation(logEntry : ClientSyncLogEntry) {
     )
 }
 
-export function reconcileSyncLog(logEntries : ClientSyncLogEntry[], options : {storageRegistry : StorageRegistry}) : ExecutableOperation[] {
+export const reconcileSyncLog : ReconcilerFunction = (logEntries : ClientSyncLogEntry[], options : {storageRegistry : StorageRegistry}) : ExecutableOperation[] => {
     const modificationsByObject : Modifications = {}
     for (const logEntry of logEntries) {
         const collectionModifications = modificationsByObject[logEntry.collection] = modificationsByObject[logEntry.collection] || {}

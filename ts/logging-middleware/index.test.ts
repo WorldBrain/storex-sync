@@ -21,7 +21,7 @@ async function setupTest({now, userFields} : {now : () => number, userFields? : 
     const clientSyncLog = new ClientSyncLogStorage({storageManager})
     registerModuleCollections(storageManager.registry, clientSyncLog)
     await storageManager.finishInitialization()
-    const loggingMiddleware = new SyncLoggingMiddleware({ clientSyncLog, storageManager });
+    const loggingMiddleware = new SyncLoggingMiddleware({ clientSyncLog, storageManager, includeCollections: ['user'] });
     loggingMiddleware._getNow = now
     storageManager.setMiddleware([loggingMiddleware])
     return { storageManager, clientSyncLog }

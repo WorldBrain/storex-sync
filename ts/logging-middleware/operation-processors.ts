@@ -9,6 +9,7 @@ export interface OperationProcessorArgs {
     executeAndLog : ExecuteAndLog,
     getNow : () => number,
     storageRegistry : StorageRegistry
+    includeCollections : Set<string>
 }
 export type OperationProcessor = (args : OperationProcessorArgs) => Promise<any>
 export type OperationProcessorMap = {[operation : string] : OperationProcessor}
@@ -19,8 +20,12 @@ export const DEFAULT_OPERATION_PROCESSORS : OperationProcessorMap = {
     executeBatch: _processExecuteBatch,
 }
 
-async function _processCreateObject({operation, executeAndLog, getNow, storageRegistry} : OperationProcessorArgs) {
+async function _processCreateObject({next, operation, executeAndLog, getNow, includeCollections, storageRegistry} : OperationProcessorArgs) {
     const [collection, value] = operation.slice(1)
+    if (!includeCollections.has(collection)) {
+        return next.process({operation})
+    }
+    
     const result = await executeAndLog(
         {placeholder: 'object', operation: 'createObject', collection, args: value},
         [_logEntryForCreateObject({collection, value, getNow, storageRegistry}) as ClientSyncLogEntry]
@@ -44,8 +49,12 @@ function _logEntryForCreateObject(
     }
 }
 
-async function _processUpdateObject({operation, executeAndLog, getNow, storageRegistry} : OperationProcessorArgs) {
+async function _processUpdateObject({next, operation, executeAndLog, getNow, includeCollections, storageRegistry} : OperationProcessorArgs) {
     const [collection, where, updates] = operation.slice(1)
+    if (!includeCollections.has(collection)) {
+        return next.process({operation})
+    }
+
     const pk = getObjectPk(where, collection, storageRegistry)
     const logEntries : ClientSyncLogEntry[] = []
     for (const [fieldName, newValue] of Object.entries(updates)) {
@@ -66,8 +75,12 @@ async function _processUpdateObject({operation, executeAndLog, getNow, storageRe
     )
 }
 
-async function _processUpdateObjects({next, operation, executeAndLog, getNow, storageRegistry} : OperationProcessorArgs) {
+async function _processUpdateObjects({next, operation, executeAndLog, getNow, includeCollections, storageRegistry} : OperationProcessorArgs) {
     const [collection, where, updates] = operation.slice(1)
+    if (!includeCollections.has(collection)) {
+        return next.process({operation})
+    }
+
     const logEntries : ClientSyncLogEntry[] = await _logEntriesForUpdateObjects({
         next, collection, where, updates, getNow, storageRegistry
     })
@@ -102,13 +115,20 @@ async function _logEntriesForUpdateObjects(
     return logEntries
 }
 
-async function _processExecuteBatch({next, operation, executeAndLog, getNow, storageRegistry} : OperationProcessorArgs) {
+async function _processExecuteBatch({next, operation, executeAndLog, getNow, includeCollections, storageRegistry} : OperationProcessorArgs) {
     const batch : OperationBatch = operation[1]
     const logEntries : ClientSyncLogEntry[] = []
     for (const step of batch) {
+        if (!includeCollections.has(step.collection)) {
+            continue
+        }
+
         if (step.operation === 'createObject') {
             logEntries.push(_logEntryForCreateObject({collection: step.collection, value: step.args, getNow, storageRegistry}))
         }
+    }
+    if (!logEntries) {
+        return next.process({ operation })
     }
 
     return executeAndLog(

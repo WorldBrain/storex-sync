@@ -49,11 +49,12 @@ describe('Storex sync integration tests', () => {
                 clientSyncLog: ({storageManager}) => new ClientSyncLogStorage({storageManager})
             }
         })
+        const includeCollections = ['user', 'email']
         
         const pkMiddleware = new CustomAutoPkMiddleware({ pkGenerator: options.pkGenerator })
-        pkMiddleware.setup({ storageRegistry: storageManager.registry, collections: ['user', 'email'] })
+        pkMiddleware.setup({ storageRegistry: storageManager.registry, collections: includeCollections })
 
-        const syncLoggingMiddleware = new SyncLoggingMiddleware({ storageManager, clientSyncLog: modules.clientSyncLog })
+        const syncLoggingMiddleware = new SyncLoggingMiddleware({ storageManager, clientSyncLog: modules.clientSyncLog, includeCollections })
         syncLoggingMiddleware._getNow = options.getNow
 
         storageManager.setMiddleware([
@@ -222,9 +223,9 @@ describe('Storex sync integration tests', () => {
             const { clients, sync } = await setupSyncTest()
             clients.one.objects['1'] = (await clients.one.storageManager.collection('user').createObject({displayName: 'Joe', emails: [{address: 'joe@doe.com'}]})).object
             await sync({clientName: 'one', now: 55})
-            // await sync({clientName: 'two', now: 60})
-            // clients.two.objects['1'] = await clients.two.storageManager.collection('user').findObject({id: clients.one.objects['1'].id})
-            // expect(clients.two.objects['1']).toEqual(clients.one.objects['1'])
+            await sync({clientName: 'two', now: 60})
+            clients.two.objects['1'] = await clients.two.storageManager.collection('user').findObject({id: clients.one.objects['1'].id})
+            expect(clients.two.objects['1']).toEqual(clients.one.objects['1'])
         })
     })
 })

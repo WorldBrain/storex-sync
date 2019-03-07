@@ -5,13 +5,13 @@ import { ClientSyncLogEntry } from '../client-sync-log/types'
 import { OperationProcessorMap, DEFAULT_OPERATION_PROCESSORS } from './operation-processors'
 
 export class SyncLoggingMiddleware implements StorageMiddleware {
-    private _clientSyncLog : ClientSyncLogStorage
-    private _storageManager : StorageManager
-    private _operationProcessors : OperationProcessorMap = DEFAULT_OPERATION_PROCESSORS
+    private clientSyncLog : ClientSyncLogStorage
+    private storageManager : StorageManager
+    private operationProcessors : OperationProcessorMap = DEFAULT_OPERATION_PROCESSORS
+    private includeCollections : Set<string>
 
-    constructor({clientSyncLog, storageManager} : {clientSyncLog : ClientSyncLogStorage, storageManager : StorageManager}) {
-        this._clientSyncLog = clientSyncLog
-        this._storageManager = storageManager
+    constructor(options : {clientSyncLog : ClientSyncLogStorage, storageManager : StorageManager, includeCollections : string[]}) {
+        Object.assign(this, { ...options, includeCollections: new Set(options.includeCollections) })
     }
     
     async process({next, operation} : {next : {process: ({operation}) => any}, operation : any[]}) {
@@ -32,9 +32,12 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         }
 
         const operationType = (operation[0] as string)
-        const operationProcessor = this._operationProcessors[operationType]
+        const operationProcessor = this.operationProcessors[operationType]
         if (operationProcessor) {
-            return operationProcessor({next, operation, executeAndLog, getNow: () => this._getNow(), storageRegistry: this._storageManager.registry})
+            return operationProcessor({
+                next, operation, executeAndLog, getNow: () => this._getNow(),
+                includeCollections: this.includeCollections,
+                storageRegistry: this.storageManager.registry})
         } else {
             return next.process({operation})
         }

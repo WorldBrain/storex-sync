@@ -2,7 +2,7 @@ import StorageManager from "@worldbrain/storex"
 import { ClientSyncLogStorage } from "./client-sync-log"
 import { ClientSyncLogEntry } from "./client-sync-log/types"
 import { SharedSyncLog } from "./shared-sync-log"
-import { ExecutableOperation } from "./reconciliation"
+import { ReconcilerFunction, ExecutableOperation } from "./reconciliation"
 
 export async function shareLogEntries(args : {clientSyncLog : ClientSyncLogStorage, sharedSyncLog : SharedSyncLog, userId, deviceId, now : number}) {
     const entries = await args.clientSyncLog.getUnsharedEntries()
@@ -39,7 +39,7 @@ export async function doSync({clientSyncLog, sharedSyncLog, storageManager, reco
     clientSyncLog : ClientSyncLogStorage,
     sharedSyncLog : SharedSyncLog,
     storageManager : StorageManager,
-    reconciler : (logEntries : ClientSyncLogEntry[]) => Promise<ExecutableOperation[]> | ExecutableOperation[],
+    reconciler : ReconcilerFunction,
     now : number,
     userId,
     deviceId,
@@ -53,7 +53,9 @@ export async function doSync({clientSyncLog, sharedSyncLog, storageManager, reco
             break
         }
 
-        const reconciliation = await reconciler(entries)
+        const reconciliation = await reconciler(entries, {storageRegistry: storageManager.registry})
+        console.log('entries', entries)
+        console.log('reconci', reconciliation[0])
         await writeReconcilation({storageManager, reconciliation})
         await clientSyncLog.markAsIntegrated(entries)
     }
