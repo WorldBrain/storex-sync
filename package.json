@@ -8,7 +8,8 @@
     "prepare": "tsc",
     "prepare:watch": "npm run prepare -- -w",
     "test": "mocha --require ts-node/register 'ts/**/*.test.ts'",
-    "test:watch": "mocha -r source-map-support/register -r ts-node/register 'ts/**/*.test.ts' --watch --watch-extensions ts"
+    "test:watch": "mocha -r source-map-support/register -r ts-node/register 'ts/**/*.test.ts' --watch --watch-extensions ts",
+    "test:coverage": "rm -rf lib ; yarn prepare && nyc --reporter=html --reporter=text mocha 'lib/**/*.test.js'"
   },
   "keywords": [
     "storage",
@@ -36,6 +37,7 @@
     "fake-fs": "^0.5.0",
     "fake-indexeddb": "^2.0.4",
     "mocha": "^4.0.1",
+    "nyc": "^13.3.0",
     "sinon": "^4.1.2",
     "ts-node": "^7.0.1",
     "typescript": "^3.0.1"
