@@ -119,7 +119,7 @@ describe('Reconciliation', () => {
         ]
 
         test({logEntries, expectedOperations: [
-            {operation: 'createObject', collection: 'list', args: [{id: 'list-one', title: 'first'}]}
+            {operation: 'createObject', collection: 'list', args: {id: 'list-one', title: 'first'}}
         ]})
     })
     
@@ -130,7 +130,7 @@ describe('Reconciliation', () => {
         ]
 
         test({logEntries, expectedOperations: [
-            {operation: 'createObject', collection: 'list', args: [{id: 'list-one', title: 'second', prio: 5}]}
+            {operation: 'createObject', collection: 'list', args: {id: 'list-one', title: 'second', prio: 5}}
         ]})
     })
     

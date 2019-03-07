@@ -133,7 +133,7 @@ export function _processModifications(
         for (const [key, fieldModification] of Object.entries(objectModifications.fields)) {
             object[key] = fieldModification.value
         }
-        return [{operation: 'createObject', collection, args: [{...pkFields, ...object}]}]
+        return [{operation: 'createObject', collection, args: {...pkFields, ...object}}]
     } else {
         const operations = []
         for (const [fieldName, fieldModification] of Object.entries(objectModifications.fields)) {

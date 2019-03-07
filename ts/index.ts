@@ -32,7 +32,10 @@ export async function writeReconcilation(args : {
     storageManager : StorageManager,
     reconciliation : ExecutableOperation[]
 }) {
-    await args.storageManager.operation('executeBatch', args.reconciliation)
+    await args.storageManager.backend.operation('executeBatch', args.reconciliation.map(step => ({
+        ...step,
+        placeholder: '',
+    })))
 }
 
 export async function doSync({clientSyncLog, sharedSyncLog, storageManager, reconciler, now, userId, deviceId} : {
@@ -54,8 +57,6 @@ export async function doSync({clientSyncLog, sharedSyncLog, storageManager, reco
         }
 
         const reconciliation = await reconciler(entries, {storageRegistry: storageManager.registry})
-        console.log('entries', entries)
-        console.log('reconci', reconciliation[0])
         await writeReconcilation({storageManager, reconciliation})
         await clientSyncLog.markAsIntegrated(entries)
     }

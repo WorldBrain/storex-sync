@@ -5,5 +5,5 @@ export type ReconcilerFunction = (logEntries : ClientSyncLogEntry[], options : {
 export interface ExecutableOperation {
     operation : string
     collection : string
-    args : any[]
+    args : any
 }

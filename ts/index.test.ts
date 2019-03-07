@@ -221,11 +221,14 @@ describe('Storex sync integration tests', () => {
 
         it('should work when pulling changes after being offline', async () => {
             const { clients, sync } = await setupSyncTest()
-            clients.one.objects['1'] = (await clients.one.storageManager.collection('user').createObject({displayName: 'Joe', emails: [{address: 'joe@doe.com'}]})).object
+            const orig = (await clients.one.storageManager.collection('user').createObject({displayName: 'Joe', emails: [{address: 'joe@doe.com'}]})).object
+            const { emails, ...user } = orig
+
             await sync({clientName: 'one', now: 55})
             await sync({clientName: 'two', now: 60})
-            clients.two.objects['1'] = await clients.two.storageManager.collection('user').findObject({id: clients.one.objects['1'].id})
-            expect(clients.two.objects['1']).toEqual(clients.one.objects['1'])
+            
+            expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toEqual(user)
+            expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
         })
     })
 })
