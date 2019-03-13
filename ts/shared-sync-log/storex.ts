@@ -1,28 +1,9 @@
 import { StorageModule, StorageModuleConfig } from '@worldbrain/storex-pattern-modules'
-import { SharedSyncLog, SharedSyncLogEntry } from './types'
+import { SharedSyncLog, SharedSyncLogEntry, createSharedSyncLogConfig } from './types'
 
 export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog {
-    getConfig() : StorageModuleConfig {
-        return {
-            collections: {
-                sharedSyncLogEntry: {
-                    version: new Date(2019, 2, 5),
-                    fields: {
-                        userId: {type: 'string'},
-                        deviceId: {type: 'string'},
-                        createdOn: {type: 'timestamp'}, // when was this entry created on a device
-                        sharedOn: {type: 'timestamp'}, // when was this entry uploaded
-                        data: {type: 'string'},
-                    },
-                },
-                sharedSyncLogDeviceInfo: {
-                    version: new Date(2019, 2, 5),
-                    fields: {
-                        userId: {type: 'string'},
-                        sharedUntil: {type: 'timestamp'},
-                    },
-                }
-            },
+    getConfig : () => StorageModuleConfig = () =>
+        createSharedSyncLogConfig({
             operations: {
                 createDeviceInfo: {
                     operation: 'createObject',
@@ -52,40 +33,7 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                     ]
                 }
             },
-            methods: {
-                createDeviceId: {
-                    type: 'mutation',
-                    args: {
-                        userId: 'string',
-                        sharedUntil: 'float'
-                    },
-                    returns: 'string'
-                },
-                writeEntries: {
-                    type: 'mutation',
-                    args: {
-                        entries: { type: { array: { collection: 'sharedSyncLogEntry' } }, positional: true },
-                    },
-                    returns: 'void'
-                },
-                getUnsyncedEntries: {
-                    type: 'query',
-                    args: {
-                        devicedId: { type: 'string' },
-                    },
-                    returns: { collection: 'sharedSyncLogEntry' }
-                },
-                updateSharedUntil: {
-                    type: 'mutation',
-                    args: {
-                        devicedId: { type: 'string' },
-                        until: { type: 'float' },
-                    },
-                    returns: 'void',
-                }
-            }
-        }
-    }
+        })
 
     async createDeviceId(options : {userId, sharedUntil : number}) : Promise<string> {
         return (await this.operation('createDeviceInfo', options)).object.id
