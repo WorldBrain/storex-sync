@@ -51,6 +51,38 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                         {sort: ['sharedOn', 'asc']}
                     ]
                 }
+            },
+            methods: {
+                createDeviceId: {
+                    type: 'mutation',
+                    args: {
+                        userId: 'string',
+                        sharedUntil: 'float'
+                    },
+                    returns: 'string'
+                },
+                writeEntries: {
+                    type: 'mutation',
+                    args: {
+                        entries: { type: { array: { collection: 'sharedSyncLogEntry' } }, positional: true },
+                    },
+                    returns: 'void'
+                },
+                getUnsyncedEntries: {
+                    type: 'query',
+                    args: {
+                        devicedId: { type: 'string' },
+                    },
+                    returns: { collection: 'sharedSyncLogEntry' }
+                },
+                updateSharedUntil: {
+                    type: 'mutation',
+                    args: {
+                        devicedId: { type: 'string' },
+                        until: { type: 'float' },
+                    },
+                    returns: 'void',
+                }
             }
         }
     }
