@@ -1,6 +1,6 @@
 {
   "name": "@worldbrain/storex-sync",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Offline-first syncing between multiple databases using Storex",
   "main": "lib/index.js",
   "typings": "lib/index",
