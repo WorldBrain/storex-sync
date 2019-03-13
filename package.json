@@ -22,7 +22,8 @@
   ],
   "author": "Vincent den Boer",
   "dependencies": {
-    "@worldbrain/storex": "^0.2.1",
+    "@worldbrain/storex": "^0.3.3",
+    "@worldbrain/storex-graphql-schema": "^0.1.0",
     "lodash": "^4.17.10",
     "source-map-support": "^0.4.18"
   },
