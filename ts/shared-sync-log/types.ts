@@ -2,7 +2,7 @@ import { StorageModuleConfig, StorageOperationDefinitions } from "@worldbrain/st
 
 export interface SharedSyncLog {
     createDeviceId(options : {userId, sharedUntil : number}) : Promise<string>
-    writeEntries(entries : SharedSyncLogEntry[], options : { userId, deviceId }) : Promise<void>
+    writeEntries(entries : SharedSyncLogEntry[]) : Promise<void>
     getUnsyncedEntries(options : { deviceId }) : Promise<SharedSyncLogEntry[]>
     updateSharedUntil(args : { until : number, deviceId }) : Promise<void>
 }
@@ -15,25 +15,25 @@ export interface SharedSyncLogEntry {
     data : string
 }
 
-export function createSharedSyncLogConfig(options : {operations? : StorageOperationDefinitions}) : StorageModuleConfig {
+export function createSharedSyncLogConfig(options : {autoPkType : 'int' | 'string', operations? : StorageOperationDefinitions}) : StorageModuleConfig {
     return {
         operations: options.operations,
         collections: {
             sharedSyncLogEntry: {
                 version: new Date(2019, 2, 5),
                 fields: {
-                    userId: {type: 'string'},
-                    deviceId: {type: 'string'},
-                    createdOn: {type: 'timestamp'}, // when was this entry created on a device
-                    sharedOn: {type: 'timestamp'}, // when was this entry uploaded
-                    data: {type: 'string'},
+                    userId: { type: options.autoPkType },
+                    deviceId: { type: options.autoPkType },
+                    createdOn: { type: 'timestamp' }, // when was this entry created on a device
+                    sharedOn: { type: 'timestamp' }, // when was this entry uploaded
+                    data: { type: 'string' },
                 },
             },
             sharedSyncLogDeviceInfo: {
                 version: new Date(2019, 2, 5),
                 fields: {
-                    userId: {type: 'string'},
-                    sharedUntil: {type: 'timestamp'},
+                    userId: { type: options.autoPkType },
+                    sharedUntil: { type: 'timestamp' },
                 },
             }
         },
@@ -41,10 +41,10 @@ export function createSharedSyncLogConfig(options : {operations? : StorageOperat
             createDeviceId: {
                 type: 'mutation',
                 args: {
-                    userId: 'string',
+                    userId: options.autoPkType,
                     sharedUntil: 'float'
                 },
-                returns: 'string'
+                returns: options.autoPkType
             },
             writeEntries: {
                 type: 'mutation',
@@ -56,14 +56,14 @@ export function createSharedSyncLogConfig(options : {operations? : StorageOperat
             getUnsyncedEntries: {
                 type: 'query',
                 args: {
-                    devicedId: { type: 'string' },
+                    deviceId: { type: options.autoPkType },
                 },
-                returns: { collection: 'sharedSyncLogEntry' }
+                returns: { array: { collection: 'sharedSyncLogEntry' } },
             },
             updateSharedUntil: {
                 type: 'mutation',
                 args: {
-                    devicedId: { type: 'string' },
+                    deviceId: { type: options.autoPkType },
                     until: { type: 'float' },
                 },
                 returns: 'void',

@@ -17,7 +17,7 @@ export class FilesystemSharedSyncLogStorage implements SharedSyncLog {
         return ''
     }
 
-    async writeEntries(entries : SharedSyncLogEntry[], options : { userId, deviceId }) : Promise<void> {
+    async writeEntries(entries : SharedSyncLogEntry[]) : Promise<void> {
 
     }
 

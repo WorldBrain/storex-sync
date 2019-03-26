@@ -7,7 +7,7 @@ describe('SharedSyncLogStorage', () => {
         return (await setupStorexTest<{sharedSyncLog : SharedSyncLogStorage}>({
             collections: {},
             modules: {
-                sharedSyncLog: (({ storageManager }) => new SharedSyncLogStorage({ storageManager }))
+                sharedSyncLog: (({ storageManager }) => new SharedSyncLogStorage({ storageManager, autoPkType: 'int' }))
             }
         })).modules.sharedSyncLog
     }

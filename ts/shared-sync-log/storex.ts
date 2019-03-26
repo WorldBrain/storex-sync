@@ -1,9 +1,17 @@
-import { StorageModule, StorageModuleConfig } from '@worldbrain/storex-pattern-modules'
+import { StorageModule, StorageModuleConfig, StorageModuleConstructorArgs } from '@worldbrain/storex-pattern-modules'
 import { SharedSyncLog, SharedSyncLogEntry, createSharedSyncLogConfig } from './types'
 
 export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog {
+    private autoPkType : 'string' | 'int'
+
+    constructor(options : StorageModuleConstructorArgs & { autoPkType : 'string' | 'int' }) {
+        super(options)
+        this.autoPkType = options.autoPkType
+    }
+
     getConfig : () => StorageModuleConfig = () =>
         createSharedSyncLogConfig({
+            autoPkType: this.autoPkType,
             operations: {
                 createDeviceInfo: {
                     operation: 'createObject',
@@ -39,16 +47,16 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
         return (await this.operation('createDeviceInfo', options)).object.id
     }
 
-    async writeEntries(entries : SharedSyncLogEntry[], options : { userId, deviceId }) : Promise<void> {
+    async writeEntries(entries : SharedSyncLogEntry[]) : Promise<void> {
         for (const entry of entries) {
-            await this.operation('createLogEntry', { ...entry, ...options })
+            await this.operation('createLogEntry', entry)
         }
     }
 
     async getUnsyncedEntries(options : { deviceId }) : Promise<SharedSyncLogEntry[]> {
         const deviceInfo = await this.operation('getDeviceInfo', options)
         if (!deviceInfo) {
-            return null
+            throw new Error(`Cannot find device ID: ${JSON.stringify(options.deviceId)}`)
         }
 
         return this.operation('findUnsyncedEntries', { deviceId: options.deviceId, sharedUntil: deviceInfo.sharedUntil })

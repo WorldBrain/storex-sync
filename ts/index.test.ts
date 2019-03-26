@@ -15,7 +15,7 @@ describe('Storex sync integration tests', () => {
             dbName: 'backend',
             collections: {},
             modules: {
-                sharedSyncLog: ({storageManager}) => new SharedSyncLogStorage({storageManager})
+                sharedSyncLog: ({storageManager}) => new SharedSyncLogStorage({ storageManager, autoPkType: 'int' })
             }
         })
     }
@@ -161,7 +161,7 @@ describe('Storex sync integration tests', () => {
                     sharedOn: 55,
                     data: '{"operation":"create","collection":"email","pk":"id-3","field":null,"value":{"address":"joe@doe.com"}}',
                 },
-            ], { userId, deviceId: clients.one.deviceId })
+            ])
             
             await receive({now: 60})
             expect(await clients.one.modules.clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
@@ -219,10 +219,27 @@ describe('Storex sync integration tests', () => {
             return { clients, sync }
         }
 
-        it('should work when pulling changes after being offline', async () => {
+        it('should correction sync createObject operations', async () => {
             const { clients, sync } = await setupSyncTest()
-            const orig = (await clients.one.storageManager.collection('user').createObject({displayName: 'Joe', emails: [{address: 'joe@doe.com'}]})).object
+            const orig = (await clients.one.storageManager.collection('user').createObject({
+                displayName: 'Joe', emails: [{address: 'joe@doe.com'}
+            ]})).object
             const { emails, ...user } = orig
+
+            await sync({clientName: 'one', now: 55})
+            await sync({clientName: 'two', now: 60})
+            
+            expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toEqual(user)
+            expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
+        })
+
+        it('should correction sync updateObject operations', async () => {
+            const { clients, sync } = await setupSyncTest()
+            const orig = (await clients.one.storageManager.collection('user').createObject({
+                displayName: 'Joe', emails: [{ address: 'joe@doe.com' }]
+            })).object
+            await clients.one.storageManager.collection('user').updateOneObject(orig, { displayName: 'Joe Black' })
+            const { emails, ...user } = { ...orig, displayName: 'Joe Black' } as any
 
             await sync({clientName: 'one', now: 55})
             await sync({clientName: 'two', now: 60})

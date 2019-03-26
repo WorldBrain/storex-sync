@@ -1,14 +1,13 @@
 import StorageManager from "@worldbrain/storex"
 import { ClientSyncLogStorage } from "./client-sync-log"
-import { ClientSyncLogEntry } from "./client-sync-log/types"
 import { SharedSyncLog } from "./shared-sync-log"
 import { ReconcilerFunction, ExecutableOperation } from "./reconciliation"
 
 export async function shareLogEntries(args : {clientSyncLog : ClientSyncLogStorage, sharedSyncLog : SharedSyncLog, userId, deviceId, now : number}) {
     const entries = await args.clientSyncLog.getUnsharedEntries()
-    await args.sharedSyncLog.writeEntries(entries.map(entry => ({
-        userId: null,
-        deviceId: null,
+    const sharedLogEntries = entries.map(entry => ({
+        userId: args.userId,
+        deviceId: args.deviceId,
         createdOn: entry.createdOn,
         sharedOn: args.now,
         data: JSON.stringify({
@@ -18,7 +17,9 @@ export async function shareLogEntries(args : {clientSyncLog : ClientSyncLogStora
             field: entry['field'] || null,
             value: entry['value'] || null,
         })
-    })), {userId: args.userId, deviceId: args.deviceId})
+    }))
+    console.log(sharedLogEntries)    
+    await args.sharedSyncLog.writeEntries(sharedLogEntries)
     await args.clientSyncLog.updateSharedUntil({until: args.now, sharedOn: args.now})
 }
 
