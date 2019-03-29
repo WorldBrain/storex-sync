@@ -15,8 +15,8 @@ export async function runTests(options : {createLog : () => Promise<SharedSyncLo
     
         await sharedSyncLog.writeEntries(entries)
         expect(await sharedSyncLog.getUnsyncedEntries({ deviceId: secondDeviceId })).toEqual([
-            {...entries[0], userId: 1, deviceId: firstDeviceId, id: 1},
-            {...entries[1], userId: 1, deviceId: firstDeviceId, id: 2},
+            expect.objectContaining({...entries[0], userId: 1, deviceId: firstDeviceId}),
+            expect.objectContaining({...entries[1], userId: 1, deviceId: firstDeviceId}),
         ])
         await sharedSyncLog.updateSharedUntil({ until: 8, deviceId: secondDeviceId })
         expect(await sharedSyncLog.getUnsyncedEntries({ deviceId: secondDeviceId })).toEqual([])

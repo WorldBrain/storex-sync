@@ -38,9 +38,11 @@
     "expect": "^23.5.0",
     "fake-fs": "^0.5.0",
     "fake-indexeddb": "^2.0.4",
+    "memory-fs": "^0.4.1",
     "mocha": "^4.0.1",
     "nyc": "^13.3.0",
     "sinon": "^4.1.2",
+    "tmp": "^0.1.0",
     "ts-node": "^7.0.1",
     "typescript": "^3.0.1"
   },
