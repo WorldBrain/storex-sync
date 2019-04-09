@@ -6,20 +6,12 @@ import { CustomAutoPkMiddleware } from './custom-auto-pk';
 import { SyncLoggingMiddleware } from './logging-middleware';
 import { shareLogEntries, receiveLogEntries, doSync } from '.';
 import { reconcileSyncLog } from './reconciliation';
+import { SharedSyncLog } from './shared-sync-log';
+import { PromiseContentType } from './types.test';
+import { withTempDirFactory } from './shared-sync-log/fs.test';
+import { FilesystemSharedSyncLogStorage } from './shared-sync-log/fs';
 
-type PromiseContentType<T> = T extends Promise<infer U> ? U : T
-
-describe('Storex sync integration tests', () => {
-    async function setupBackend(options) {
-        return setupStorexTest<{sharedSyncLog : SharedSyncLogStorage}>({
-            dbName: 'backend',
-            collections: {},
-            modules: {
-                sharedSyncLog: ({storageManager}) => new SharedSyncLogStorage({ storageManager, autoPkType: 'int' })
-            }
-        })
-    }
-
+function integrationTests(setupSharedSyncLog : () => Promise<SharedSyncLog>) {
     function createGetNow(options : {start : number}) {
         let now = options.start
         return () => now++
@@ -70,7 +62,7 @@ describe('Storex sync integration tests', () => {
         const pkGenerator = () => `id-${++idsGenerated}`
 
         const userId = 1
-        const backend = await setupBackend({})
+        const backend = { modules: { sharedSyncLog: await setupSharedSyncLog() } }
 
         const clients : {[name : string] : PromiseContentType<ReturnType<typeof setupClient>>} = {}
         for (const { name } of options.clients || []) {
@@ -99,22 +91,20 @@ describe('Storex sync integration tests', () => {
 
             await share({now: 55})
             expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({deviceId: clients.two.deviceId})).toEqual([
-                {
-                    id: expect.anything(),
+                expect.objectContaining({
                     userId,
                     deviceId: clients.one.deviceId,
                     createdOn: 2,
                     sharedOn: 55,
                     data: '{"operation":"create","collection":"user","pk":"id-1","field":null,"value":{"displayName":"Joe"}}',
-                },
-                {
-                    id: expect.anything(),
+                }),
+                expect.objectContaining({
                     userId,
                     deviceId: clients.one.deviceId,
                     createdOn: 3,
                     sharedOn: 55,
                     data: '{"operation":"create","collection":"email","pk":"id-2","field":null,"value":{"address":"joe@doe.com"}}',
-                },
+                }),
             ])
         })
 
@@ -247,5 +237,31 @@ describe('Storex sync integration tests', () => {
             expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toEqual(user)
             expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
         })
+    })
+}
+
+describe('Storex Sync integration with Storex backend', () => {
+    async function setupSharedSyncLog() : Promise<SharedSyncLog> {
+        return (await setupStorexTest<{sharedSyncLog : SharedSyncLogStorage}>({
+            dbName: 'backend',
+            collections: {},
+            modules: {
+                sharedSyncLog: ({storageManager}) => new SharedSyncLogStorage({ storageManager, autoPkType: 'int' })
+            }
+        })).modules.sharedSyncLog
+    }
+
+    integrationTests(setupSharedSyncLog)
+})
+
+describe('Storex Sync integration with Filesystem backend', () => {
+    withTempDirFactory((createTempDir) => {
+        async function setupSharedSyncLog() : Promise<SharedSyncLog> {
+            return new FilesystemSharedSyncLogStorage({
+                basePath: createTempDir(),
+            })
+        }
+        
+        integrationTests(setupSharedSyncLog)
     })
 })
