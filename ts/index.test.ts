@@ -219,7 +219,7 @@ describe('Storex sync integration tests', () => {
             return { clients, sync }
         }
 
-        it('should correction sync createObject operations', async () => {
+        it('should correctly sync createObject operations', async () => {
             const { clients, sync } = await setupSyncTest()
             const orig = (await clients.one.storageManager.collection('user').createObject({
                 displayName: 'Joe', emails: [{address: 'joe@doe.com'}
@@ -233,7 +233,7 @@ describe('Storex sync integration tests', () => {
             expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
         })
 
-        it('should correction sync updateObject operations', async () => {
+        it('should correctly sync updateObject operations', async () => {
             const { clients, sync } = await setupSyncTest()
             const orig = (await clients.one.storageManager.collection('user').createObject({
                 displayName: 'Joe', emails: [{ address: 'joe@doe.com' }]

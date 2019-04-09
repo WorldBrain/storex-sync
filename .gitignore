@@ -5,3 +5,4 @@ lib/
 test.dot
 yarn-error.log
 yarn.lock
+*.bak

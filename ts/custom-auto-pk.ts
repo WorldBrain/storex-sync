@@ -1,3 +1,4 @@
+import update from 'immutability-helper'
 import { StorageMiddleware } from "@worldbrain/storex/lib/types/middleware"
 import { StorageRegistry } from "@worldbrain/storex"
 import { dissectCreateObjectOperation, convertCreateObjectDissectionToBatch, reconstructCreatedObjectFromBatchResult } from "@worldbrain/storex/lib/utils";
@@ -18,8 +19,12 @@ export class CustomAutoPkMiddleware implements StorageMiddleware {
         this._collections = {}
         for (const collection of collections) {
             const collectionDefinition = storageRegistry.collections[collection]
+            if (!collectionDefinition) {
+                throw new Error(`Tried to set up custom auto pk for non-existing collection '${collection}'`)
+            }
+
             const pkIndex = collectionDefinition.pkIndex as string
-            collectionDefinition.fields[pkIndex].type = 'string'
+            collectionDefinition.fields = update(collectionDefinition.fields, {[pkIndex]: {type: {$set: 'string'}}})
             this._collections[collection] = {pkIndex}
         }
     }

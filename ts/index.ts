@@ -18,7 +18,6 @@ export async function shareLogEntries(args : {clientSyncLog : ClientSyncLogStora
             value: entry['value'] || null,
         })
     }))
-    console.log(sharedLogEntries)    
     await args.sharedSyncLog.writeEntries(sharedLogEntries)
     await args.clientSyncLog.updateSharedUntil({until: args.now, sharedOn: args.now})
 }
@@ -26,7 +25,7 @@ export async function shareLogEntries(args : {clientSyncLog : ClientSyncLogStora
 export async function receiveLogEntries(args : {clientSyncLog : ClientSyncLogStorage, sharedSyncLog : SharedSyncLog, deviceId, now : number}) {
     const entries = await args.sharedSyncLog.getUnsyncedEntries({deviceId: args.deviceId})
     await args.clientSyncLog.insertReceivedEntries(entries, {now: args.now})
-    await args.sharedSyncLog.updateSharedUntil({until: args.now, deviceId: args.deviceId})
+    await args.sharedSyncLog.markAsSeen(entries, { deviceId: args.deviceId })
 }
 
 export async function writeReconcilation(args : {

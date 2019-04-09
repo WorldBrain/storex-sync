@@ -35,7 +35,7 @@ export class FilesystemSharedSyncLogStorage implements SharedSyncLog {
             this.fs.mkdirSync(currentPath)
         }
 
-        const sharedOn = entries.reduce((prev, curr) => Math.max(curr.sharedOn , prev), 0)
+        const sharedOn = entries.reduce((prev, curr) => Math.max(curr.sharedOn, prev), 0)
         const deviceId = entries[0].deviceId
         const batchName = `batch-${sharedOn}-device-${deviceId}.json`
         const batchPath = path.join(currentPath, batchName)
@@ -55,32 +55,29 @@ export class FilesystemSharedSyncLogStorage implements SharedSyncLog {
         }
         const devicePath = path.join(devicesPath, options.deviceId)
         const deviceInfo = JSON.parse(this.fs.readFileSync(devicePath).toString())
+        const seenEntries = new Set(deviceInfo.seen)
         
-        const unseenBatches = []
         const batchNames = this.fs.readdirSync(currentPath)
-        for (const batchName of batchNames) {
-            const [_, timestampAsString, deviceIdAsString] = BATCH_NAME_REGEX.exec(batchName)
-            const [timestamp, deviceId] = [parseInt(timestampAsString), parseInt(deviceIdAsString)]
-            if (timestamp > deviceInfo.sharedUntil) {
-                unseenBatches.push(batchName)
-            }
-        }
-
+        
         const entries = []
-        for (const batchName of unseenBatches) {
+        for (const batchName of batchNames) {
             const batchPath = path.join(currentPath, batchName)
             const batchContent = JSON.parse(fs.readFileSync(batchPath).toString())
-            entries.push(...batchContent.entries)
+            for (const entry of batchContent.entries) {
+                if (!seenEntries.has(`${entry.deviceId}-${entry.createdOn}`)) {
+                    entries.push(entry)
+                }
+            }
         }
 
         return entries
     }
 
-    async updateSharedUntil(args : { until : number, deviceId }) : Promise<void> {
+    async markAsSeen(entries : Array<{ deviceId, createdOn : number }>, options : { deviceId }) : Promise<void> {
         const devicesPath = path.join(this.basePath, 'devices')
-        const devicePath = path.join(devicesPath, args.deviceId)
+        const devicePath = path.join(devicesPath, options.deviceId)
         const deviceInfo = JSON.parse(this.fs.readFileSync(devicePath).toString())
-        deviceInfo['sharedUntil'] = args.until
+        deviceInfo.seen.push(...entries.map(entry => `${entry.deviceId}-${entry.createdOn}`))
         this.fs.writeFileSync(devicePath, JSON.stringify(deviceInfo))
     }
 }

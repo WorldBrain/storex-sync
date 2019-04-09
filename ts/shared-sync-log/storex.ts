@@ -1,4 +1,4 @@
-import { StorageModule, StorageModuleConfig, StorageModuleConstructorArgs } from '@worldbrain/storex-pattern-modules'
+import { StorageModule, StorageModuleConfig, StorageModuleConstructorArgs, StorageModuleDebugConfig } from '@worldbrain/storex-pattern-modules'
 import { SharedSyncLog, SharedSyncLogEntry, createSharedSyncLogConfig } from './types'
 
 export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog {
@@ -12,6 +12,17 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
     getConfig : () => StorageModuleConfig = () =>
         createSharedSyncLogConfig({
             autoPkType: this.autoPkType,
+            collections: {
+                sharedSyncLogSeenEntry: {
+                    version: new Date('2019-02-05'),
+                    fields: {
+                        creatorDeviceId: { type: this.autoPkType },
+                        retrieverDeviceId: { type: this.autoPkType },
+                        createdOn: { type: 'timestamp' },
+                    },
+                    indices: [ { field: ['retrieverDeviceId', 'createdOn'] } ]
+                }
+            },
             operations: {
                 createDeviceInfo: {
                     operation: 'createObject',
@@ -27,19 +38,30 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                     collection: 'sharedSyncLogDeviceInfo',
                     args: [{id: '$deviceId'}, {sharedUntil: '$sharedUntil:timestamp'}]
                 },
-
                 createLogEntry: {
                     operation: 'createObject',
                     collection: 'sharedSyncLogEntry',
                 },
-                findUnsyncedEntries: {
+                findSyncEntries: {
                     operation: 'findObjects',
                     collection: 'sharedSyncLogEntry',
                     args: [
-                        {sharedOn: {$gt: '$sharedUntil:timestamp'}},
+                        {
+                            userId: '$userId',
+                            sharedOn: {$gt: '$fromWhen:timestamp'},
+                        },
                         {sort: ['sharedOn', 'asc']}
                     ]
-                }
+                },
+                insertSeenEntries: {
+                    operation: 'executeBatch',
+                    args: ['$operations']
+                },
+                retrieveSeenEntries: {
+                    operation: 'findObjects',
+                    collection: 'sharedSyncLogSeenEntry',
+                    args: { retrieverDeviceId: '$deviceId' }
+                },
             },
         })
 
@@ -58,11 +80,27 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
         if (!deviceInfo) {
             throw new Error(`Cannot find device ID: ${JSON.stringify(options.deviceId)}`)
         }
-
-        return this.operation('findUnsyncedEntries', { deviceId: options.deviceId, sharedUntil: deviceInfo.sharedUntil })
+        const seenEntries = await this.operation('retrieveSeenEntries', { deviceId: options.deviceId })
+        const seenSet = new Set(seenEntries.map(entry => entry.createdOn))
+        const entries = await this.operation('findSyncEntries', { userId: deviceInfo.userId, fromWhen: 0 })
+        const unseenEntries = entries.filter(entry => !seenSet.has(entry.createdOn))
+        return unseenEntries
     }
 
-    async updateSharedUntil(args : {until : number, deviceId}) : Promise<void> {
-        await this.operation('updateSharedUntil', { deviceId: args.deviceId, sharedUntil: args.until })
+    async markAsSeen(entries : Array<{ deviceId, createdOn : number }>, options : { deviceId }) : Promise<void> {
+        if (!entries.length) {
+            return
+        }
+
+        await this.operation('insertSeenEntries', { operations: entries.map(entry => ({
+            placeholder: 'seenEntry',
+            operation: 'createObject',
+            collection: 'sharedSyncLogSeenEntry',
+            args: {
+                creatorDeviceId: entry.deviceId,
+                createdOn: entry.createdOn,
+                retrieverDeviceId: options.deviceId,
+            }
+        }))})
     }
 }
