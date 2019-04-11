@@ -1,5 +1,7 @@
 import * as expect from 'expect'
+import * as graphqlModule from 'graphql'
 import { setupStorexTest } from '@worldbrain/storex-pattern-modules/lib/index.tests'
+import { setupTestGraphQLStorexClient } from '@worldbrain/storex-graphql-client/lib/index.tests'
 import { SharedSyncLogStorage } from './shared-sync-log/storex';
 import { ClientSyncLogStorage } from './client-sync-log';
 import { CustomAutoPkMiddleware } from './custom-auto-pk';
@@ -264,4 +266,27 @@ describe('Storex Sync integration with Filesystem backend', () => {
         
         integrationTests(setupSharedSyncLog)
     })
+})
+
+describe.skip('Storex Sync integration with Storex backend over GraphQL', () => {
+    async function setupSharedSyncLog() : Promise<SharedSyncLog> {
+        const { modules, storageManager } = await setupStorexTest<{sharedSyncLog : SharedSyncLogStorage}>({
+            dbName: 'backend',
+            collections: {},
+            modules: {
+                sharedSyncLog: ({storageManager}) => new SharedSyncLogStorage({ storageManager, autoPkType: 'int' })
+            }
+        })
+
+        const { client } = setupTestGraphQLStorexClient({
+            serverModules: modules,
+            clientModules: modules,
+            storageRegistry: storageManager.registry,
+            autoPkType: 'int',
+            graphql: graphqlModule,
+        })
+        return client.getModule<SharedSyncLog>('sharedSyncLog')
+    }
+
+    integrationTests(setupSharedSyncLog)
 })

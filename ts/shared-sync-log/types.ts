@@ -65,7 +65,7 @@ export function createSharedSyncLogConfig(options : {autoPkType : 'int' | 'strin
             markAsSeen: {
                 type: 'mutation',
                 args: {
-                    entries: { type: { array: { object: { createdOn: 'float', deviceId: options.autoPkType } } } },
+                    entries: { type: { array: { object: { createdOn: 'float', deviceId: options.autoPkType }, singular: 'entry' } } },
                     deviceId: { type: options.autoPkType },
                 },
                 returns: 'void',

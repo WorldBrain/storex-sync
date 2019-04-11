@@ -29,6 +29,7 @@
   "devDependencies": {
     "@types/chai": "^4.0.6",
     "@types/events": "^1.2.0",
+    "@types/graphql": "^14.0.0",
     "@types/mocha": "^2.2.44",
     "@types/node": "^10.12.11",
     "@worldbrain/storex": "^0.3.6",
@@ -39,6 +40,7 @@
     "expect": "^23.5.0",
     "fake-fs": "^0.5.0",
     "fake-indexeddb": "^2.0.4",
+    "graphql": "^14.0.0",
     "memory-fs": "^0.4.1",
     "mocha": "^4.0.1",
     "nyc": "^13.3.0",
@@ -51,5 +53,8 @@
     "@worldbrain/storex": "^0.3.6",
     "@worldbrain/storex-pattern-modules": "^0.3.0",
     "@worldbrain/storex-graphql-schema": "^0.1.0"
+  },
+  "resolutions": {
+    "**/graphql": "^14.0.0"
   }
 }

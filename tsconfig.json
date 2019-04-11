@@ -6,7 +6,7 @@
         "moduleResolution": "node",
         "noImplicitAny": false,
         "removeComments": true,
-        "lib": ["es2017", "dom"],
+        "lib": ["es2017", "dom", "esnext.asynciterable"],
         "noLib": false,
         "downlevelIteration": true,
         "preserveConstEnums": true,
