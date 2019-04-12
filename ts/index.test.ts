@@ -268,7 +268,7 @@ describe('Storex Sync integration with Filesystem backend', () => {
     })
 })
 
-describe.skip('Storex Sync integration with Storex backend over GraphQL', () => {
+describe('Storex Sync integration with Storex backend over GraphQL', () => {
     async function setupSharedSyncLog() : Promise<SharedSyncLog> {
         const { modules, storageManager } = await setupStorexTest<{sharedSyncLog : SharedSyncLogStorage}>({
             dbName: 'backend',
