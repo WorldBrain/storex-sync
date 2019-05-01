@@ -1,5 +1,6 @@
 import * as expect from 'expect'
 import { SharedSyncLog, SharedSyncLogEntry } from './types';
+import { Omit } from '../types';
 
 export async function runTests(options : {createLog : () => Promise<SharedSyncLog>, cleanUp? : () => Promise<void>}) {
     it('should work', async () => {
@@ -8,19 +9,19 @@ export async function runTests(options : {createLog : () => Promise<SharedSyncLo
         const firstDeviceId = await sharedSyncLog.createDeviceId({ userId, sharedUntil: 2 })
         const secondDeviceId = await sharedSyncLog.createDeviceId({ userId, sharedUntil: 2 })
         
-        const entries : SharedSyncLogEntry[] = [
-            {userId, deviceId: firstDeviceId, createdOn: 2, sharedOn: 4, data: 'joe-1'},
-            {userId, deviceId: firstDeviceId, createdOn: 6, sharedOn: 8, data: 'joe-2'},
+        const entries : Omit<SharedSyncLogEntry, 'sharedOn'>[] = [
+            {userId, deviceId: firstDeviceId, createdOn: 2, data: 'joe-1'},
+            {userId, deviceId: firstDeviceId, createdOn: 6, data: 'joe-2'},
         ]
     
         await sharedSyncLog.writeEntries(entries)
-        const unseenEntries = await sharedSyncLog.getUnsyncedEntries({ deviceId: secondDeviceId });
+        const unseenEntries = await sharedSyncLog.getUnsyncedEntries({ userId, deviceId: secondDeviceId });
         expect(unseenEntries).toEqual([
             expect.objectContaining({...entries[0], userId: 1, deviceId: firstDeviceId}),
             expect.objectContaining({...entries[1], userId: 1, deviceId: firstDeviceId}),
         ])
-        await sharedSyncLog.markAsSeen(entries, { deviceId: secondDeviceId })
-        expect(await sharedSyncLog.getUnsyncedEntries({ deviceId: secondDeviceId })).toEqual([])
+        await sharedSyncLog.markAsSeen(entries, { userId, deviceId: secondDeviceId, now: 10 })
+        expect(await sharedSyncLog.getUnsyncedEntries({ userId, deviceId: secondDeviceId })).toEqual([])
     })
 
     it('should work correctly even if entries from the past are added', async () => {
@@ -29,27 +30,27 @@ export async function runTests(options : {createLog : () => Promise<SharedSyncLo
         const firstDeviceId = await sharedSyncLog.createDeviceId({ userId, sharedUntil: 2 })
         const secondDeviceId = await sharedSyncLog.createDeviceId({ userId, sharedUntil: 2 })
         
-        expect(await sharedSyncLog.getUnsyncedEntries({ deviceId: secondDeviceId })).toEqual([])
+        expect(await sharedSyncLog.getUnsyncedEntries({ userId, deviceId: secondDeviceId })).toEqual([])
         
-        const entries : SharedSyncLogEntry[] = [
-            {userId, deviceId: firstDeviceId, createdOn: 4, sharedOn: 5, data: 'joe-2'},
-            {userId, deviceId: firstDeviceId, createdOn: 6, sharedOn: 8, data: 'joe-3'},
+        const entries : Omit<SharedSyncLogEntry, 'sharedOn'>[] = [
+            {userId, deviceId: firstDeviceId, createdOn: 4, data: 'joe-2'},
+            {userId, deviceId: firstDeviceId, createdOn: 6, data: 'joe-3'},
         ]
-        await sharedSyncLog.writeEntries(entries)
-        await sharedSyncLog.markAsSeen(entries, { deviceId: secondDeviceId })
+        await sharedSyncLog.writeEntries(entries, { now: 8 })
+        await sharedSyncLog.markAsSeen(entries, { userId, deviceId: secondDeviceId })
         
-        const newEntries = [
-            {userId, deviceId: firstDeviceId, createdOn: 1, sharedOn: 2, data: 'joe-1'},
+        const newEntries : Omit<SharedSyncLogEntry, 'sharedOn'>[] = [
+            {userId, deviceId: firstDeviceId, createdOn: 1, data: 'joe-1'},
         ]
-        await sharedSyncLog.writeEntries(newEntries)
+        await sharedSyncLog.writeEntries(newEntries, { now: 10 })
     
-        const unseenEntries = await sharedSyncLog.getUnsyncedEntries({ deviceId: secondDeviceId });
+        const unseenEntries = await sharedSyncLog.getUnsyncedEntries({ userId, deviceId: secondDeviceId });
         expect(unseenEntries).toEqual([
             expect.objectContaining({...newEntries[0], userId: 1, deviceId: firstDeviceId}),
         ])
         
-        await sharedSyncLog.markAsSeen(unseenEntries, { deviceId: secondDeviceId })
-        expect(await sharedSyncLog.getUnsyncedEntries({ deviceId: secondDeviceId })).toEqual([])
+        await sharedSyncLog.markAsSeen(unseenEntries, { userId, deviceId: secondDeviceId })
+        expect(await sharedSyncLog.getUnsyncedEntries({ userId, deviceId: secondDeviceId })).toEqual([])
     })
 
     it('should not include its own entries when retrieving unseen entries')

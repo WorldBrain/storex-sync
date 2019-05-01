@@ -1,27 +1,27 @@
+import * as sortBy from 'lodash/sortBy'
 import { StorageModule, StorageModuleConfig, StorageModuleConstructorArgs, StorageModuleDebugConfig } from '@worldbrain/storex-pattern-modules'
 import { SharedSyncLog, SharedSyncLogEntry, createSharedSyncLogConfig } from './types'
+import { Omit } from '../types';
 
 export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog {
-    private autoPkType : 'string' | 'int'
-
-    constructor(options : StorageModuleConstructorArgs & { autoPkType : 'string' | 'int' }) {
+    constructor(private options : StorageModuleConstructorArgs & { autoPkType : 'string' | 'int', excludeTimestampChecks? : boolean }) {
         super(options)
-        this.autoPkType = options.autoPkType
     }
 
     getConfig : () => StorageModuleConfig = () =>
         createSharedSyncLogConfig({
-            autoPkType: this.autoPkType,
+            autoPkType: this.options.autoPkType,
             collections: {
                 sharedSyncLogSeenEntry: {
                     version: new Date('2019-02-05'),
                     fields: {
-                        creatorDeviceId: { type: this.autoPkType },
-                        retrieverDeviceId: { type: this.autoPkType },
+                        userId: { type: this.options.autoPkType },
+                        creatorDeviceId: { type: this.options.autoPkType },
+                        retrieverDeviceId: { type: this.options.autoPkType },
                         createdOn: { type: 'timestamp' },
                     },
-                    indices: [ { field: ['retrieverDeviceId', 'createdOn'] } ]
-                }
+                    groupBy: [{ key: 'userId', subcollectionName: 'entries' }]
+                },
             },
             operations: {
                 createDeviceInfo: {
@@ -31,12 +31,12 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                 getDeviceInfo: {
                     operation: 'findObject',
                     collection: 'sharedSyncLogDeviceInfo',
-                    args: {id: '$deviceId'}
+                    args: { userId: '$userId:pk', id: '$deviceId:pk' }
                 },
                 updateSharedUntil: {
                     operation: 'updateObjects',
                     collection: 'sharedSyncLogDeviceInfo',
-                    args: [{id: '$deviceId'}, {sharedUntil: '$sharedUntil:timestamp'}]
+                    args: [{ userId: '$userId:pk', id: '$deviceId:pk' }, {sharedUntil: '$sharedUntil:timestamp'}]
                 },
                 createLogEntry: {
                     operation: 'createObject',
@@ -46,11 +46,7 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                     operation: 'findObjects',
                     collection: 'sharedSyncLogEntry',
                     args: [
-                        {
-                            userId: '$userId',
-                            sharedOn: {$gt: '$fromWhen:timestamp'},
-                        },
-                        {sort: ['sharedOn', 'asc']}
+                        { userId: '$userId' },
                     ]
                 },
                 insertSeenEntries: {
@@ -60,34 +56,61 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                 retrieveSeenEntries: {
                     operation: 'findObjects',
                     collection: 'sharedSyncLogSeenEntry',
-                    args: { retrieverDeviceId: '$deviceId' }
+                    args: { userId: '$userId:pk', retrieverDeviceId: '$deviceId:pk' }
                 },
             },
+            accessRules: {
+                ownership: {
+                    sharedSyncLogDeviceInfo: {
+                        field: 'userId',
+                        access: ['list', 'read', 'create', 'update', 'delete'],
+                    },
+                    sharedSyncLogEntry: {
+                        field: 'userId',
+                        access: ['list', 'read', 'create', 'delete'],
+                    },
+                    sharedSyncLogSeenEntry: {
+                        field: 'userId',
+                        access: ['list', 'read', 'create', 'delete'],
+                    },
+                },
+                validation: {
+                    sharedSyncLogDeviceInfo: !this.options.excludeTimestampChecks ? [
+                        {
+                            field: 'updatedWhen',
+                            rule: { or: [
+                                { eq: ['$value', null] },
+                                { eq: ['$value', '$context.now'] },
+                            ] }
+                        }
+                    ] : []
+                },
+            }
         })
 
     async createDeviceId(options : {userId, sharedUntil : number}) : Promise<string> {
         return (await this.operation('createDeviceInfo', options)).object.id
     }
 
-    async writeEntries(entries : SharedSyncLogEntry[]) : Promise<void> {
+    async writeEntries(entries : Omit<SharedSyncLogEntry, 'sharedOn'>[], options? : { now : number | '$now' }) : Promise<void> {
         for (const entry of entries) {
-            await this.operation('createLogEntry', entry)
+            await this.operation('createLogEntry', { ...entry, sharedOn: (options && options.now) || '$now' })
         }
     }
 
-    async getUnsyncedEntries(options : { deviceId }) : Promise<SharedSyncLogEntry[]> {
+    async getUnsyncedEntries(options : { userId : string | number, deviceId : string | number }) : Promise<SharedSyncLogEntry[]> {
         const deviceInfo = await this.operation('getDeviceInfo', options)
         if (!deviceInfo) {
             throw new Error(`Cannot find device ID: ${JSON.stringify(options.deviceId)}`)
         }
-        const seenEntries = await this.operation('retrieveSeenEntries', { deviceId: options.deviceId })
+        const seenEntries = await this.operation('retrieveSeenEntries', { userId: deviceInfo.userId, deviceId: options.deviceId })
         const seenSet = new Set(seenEntries.map(entry => entry.createdOn))
         const entries = await this.operation('findSyncEntries', { userId: deviceInfo.userId, fromWhen: 0 })
         const unseenEntries = entries.filter(entry => !seenSet.has(entry.createdOn))
-        return unseenEntries
+        return sortBy(unseenEntries, 'createdOn')
     }
 
-    async markAsSeen(entries : Array<{ deviceId, createdOn : number }>, options : { deviceId }) : Promise<void> {
+    async markAsSeen(entries : Array<{ deviceId, createdOn : number }>, options : { userId : string | number, deviceId : string | number, now? : number | '$now' }) : Promise<void> {
         if (!entries.length) {
             return
         }
@@ -97,10 +120,16 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
             operation: 'createObject',
             collection: 'sharedSyncLogSeenEntry',
             args: {
+                userId: options.userId,
                 creatorDeviceId: entry.deviceId,
                 createdOn: entry.createdOn,
                 retrieverDeviceId: options.deviceId,
             }
         }))})
+        await this.operation('updateSharedUntil', {
+            userId: options.userId,
+            deviceId: options.deviceId,
+            sharedUntil: options.now || '$now'
+        })
     }
 }

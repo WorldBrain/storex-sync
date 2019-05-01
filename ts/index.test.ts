@@ -1,7 +1,9 @@
 import * as expect from 'expect'
 import * as graphqlModule from 'graphql'
+import * as fromPairs from 'lodash/fromPairs'
 import { setupStorexTest } from '@worldbrain/storex-pattern-modules/lib/index.tests'
 import { setupTestGraphQLStorexClient } from '@worldbrain/storex-graphql-client/lib/index.tests'
+import { withEmulatedFirestoreBackend } from '@worldbrain/storex-backend-firestore/lib/index.tests'
 import { SharedSyncLogStorage } from './shared-sync-log/storex';
 import { ClientSyncLogStorage } from './client-sync-log';
 import { CustomAutoPkMiddleware } from './custom-auto-pk';
@@ -12,8 +14,11 @@ import { SharedSyncLog } from './shared-sync-log';
 import { PromiseContentType } from './types.test';
 import { withTempDirFactory } from './shared-sync-log/fs.test';
 import { FilesystemSharedSyncLogStorage } from './shared-sync-log/fs';
+import { inspect } from 'util';
 
-function integrationTests(setupSharedSyncLog : () => Promise<SharedSyncLog>) {
+export type TestDependencies = { sharedSyncLog : SharedSyncLog, userId? : number | string }
+
+function integrationTests(withTestDependencies : (body : (dependencies : TestDependencies) => Promise<void>) => Promise<void>) {
     function createGetNow(options : {start : number}) {
         let now = options.start
         return () => now++
@@ -59,12 +64,12 @@ function integrationTests(setupSharedSyncLog : () => Promise<SharedSyncLog>) {
         return { storageManager, modules, deviceId: null, objects: {} }
     }
 
-    async function setupTest(options : {clients? : {name : string}[], getNow : () => number}) {
+    async function setupTest(options : {dependencies : TestDependencies, clients? : {name : string}[], getNow : () => number}) {
         let idsGenerated = 0
         const pkGenerator = () => `id-${++idsGenerated}`
 
-        const userId = 1
-        const backend = { modules: { sharedSyncLog: await setupSharedSyncLog() } }
+        const userId = options.dependencies.userId || 1
+        const backend = { modules: { sharedSyncLog: options.dependencies.sharedSyncLog } }
 
         const clients : {[name : string] : PromiseContentType<ReturnType<typeof setupClient>>} = {}
         for (const { name } of options.clients || []) {
@@ -75,9 +80,21 @@ function integrationTests(setupSharedSyncLog : () => Promise<SharedSyncLog>) {
         return { backend, clients, userId }
     }
 
+    async function wrappedIt(description : string, test : (dependencies : TestDependencies) => Promise<void>) {
+        it(description, async () => {
+            await withTestDependencies(async (dependencies : TestDependencies) => {
+                await test(dependencies)
+            })
+        })
+    }
+
     describe('shareLogEntries()', () => {
-        async function setupShareTest() {
-            const { backend, clients, userId } = await setupTest({clients: [{ name: 'one' }, { name: 'two' } ], getNow: createGetNow({start: 2})})
+        async function setupShareTest(dependencies : TestDependencies) {
+            const { backend, clients, userId } = await setupTest({
+                dependencies,
+                clients: [{ name: 'one' }, { name: 'two' } ],
+                getNow: createGetNow({start: 2})
+            })
             await clients.one.storageManager.collection('user').createObject({displayName: 'Joe', emails: [{address: 'joe@doe.com'}]})
             
             const share = (options : {now: number}) => shareLogEntries({
@@ -88,11 +105,11 @@ function integrationTests(setupSharedSyncLog : () => Promise<SharedSyncLog>) {
             return { backend, clients, userId, share }
         }
 
-        it('should correctly share log entries', async () => {
-            const { backend, clients, userId, share } = await setupShareTest()
+        wrappedIt('should correctly share log entries', async (dependencies : TestDependencies) => {
+            const { backend, clients, userId, share } = await setupShareTest(dependencies)
 
             await share({now: 55})
-            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({deviceId: clients.two.deviceId})).toEqual([
+            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId })).toEqual([
                 expect.objectContaining({
                     userId,
                     deviceId: clients.one.deviceId,
@@ -110,23 +127,29 @@ function integrationTests(setupSharedSyncLog : () => Promise<SharedSyncLog>) {
             ])
         })
 
-        it('should not reshare entries that are already shared', async () => {
-            const { backend, clients, share } = await setupShareTest()
+        wrappedIt('should not reshare entries that are already shared', async (dependencies : TestDependencies) => {
+            const { backend, userId, clients, share } = await setupShareTest(dependencies)
 
             await share({now: 55})
-            const entries = await backend.modules.sharedSyncLog.getUnsyncedEntries({deviceId: clients.two.deviceId})
+            const entries = await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId})
             await share({now: 60})
-            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({deviceId: clients.two.deviceId})).toEqual(entries)
+            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId })).toEqual(entries)
         })
     })
 
     describe('receiveLogEntries()', () => {
-        async function setupReceiveTest() {
-            const { backend, clients, userId } = await setupTest({clients: [{ name: 'one' }, { name: 'two' } ], getNow: createGetNow({start: 2})})
+        async function setupReceiveTest(dependencies : TestDependencies) {
+            const { backend, clients, userId } = await setupTest({
+                dependencies,
+                clients: [{ name: 'one' },
+                { name: 'two' } ],
+                getNow: createGetNow({start: 2})
+            })
             const receive = async (options : {now : number}) => {
                 await receiveLogEntries({
                     clientSyncLog: clients.one.modules.clientSyncLog,
                     sharedSyncLog: backend.modules.sharedSyncLog,
+                    userId,
                     deviceId: clients.one.deviceId,
                     now: options.now,
                 })
@@ -134,8 +157,8 @@ function integrationTests(setupSharedSyncLog : () => Promise<SharedSyncLog>) {
             return { backend, clients, userId, receive }
         }
 
-        it('should correctly receive unsynced entries and write them to the local log marked as needing integration', async () => {
-            const { backend, clients, userId, receive } = await setupReceiveTest()
+        wrappedIt('should correctly receive unsynced entries and write them to the local log marked as needing integration', async (dependencies : TestDependencies) => {
+            const { backend, clients, userId, receive } = await setupReceiveTest(dependencies)
             await clients.one.storageManager.collection('user').createObject({displayName: 'Bob'})
 
             await backend.modules.sharedSyncLog.writeEntries([
@@ -143,17 +166,15 @@ function integrationTests(setupSharedSyncLog : () => Promise<SharedSyncLog>) {
                     userId,
                     deviceId: clients.one.deviceId,
                     createdOn: 5,
-                    sharedOn: 55,
                     data: '{"operation":"create","collection":"user","pk":"id-2","field":null,"value":{"displayName":"Joe"}}',
                 },
                 {
                     userId,
                     deviceId: clients.one.deviceId,
                     createdOn: 7,
-                    sharedOn: 55,
                     data: '{"operation":"create","collection":"email","pk":"id-3","field":null,"value":{"address":"joe@doe.com"}}',
                 },
-            ])
+            ], { now: 55 })
             
             await receive({now: 60})
             expect(await clients.one.modules.clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
@@ -194,8 +215,12 @@ function integrationTests(setupSharedSyncLog : () => Promise<SharedSyncLog>) {
     })
 
     describe('doSync()', () => {
-        async function setupSyncTest() {
-            const { backend, clients, userId } = await setupTest({ clients: [{ name: 'one' }, { name: 'two' }], getNow: createGetNow({ start: 50 }) })
+        async function setupSyncTest(dependencies : TestDependencies) {
+            const { backend, clients, userId } = await setupTest({
+                dependencies,
+                clients: [{ name: 'one' }, { name: 'two' }],
+                getNow: createGetNow({ start: 50 })
+            })
             const sync = async (options : {clientName : string, now : number}) => {
                 const client = clients[options.clientName]
                 await doSync({
@@ -211,8 +236,8 @@ function integrationTests(setupSharedSyncLog : () => Promise<SharedSyncLog>) {
             return { clients, sync }
         }
 
-        it('should correctly sync createObject operations', async () => {
-            const { clients, sync } = await setupSyncTest()
+        wrappedIt('should correctly sync createObject operations', async (dependencies : TestDependencies) => {
+            const { clients, sync } = await setupSyncTest(dependencies)
             const orig = (await clients.one.storageManager.collection('user').createObject({
                 displayName: 'Joe', emails: [{address: 'joe@doe.com'}
             ]})).object
@@ -225,8 +250,8 @@ function integrationTests(setupSharedSyncLog : () => Promise<SharedSyncLog>) {
             expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
         })
 
-        it('should correctly sync updateObject operations', async () => {
-            const { clients, sync } = await setupSyncTest()
+        wrappedIt('should correctly sync updateObject operations', async (dependencies : TestDependencies) => {
+            const { clients, sync } = await setupSyncTest(dependencies)
             const orig = (await clients.one.storageManager.collection('user').createObject({
                 displayName: 'Joe', emails: [{ address: 'joe@doe.com' }]
             })).object
@@ -243,50 +268,89 @@ function integrationTests(setupSharedSyncLog : () => Promise<SharedSyncLog>) {
 }
 
 describe('Storex Sync integration with Storex backend', () => {
-    async function setupSharedSyncLog() : Promise<SharedSyncLog> {
+    async function setupTestDependencies() : Promise<TestDependencies> {
         return (await setupStorexTest<{sharedSyncLog : SharedSyncLogStorage}>({
             dbName: 'backend',
             collections: {},
             modules: {
                 sharedSyncLog: ({storageManager}) => new SharedSyncLogStorage({ storageManager, autoPkType: 'int' })
             }
-        })).modules.sharedSyncLog
+        })).modules
     }
 
-    integrationTests(setupSharedSyncLog)
+    integrationTests(async (body : (dependencies : TestDependencies) => Promise<void>) => {
+        await body(await setupTestDependencies())
+    })
 })
 
 describe('Storex Sync integration with Filesystem backend', () => {
     withTempDirFactory((createTempDir) => {
-        async function setupSharedSyncLog() : Promise<SharedSyncLog> {
-            return new FilesystemSharedSyncLogStorage({
-                basePath: createTempDir(),
-            })
+        async function setupTestDependencies() : Promise<TestDependencies> {
+            return {
+                sharedSyncLog: new FilesystemSharedSyncLogStorage({
+                    basePath: createTempDir(),
+                })
+            }
         }
         
-        integrationTests(setupSharedSyncLog)
+        integrationTests(async (body : (dependencies : TestDependencies) => Promise<void>) => {
+            await body(await setupTestDependencies())
+        })
     })
 })
 
-describe('Storex Sync integration with Storex backend over GraphQL', () => {
-    async function setupSharedSyncLog() : Promise<SharedSyncLog> {
-        const { modules, storageManager } = await setupStorexTest<{sharedSyncLog : SharedSyncLogStorage}>({
-            dbName: 'backend',
-            collections: {},
-            modules: {
-                sharedSyncLog: ({storageManager}) => new SharedSyncLogStorage({ storageManager, autoPkType: 'int' })
-            }
-        })
+if (process.env.TEST_SYNC_GRAPHQL === 'true') {
+    describe('Storex Sync integration with Storex backend over GraphQL', () => {
+        async function setupTestDependencies() : Promise<TestDependencies> {
+            const { modules, storageManager } = await setupStorexTest<{sharedSyncLog : SharedSyncLogStorage}>({
+                dbName: 'backend',
+                collections: {},
+                modules: {
+                    sharedSyncLog: ({storageManager}) => new SharedSyncLogStorage({ storageManager, autoPkType: 'int' })
+                }
+            })
 
-        const { client } = setupTestGraphQLStorexClient({
-            serverModules: modules,
-            clientModules: modules,
-            storageRegistry: storageManager.registry,
-            autoPkType: 'int',
-            graphql: graphqlModule,
-        })
-        return client.getModule<SharedSyncLog>('sharedSyncLog')
-    }
+            const { client } = setupTestGraphQLStorexClient({
+                serverModules: modules,
+                clientModules: modules,
+                storageRegistry: storageManager.registry,
+                autoPkType: 'int',
+                graphql: graphqlModule,
+            })
+            return client.getModules<{ sharedSyncLog: SharedSyncLog }>()
+        }
 
-    integrationTests(setupSharedSyncLog)
-})
+        integrationTests(async (body : (dependencies : TestDependencies) => Promise<void>) => {
+            await body(await setupTestDependencies())
+        })
+    })
+}
+
+if (process.env.TEST_SYNC_FIRESTORE === 'true') {
+    describe('Storex Sync integration with Storex Firestore backend', () => {
+        integrationTests(async (body : (dependencies : TestDependencies) => Promise<void>) => {
+            await withEmulatedFirestoreBackend({
+                sharedSyncLog: ({ storageManager }) => new SharedSyncLogStorage({ storageManager, autoPkType: 'string', excludeTimestampChecks: true }) as any
+            }, { auth: { userId: 'alice' } }, async ({ storageManager, modules }) => {
+                try {
+                    await body({ sharedSyncLog: modules.sharedSyncLog as any, userId: 'alice' })
+                } catch (e) {
+                    const collectionsToDump = ['sharedSyncLogDeviceInfo', 'sharedSyncLogEntry', 'sharedSyncLogSeenEntry']
+                    const dumps = {}
+                    try {
+                        for (const collectionName of collectionsToDump) {
+                            dumps[collectionName] = await storageManager.collection(collectionName).findObjects({ userId: 'alice' })
+                        }
+                    } catch (ouch) {
+                        console.error('Error trying to dump DB for post-portem debugging:')
+                        console.error(ouch)
+                        throw e
+                    }
+
+                    console.error(`DB state after error: ${inspect(dumps, false, null, true)}`)
+                    throw e
+                }
+            })
+        })
+    })
+}

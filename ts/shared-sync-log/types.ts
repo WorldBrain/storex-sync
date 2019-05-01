@@ -1,11 +1,12 @@
-import { StorageModuleConfig, StorageOperationDefinitions } from "@worldbrain/storex-pattern-modules";
+import { StorageModuleConfig, StorageOperationDefinitions, AccessRules } from "@worldbrain/storex-pattern-modules";
 import { CollectionDefinitionMap } from "@worldbrain/storex";
+import { Omit } from "../types";
 
 export interface SharedSyncLog {
     createDeviceId(options : {userId, sharedUntil : number}) : Promise<string>
-    writeEntries(entries : SharedSyncLogEntry[]) : Promise<void>
-    getUnsyncedEntries(options : { deviceId }) : Promise<SharedSyncLogEntry[]>
-    markAsSeen(entries : Array<{ deviceId, createdOn : number }>, options : { deviceId }) : Promise<void>
+    writeEntries(entries : Omit<SharedSyncLogEntry, 'sharedOn'>[], options? : { now? : number | '$now' }) : Promise<void>
+    getUnsyncedEntries(options : { userId : string | number, deviceId : string | number }) : Promise<SharedSyncLogEntry[]>
+    markAsSeen(entries : Array<{ deviceId: string | number, createdOn : number }>, options : { userId: string | number, deviceId: string | number, now?: number | '$now' }) : Promise<void>
 }
 
 export interface SharedSyncLogEntry {
@@ -16,7 +17,12 @@ export interface SharedSyncLogEntry {
     data : string
 }
 
-export function createSharedSyncLogConfig(options : {autoPkType : 'int' | 'string', collections? : CollectionDefinitionMap, operations? : StorageOperationDefinitions}) : StorageModuleConfig {
+export function createSharedSyncLogConfig(options : {
+    autoPkType : 'int' | 'string',
+    collections? : CollectionDefinitionMap,
+    operations? : StorageOperationDefinitions,
+    accessRules? : AccessRules
+}) : StorageModuleConfig {
     return {
         operations: options.operations,
         collections: {
@@ -29,6 +35,7 @@ export function createSharedSyncLogConfig(options : {autoPkType : 'int' | 'strin
                     sharedOn: { type: 'timestamp' }, // when was this entry uploaded
                     data: { type: 'string' },
                 },
+                groupBy: [{ key: 'userId', subcollectionName: 'entries' }],
             },
             sharedSyncLogDeviceInfo: {
                 version: new Date('2019-02-05'),
@@ -36,6 +43,7 @@ export function createSharedSyncLogConfig(options : {autoPkType : 'int' | 'strin
                     userId: { type: options.autoPkType },
                     sharedUntil: { type: 'timestamp' },
                 },
+                groupBy: [{ key: 'userId', subcollectionName: 'devices' }]
             },
             ...(options.collections || {})
         },
@@ -70,6 +78,7 @@ export function createSharedSyncLogConfig(options : {autoPkType : 'int' | 'strin
                 },
                 returns: 'void',
             }
-        }
+        },
+        accessRules: options.accessRules,
     }
 }
