@@ -1,3 +1,4 @@
+import * as flatten from 'lodash/flatten'
 import * as sortBy from 'lodash/sortBy'
 import { StorageModule, StorageModuleConfig, StorageModuleConstructorArgs, StorageModuleDebugConfig } from '@worldbrain/storex-pattern-modules'
 import { SharedSyncLog, SharedSyncLogEntry, createSharedSyncLogConfig } from './types'
@@ -12,6 +13,17 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
         createSharedSyncLogConfig({
             autoPkType: this.options.autoPkType,
             collections: {
+                sharedSyncLogEntryBatch: {
+                    version: new Date('2019-02-05'),
+                    fields: {
+                        userId: { type: this.options.autoPkType },
+                        deviceId: { type: this.options.autoPkType },
+                        createdOn: { type: 'timestamp' }, // when was this entry created on a device
+                        sharedOn: { type: 'timestamp' }, // when was this entry uploaded
+                        data: { type: 'string' },
+                    },
+                    groupBy: [{ key: 'userId', subcollectionName: 'entries' }],
+                },
                 sharedSyncLogSeenEntry: {
                     version: new Date('2019-02-05'),
                     fields: {
@@ -40,11 +52,11 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                 },
                 createLogEntry: {
                     operation: 'createObject',
-                    collection: 'sharedSyncLogEntry',
+                    collection: 'sharedSyncLogEntryBatch',
                 },
                 findSyncEntries: {
                     operation: 'findObjects',
-                    collection: 'sharedSyncLogEntry',
+                    collection: 'sharedSyncLogEntryBatch',
                     args: [
                         { userId: '$userId' },
                     ]
@@ -65,7 +77,7 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                         field: 'userId',
                         access: ['list', 'read', 'create', 'update', 'delete'],
                     },
-                    sharedSyncLogEntry: {
+                    sharedSyncLogEntryBatch: {
                         field: 'userId',
                         access: ['list', 'read', 'create', 'delete'],
                     },
@@ -105,9 +117,9 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
         }
         const seenEntries = await this.operation('retrieveSeenEntries', { userId: deviceInfo.userId, deviceId: options.deviceId })
         const seenSet = new Set(seenEntries.map(entry => entry.createdOn))
-        const entries = await this.operation('findSyncEntries', { userId: deviceInfo.userId, fromWhen: 0 })
-        const unseenEntries = entries.filter(entry => !seenSet.has(entry.createdOn))
-        return sortBy(unseenEntries, 'createdOn')
+        const entriesBatch = await this.operation('findSyncEntries', { userId: deviceInfo.userId, fromWhen: 0 })
+        const unseenEntryBatches = entriesBatch.filter(entry => !seenSet.has(entry.createdOn))
+        return sortBy(flatten(unseenEntryBatches), 'createdOn')
     }
 
     async markAsSeen(entries : Array<{ deviceId, createdOn : number }>, options : { userId : string | number, deviceId : string | number, now? : number | '$now' }) : Promise<void> {
