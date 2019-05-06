@@ -1,9 +1,9 @@
-import * as tmp from 'tmp'
+const tmp = require('tmp')
 import { runTests } from "./index.tests"
 import { FilesystemSharedSyncLogStorage } from "./fs"
 
 export function withTempDirFactory(f : (createTempDir : () => string) => void) {
-    let tmpDirs = []
+    let tmpDirs : { removeCallback : () => void }[] = []
 
     const createTempDir : () => string = () => {
         const tmpDir = tmp.dirSync()

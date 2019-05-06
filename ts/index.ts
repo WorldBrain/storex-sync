@@ -1,15 +1,16 @@
+import pick from 'lodash/pick'
 import StorageManager from "@worldbrain/storex"
 import { ClientSyncLogStorage } from "./client-sync-log"
 import { SharedSyncLog } from "./shared-sync-log"
 import { ReconcilerFunction, ExecutableOperation } from "./reconciliation"
 
-export async function shareLogEntries(args : {clientSyncLog : ClientSyncLogStorage, sharedSyncLog : SharedSyncLog, userId, deviceId, now : number}) {
+export async function shareLogEntries(args : {
+    clientSyncLog : ClientSyncLogStorage, sharedSyncLog : SharedSyncLog,
+    userId : number | string, deviceId : number | string, now : number | '$now'
+}) {
     const entries = await args.clientSyncLog.getUnsharedEntries()
     const sharedLogEntries = entries.map(entry => ({
-        userId: args.userId,
-        deviceId: args.deviceId,
         createdOn: entry.createdOn,
-        sharedOn: args.now,
         data: JSON.stringify({
             operation: entry.operation,
             collection: entry.collection,
@@ -18,7 +19,7 @@ export async function shareLogEntries(args : {clientSyncLog : ClientSyncLogStora
             value: entry['value'] || null,
         })
     }))
-    await args.sharedSyncLog.writeEntries(sharedLogEntries, { now: args.now })
+    await args.sharedSyncLog.writeEntries(sharedLogEntries, pick(args, ['userId', 'deviceId', 'now']))
     await args.clientSyncLog.updateSharedUntil({ until: args.now, sharedOn: args.now })
 }
 
@@ -26,7 +27,7 @@ export async function receiveLogEntries(args : {
     clientSyncLog : ClientSyncLogStorage, sharedSyncLog : SharedSyncLog,
     userId : number | string,
     deviceId : number | string,
-    now : number
+    now : number | '$now'
 }) {
     const entries = await args.sharedSyncLog.getUnsyncedEntries({ userId: args.userId, deviceId: args.deviceId })
     await args.clientSyncLog.insertReceivedEntries(entries, {now: args.now})
@@ -48,9 +49,9 @@ export async function doSync({clientSyncLog, sharedSyncLog, storageManager, reco
     sharedSyncLog : SharedSyncLog,
     storageManager : StorageManager,
     reconciler : ReconcilerFunction,
-    now : number,
-    userId,
-    deviceId,
+    now : number | '$now',
+    userId : number | string,
+    deviceId : number | string,
 }) {
     await receiveLogEntries({clientSyncLog, sharedSyncLog, userId, deviceId, now})
     await shareLogEntries({clientSyncLog, sharedSyncLog, userId, deviceId, now})

@@ -1,5 +1,5 @@
 import { StorageRegistry } from '@worldbrain/storex';
-import * as expect from 'expect'
+import expect from 'expect'
 import { ClientSyncLogEntry } from '../client-sync-log/types';
 import { ExecutableOperation } from './types';
 import { reconcileSyncLog } from './default';

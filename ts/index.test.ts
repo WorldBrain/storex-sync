@@ -1,6 +1,6 @@
-import * as expect from 'expect'
+import expect from 'expect'
 import * as graphqlModule from 'graphql'
-import * as fromPairs from 'lodash/fromPairs'
+import fromPairs from 'lodash/fromPairs'
 import { setupStorexTest } from '@worldbrain/storex-pattern-modules/lib/index.tests'
 import { setupTestGraphQLStorexClient } from '@worldbrain/storex-graphql-client/lib/index.tests'
 import { withEmulatedFirestoreBackend } from '@worldbrain/storex-backend-firestore/lib/index.tests'
@@ -16,15 +16,20 @@ import { withTempDirFactory } from './shared-sync-log/fs.test';
 import { FilesystemSharedSyncLogStorage } from './shared-sync-log/fs';
 import { inspect } from 'util';
 
-export type TestDependencies = { sharedSyncLog : SharedSyncLog, userId? : number | string }
+export type TestDependencies = { sharedSyncLog : SharedSyncLog, userId? : number | string, getNow? : () => number | '$now' }
+export type TestRunnerOptions = { includeTimestampChecks? : boolean }
 
-function integrationTests(withTestDependencies : (body : (dependencies : TestDependencies) => Promise<void>) => Promise<void>) {
-    function createGetNow(options : {start : number}) {
+function integrationTests(withTestDependencies : (body : (dependencies : TestDependencies) => Promise<void>, options? : TestRunnerOptions) => Promise<void>) {
+    function createGetNow(options : { start : number, step?: number }) {
         let now = options.start
-        return () => now++
+        return () => {
+            const oldNow = now
+            now += options.step || 1
+            return oldNow
+        }
     }
 
-    async function setupClient(options : {backend, clientName : string, getNow : () => number, pkGenerator : () => string}) {
+    async function setupClient(options : { backend : { modules: { sharedSyncLog: SharedSyncLog } }, clientName : string, getNow : () => number | '$now', pkGenerator : () => string}) {
         const { storageManager, modules } = await setupStorexTest<{clientSyncLog : ClientSyncLogStorage}>({
             dbName: `client-${options.clientName}`,
             collections: {
@@ -61,10 +66,11 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             syncLoggingMiddleware
         ])
 
-        return { storageManager, modules, deviceId: null, objects: {} }
+        const deviceId : number | string = null as any
+        return { storageManager, modules, deviceId, objects: {} }
     }
 
-    async function setupTest(options : {dependencies : TestDependencies, clients? : {name : string}[], getNow : () => number}) {
+    async function setupTest(options : {dependencies : TestDependencies, clients? : {name : string}[], getNow : () => number | '$now'}) {
         let idsGenerated = 0
         const pkGenerator = () => `id-${++idsGenerated}`
 
@@ -74,17 +80,17 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
         const clients : {[name : string] : PromiseContentType<ReturnType<typeof setupClient>>} = {}
         for (const { name } of options.clients || []) {
             clients[name] = await setupClient({backend, clientName: name, getNow: options.getNow, pkGenerator})
-            clients[name].deviceId = await backend.modules.sharedSyncLog.createDeviceId({ userId, sharedUntil: 10 })
+            clients[name].deviceId = await backend.modules.sharedSyncLog.createDeviceId({ userId, sharedUntil: null })
         }
 
         return { backend, clients, userId }
     }
 
-    async function wrappedIt(description : string, test : (dependencies : TestDependencies) => Promise<void>) {
+    async function wrappedIt(description : string, test : (dependencies : TestDependencies) => Promise<void>, options? : TestRunnerOptions) {
         it(description, async () => {
             await withTestDependencies(async (dependencies : TestDependencies) => {
                 await test(dependencies)
-            })
+            }, options)
         })
     }
 
@@ -110,14 +116,14 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
 
             await share({now: 55})
             expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId })).toEqual([
-                expect.objectContaining({
+                (expect as any).objectContaining({
                     userId,
                     deviceId: clients.one.deviceId,
                     createdOn: 2,
                     sharedOn: 55,
                     data: '{"operation":"create","collection":"user","pk":"id-1","field":null,"value":{"displayName":"Joe"}}',
                 }),
-                expect.objectContaining({
+                (expect as any).objectContaining({
                     userId,
                     deviceId: clients.one.deviceId,
                     createdOn: 3,
@@ -163,23 +169,19 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
 
             await backend.modules.sharedSyncLog.writeEntries([
                 {
-                    userId,
-                    deviceId: clients.one.deviceId,
                     createdOn: 5,
                     data: '{"operation":"create","collection":"user","pk":"id-2","field":null,"value":{"displayName":"Joe"}}',
                 },
                 {
-                    userId,
-                    deviceId: clients.one.deviceId,
                     createdOn: 7,
                     data: '{"operation":"create","collection":"email","pk":"id-3","field":null,"value":{"address":"joe@doe.com"}}',
                 },
-            ], { now: 55 })
+            ], { now: 55, userId, deviceId: clients.one.deviceId })
             
             await receive({now: 60})
             expect(await clients.one.modules.clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
                 {
-                    id: expect.anything(),
+                    id: (expect as any).anything(),
                     createdOn: 2,
                     sharedOn: null,
                     needsIntegration: false,
@@ -189,7 +191,7 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
                     value: { displayName: 'Bob' },
                 },
                 {
-                    id: expect.anything(),
+                    id: (expect as any).anything(),
                     createdOn: 5,
                     sharedOn: 60,
                     needsIntegration: true,
@@ -200,7 +202,7 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
                     value: { displayName: 'Joe' },
                 },
                 {
-                    id: expect.anything(),
+                    id: (expect as any).anything(),
                     createdOn: 7,
                     sharedOn: 60,
                     needsIntegration: true,
@@ -216,19 +218,20 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
 
     describe('doSync()', () => {
         async function setupSyncTest(dependencies : TestDependencies) {
+            const getNow = dependencies.getNow || createGetNow({ start: 50, step: 5 })
             const { backend, clients, userId } = await setupTest({
                 dependencies,
                 clients: [{ name: 'one' }, { name: 'two' }],
-                getNow: createGetNow({ start: 50 })
+                getNow,
             })
-            const sync = async (options : {clientName : string, now : number}) => {
+            const sync = async (options : { clientName : string }) => {
                 const client = clients[options.clientName]
                 await doSync({
                     clientSyncLog: client.modules.clientSyncLog,
                     sharedSyncLog: backend.modules.sharedSyncLog,
                     storageManager: client.storageManager,
                     reconciler: reconcileSyncLog,
-                    now: options.now,
+                    now: getNow(),
                     userId,
                     deviceId: client.deviceId
                 })
@@ -243,12 +246,12 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             ]})).object
             const { emails, ...user } = orig
 
-            await sync({clientName: 'one', now: 55})
-            await sync({clientName: 'two', now: 60})
+            await sync({ clientName: 'one' })
+            await sync({ clientName: 'two' })
             
             expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toEqual(user)
             expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
-        })
+        }, { includeTimestampChecks: true })
 
         wrappedIt('should correctly sync updateObject operations', async (dependencies : TestDependencies) => {
             const { clients, sync } = await setupSyncTest(dependencies)
@@ -258,12 +261,12 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             await clients.one.storageManager.collection('user').updateOneObject(orig, { displayName: 'Joe Black' })
             const { emails, ...user } = { ...orig, displayName: 'Joe Black' } as any
 
-            await sync({clientName: 'one', now: 55})
-            await sync({clientName: 'two', now: 60})
+            await sync({ clientName: 'one' })
+            await sync({ clientName: 'two' })
             
             expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toEqual(user)
             expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
-        })
+        }, { includeTimestampChecks: true })
     })
 }
 
@@ -328,12 +331,18 @@ if (process.env.TEST_SYNC_GRAPHQL === 'true') {
 
 if (process.env.TEST_SYNC_FIRESTORE === 'true') {
     describe('Storex Sync integration with Storex Firestore backend', () => {
-        integrationTests(async (body : (dependencies : TestDependencies) => Promise<void>) => {
+        integrationTests(async (body : (dependencies : TestDependencies) => Promise<void>, options : TestRunnerOptions) => {
             await withEmulatedFirestoreBackend({
-                sharedSyncLog: ({ storageManager }) => new SharedSyncLogStorage({ storageManager, autoPkType: 'string', excludeTimestampChecks: true }) as any
-            }, { auth: { userId: 'alice' } }, async ({ storageManager, modules }) => {
+                sharedSyncLog: ({ storageManager }) => new SharedSyncLogStorage({
+                    storageManager, autoPkType: 'string', excludeTimestampChecks: !options || !options.includeTimestampChecks
+                }) as any
+            }, { auth: { userId: 'alice' }, printProjectId: true }, async ({ storageManager, modules }) => {
                 try {
-                    await body({ sharedSyncLog: modules.sharedSyncLog as any, userId: 'alice' })
+                    await body({
+                        sharedSyncLog: modules.sharedSyncLog as any,
+                        userId: 'alice',
+                        getNow: options && options.includeTimestampChecks ? (() => '$now') : undefined,
+                    })
                 } catch (e) {
                     const collectionsToDump = ['sharedSyncLogDeviceInfo', 'sharedSyncLogEntry', 'sharedSyncLogSeenEntry']
                     const dumps = {}

@@ -1,4 +1,4 @@
-import * as expect from 'expect'
+import expect from 'expect'
 import StorageManager, { CollectionDefinitionMap } from '@worldbrain/storex';
 import { getObjectPk, getObjectWithoutPk, setObjectPk } from './utils';
 
@@ -6,7 +6,7 @@ describe('Primary key utils', () => {
     async function setupTest(config : {collections : CollectionDefinitionMap}) {
         const backend = {
             configure: () => null,
-            operation: async (...args) => ({args})
+            operation: async (...args : any[]) => ({args})
         } as any
         const storageManager = new StorageManager({backend})
         storageManager.registry.registerCollections(config.collections)

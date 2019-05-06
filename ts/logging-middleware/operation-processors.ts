@@ -2,12 +2,12 @@ import { getObjectWithoutPk, getObjectPk } from '../utils'
 import { ClientSyncLogEntry } from '../client-sync-log/types'
 import { StorageRegistry, OperationBatch } from '@worldbrain/storex';
 
-export type ExecuteAndLog = (originalOperation, logEntries : ClientSyncLogEntry[]) => Promise<any>
+export type ExecuteAndLog = (originalOperation : any, logEntries : ClientSyncLogEntry[]) => Promise<any>
 export interface OperationProcessorArgs {
-    next : {process: ({operation}) => any},
+    next : {process: (options : { operation : any[] }) => any},
     operation : any[],
     executeAndLog : ExecuteAndLog,
-    getNow : () => number,
+    getNow : () => number | '$now' | '$now',
     storageRegistry : StorageRegistry
     includeCollections : Set<string>
 }
@@ -27,7 +27,7 @@ async function _processCreateObject({next, operation, executeAndLog, getNow, inc
     }
     
     const result = await executeAndLog(
-        {placeholder: 'object', operation: 'createObject', collection, args: value},
+        { placeholder: 'object' , operation: 'createObject', collection, args: value},
         [_logEntryForCreateObject({collection, value, getNow, storageRegistry}) as ClientSyncLogEntry]
     )
     const object = result.info.object.object
@@ -36,7 +36,7 @@ async function _processCreateObject({next, operation, executeAndLog, getNow, inc
 
 function _logEntryForCreateObject(
     {collection, value, getNow, storageRegistry} :
-    {collection : string, value, getNow : () => number, storageRegistry : StorageRegistry}
+    {collection : string, value : any, getNow : () => number | '$now', storageRegistry : StorageRegistry}
 ) : ClientSyncLogEntry {
     return {
         collection,
@@ -93,7 +93,7 @@ async function _processUpdateObjects({next, operation, executeAndLog, getNow, in
 
 async function _logEntriesForUpdateObjects(
     {next, collection, where, updates, getNow, storageRegistry} :
-    {next : {process: ({operation}) => any}, collection : string, where, updates, getNow : () => number, storageRegistry : StorageRegistry}
+    {next : { process: (options : { operation : any }) => any }, collection : string, where : any, updates : any, getNow : () => number | '$now', storageRegistry : StorageRegistry}
 ) {
     const affected = await next.process({operation: ['findObjects', collection, where]})
     const logEntries : ClientSyncLogEntry[] = []

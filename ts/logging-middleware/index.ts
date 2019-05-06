@@ -14,8 +14,8 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         Object.assign(this, { ...options, includeCollections: new Set(options.includeCollections) })
     }
     
-    async process({next, operation} : {next : {process: ({operation}) => any}, operation : any[]}) {
-        const executeAndLog = (originalOperation, logEntries : ClientSyncLogEntry[]) => {
+    async process({next, operation} : {next : {process: (options : { operation: any[] }) => any}, operation : any[]}) {
+        const executeAndLog = (originalOperation : any | any[], logEntries : ClientSyncLogEntry[]) => {
             const batch = originalOperation instanceof Array ? originalOperation : [originalOperation]
             for (const logEntry of logEntries) {
                 batch.push({
@@ -43,7 +43,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         }
     }
 
-    _getNow() {
+    _getNow() : number | '$now' {
         return Date.now()
     }
 }

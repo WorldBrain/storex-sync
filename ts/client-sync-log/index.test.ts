@@ -1,4 +1,4 @@
-import * as expect from 'expect'
+import expect from 'expect'
 import StorageManager from '@worldbrain/storex'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
 import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
@@ -190,7 +190,7 @@ describe('Client sync log', () => {
             ]
 
             await syncLogStorage.insertEntries(entries)
-            const firstEntries = await syncLogStorage.getNextEntriesToIntgrate()
+            const firstEntries = await syncLogStorage.getNextEntriesToIntgrate() as ClientSyncLogEntry[]
             expect(firstEntries).toEqual([
                 {id: 1, ...entries[0]},
                 {id: 3, ...entries[2]},
@@ -198,7 +198,7 @@ describe('Client sync log', () => {
             ])
 
             await syncLogStorage.markAsIntegrated(firstEntries)
-            const secondEntries = await syncLogStorage.getNextEntriesToIntgrate()
+            const secondEntries = await syncLogStorage.getNextEntriesToIntgrate() as ClientSyncLogEntry[]
             expect(secondEntries).toEqual([
                 {id: 2, ...entries[1]},
             ])

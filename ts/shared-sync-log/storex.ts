@@ -1,5 +1,5 @@
-import * as flatten from 'lodash/flatten'
-import * as sortBy from 'lodash/sortBy'
+import flatten from 'lodash/flatten'
+import sortBy from 'lodash/sortBy'
 import { StorageModule, StorageModuleConfig, StorageModuleConstructorArgs, StorageModuleDebugConfig } from '@worldbrain/storex-pattern-modules'
 import { SharedSyncLog, SharedSyncLogEntry, createSharedSyncLogConfig } from './types'
 import { Omit } from '../types';
@@ -18,7 +18,6 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                     fields: {
                         userId: { type: this.options.autoPkType },
                         deviceId: { type: this.options.autoPkType },
-                        createdOn: { type: 'timestamp' }, // when was this entry created on a device
                         sharedOn: { type: 'timestamp' }, // when was this entry uploaded
                         data: { type: 'string' },
                     },
@@ -39,6 +38,9 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                 createDeviceInfo: {
                     operation: 'createObject',
                     collection: 'sharedSyncLogDeviceInfo',
+                    args: {
+                        userId: '$userId:pk'
+                    }
                 },
                 getDeviceInfo: {
                     operation: 'findObject',
@@ -50,7 +52,7 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                     collection: 'sharedSyncLogDeviceInfo',
                     args: [{ userId: '$userId:pk', id: '$deviceId:pk' }, {sharedUntil: '$sharedUntil:timestamp'}]
                 },
-                createLogEntry: {
+                createLogEntryBatch: {
                     operation: 'createObject',
                     collection: 'sharedSyncLogEntryBatch',
                 },
@@ -89,40 +91,54 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                 validation: {
                     sharedSyncLogDeviceInfo: !this.options.excludeTimestampChecks ? [
                         {
-                            field: 'updatedWhen',
-                            rule: { or: [
-                                { eq: ['$value', null] },
-                                { eq: ['$value', '$context.now'] },
-                            ] }
+                            field: 'sharedUntil',
+                            rule: { eq: ['$value', '$context.now'] }
                         }
                     ] : []
                 },
             }
         })
 
-    async createDeviceId(options : {userId, sharedUntil : number}) : Promise<string> {
+        // debug = true
+
+    async createDeviceId(options : { userId : number | string, sharedUntil? : number | null }) : Promise<string> {
+        if (!options.sharedUntil) {
+            options.sharedUntil = null
+        }
         return (await this.operation('createDeviceInfo', options)).object.id
     }
 
-    async writeEntries(entries : Omit<SharedSyncLogEntry, 'sharedOn'>[], options? : { now : number | '$now' }) : Promise<void> {
-        for (const entry of entries) {
-            await this.operation('createLogEntry', { ...entry, sharedOn: (options && options.now) || '$now' })
-        }
+    async writeEntries(
+        entries : Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[],
+        options : { userId : number | string, deviceId : string | number, now : number | '$now' }
+    ) : Promise<void> {
+        await this.operation('createLogEntryBatch', {
+            data: JSON.stringify(entries),
+            userId: options.userId,
+            deviceId: options.deviceId,
+            sharedOn: (options && options.now) || '$now'
+        })
     }
 
     async getUnsyncedEntries(options : { userId : string | number, deviceId : string | number }) : Promise<SharedSyncLogEntry[]> {
-        const deviceInfo = await this.operation('getDeviceInfo', options)
-        if (!deviceInfo) {
-            throw new Error(`Cannot find device ID: ${JSON.stringify(options.deviceId)}`)
-        }
-        const seenEntries = await this.operation('retrieveSeenEntries', { userId: deviceInfo.userId, deviceId: options.deviceId })
-        const seenSet = new Set(seenEntries.map(entry => entry.createdOn))
-        const entriesBatch = await this.operation('findSyncEntries', { userId: deviceInfo.userId, fromWhen: 0 })
-        const unseenEntryBatches = entriesBatch.filter(entry => !seenSet.has(entry.createdOn))
-        return sortBy(flatten(unseenEntryBatches), 'createdOn')
+        const seenEntries = await this.operation('retrieveSeenEntries', { userId: options.userId, deviceId: options.deviceId })
+        const seenSet = new Set(seenEntries.map((entry : Pick<SharedSyncLogEntry, 'createdOn'>) => entry.createdOn))
+
+        const entryBatches = await this.operation('findSyncEntries', { userId: options.userId, fromWhen: 0 })
+        const entries = flatten(entryBatches.map((batch : { data : string, deviceId: number | string, sharedOn : number }) : SharedSyncLogEntry[] => 
+            JSON.parse(batch.data).map((entry : SharedSyncLogEntry) => ({
+                ...entry,
+                sharedOn: batch.sharedOn,
+                deviceId: batch.deviceId,
+                userId: options.userId,
+            }))
+        )) as SharedSyncLogEntry[]
+        
+        const unseenEntries = entries.filter((entry : SharedSyncLogEntry) => !seenSet.has(entry.createdOn))
+        return sortBy(unseenEntries, 'createdOn')
     }
 
-    async markAsSeen(entries : Array<{ deviceId, createdOn : number }>, options : { userId : string | number, deviceId : string | number, now? : number | '$now' }) : Promise<void> {
+    async markAsSeen(entries : Array<{ deviceId : string | number, createdOn : number }>, options : { userId : string | number, deviceId : string | number, now? : number | '$now' }) : Promise<void> {
         if (!entries.length) {
             return
         }

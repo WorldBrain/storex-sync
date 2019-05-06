@@ -1,7 +1,9 @@
+import { Omit } from "../types";
+
 interface ClientSyncLogEntryBase {
     id?: any
-    createdOn : number
-    sharedOn? : number
+    createdOn : number | '$now'
+    sharedOn : number | null
     needsIntegration : boolean
     collection : string
     pk : any

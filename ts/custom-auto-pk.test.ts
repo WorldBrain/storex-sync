@@ -1,4 +1,4 @@
-import * as expect from 'expect'
+import expect from 'expect'
 import StorageManager from '@worldbrain/storex'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
 import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
@@ -46,7 +46,7 @@ describe('CustomAutoPkMiddleware', () => {
         expect(user).toEqual({
             id: 'some-pk-1',
             displayName: 'Joe',
-            emails: [expect.objectContaining({id: 'some-pk-2'})]
+            emails: [(expect as any).objectContaining({id: 'some-pk-2'})]
         })
         const email = user.emails[0]
         expect(await storageManager.collection('user').findOneObject({ id: user.id })).toEqual({id: user.id, displayName: 'Joe'})

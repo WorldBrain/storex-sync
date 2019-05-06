@@ -86,12 +86,12 @@ export class ClientSyncLogStorage extends StorageModule {
         }
     }
 
-    async insertReceivedEntries(sharedEntries : SharedSyncLogEntry[], options : {now : number}) {
+    async insertReceivedEntries(sharedEntries : SharedSyncLogEntry[], options : { now : number | '$now' }) {
         await this.insertEntries(sharedEntries.map(sharedEntry => {
             const data = JSON.parse(sharedEntry.data)
             const clientEntry : ClientSyncLogEntry = {
                 createdOn: sharedEntry.createdOn,
-                sharedOn: options.now,
+                sharedOn: typeof options.now === 'string' ? Date.now() : options.now,
                 needsIntegration: true,
                 operation: data.operation,
                 collection: data.collection,
@@ -107,7 +107,7 @@ export class ClientSyncLogStorage extends StorageModule {
         return sortBy(await this.operation('findEntriesCreatedAfter', {timestamp}), 'createdOn')
     }
 
-    async updateSharedUntil({until, sharedOn} : {until : number, sharedOn : number}) {
+    async updateSharedUntil({until, sharedOn} : { until : number | '$now', sharedOn : number | '$now' }) {
         await this.operation('updateSharedUntil', {until, sharedOn})
     }
 
@@ -119,7 +119,7 @@ export class ClientSyncLogStorage extends StorageModule {
         await this.operation('markAsIntegrated', {ids: entries.map(entry => entry.id)})
     }
 
-    async getNextEntriesToIntgrate() : Promise<ClientSyncLogEntry[]> {
+    async getNextEntriesToIntgrate() : Promise<ClientSyncLogEntry[] | null> {
         const firstEntryList = await this.operation('findFirstUnintegratedEntry', {})
         if (!firstEntryList.length) {
             return null

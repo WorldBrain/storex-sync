@@ -7,12 +7,12 @@ type Modifications = {[collection : string] : CollectionModifications}
 type CollectionModifications = {[pk : string] : ObjectModifications}
 interface ObjectModifications {
     shouldBeCreated : boolean
-    createdOn? : number
+    createdOn? : number | '$now'
     isDeleted : boolean
     shouldBeDeleted : boolean
     fields : {[field : string] : FieldModification}
 }
-type FieldModification = {createdOn : number, syncedOn? : number, value : any}
+type FieldModification = {createdOn : number | '$now', syncedOn : number | null, value : any}
 
 function _throwModificationBeforeCreation(logEntry : ClientSyncLogEntry) {
     throw new Error(
@@ -107,7 +107,7 @@ export function _processModificationEntry(
         }
         return
     }
-    if (objectModifications.shouldBeCreated && objectModifications.createdOn > logEntry.createdOn) {
+    if (objectModifications.shouldBeCreated && objectModifications.createdOn && objectModifications.createdOn > logEntry.createdOn) {
         _throwModificationBeforeCreation(logEntry)
     }
     

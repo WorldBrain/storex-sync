@@ -3,16 +3,22 @@ import { CollectionDefinitionMap } from "@worldbrain/storex";
 import { Omit } from "../types";
 
 export interface SharedSyncLog {
-    createDeviceId(options : {userId, sharedUntil : number}) : Promise<string>
-    writeEntries(entries : Omit<SharedSyncLogEntry, 'sharedOn'>[], options? : { now? : number | '$now' }) : Promise<void>
+    createDeviceId(options : {userId : number | string, sharedUntil : number | null }) : Promise<string>
+    writeEntries(
+        entries : Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[],
+        options : { userId : number | string, deviceId : string | number, now? : number | '$now' }
+    ) : Promise<void>
     getUnsyncedEntries(options : { userId : string | number, deviceId : string | number }) : Promise<SharedSyncLogEntry[]>
-    markAsSeen(entries : Array<{ deviceId: string | number, createdOn : number }>, options : { userId: string | number, deviceId: string | number, now?: number | '$now' }) : Promise<void>
+    markAsSeen(
+        entries : Array<{ deviceId: string | number, createdOn : number | '$now' }>,
+        options : { userId: string | number, deviceId: string | number, now?: number | '$now' }
+    ) : Promise<void>
 }
 
 export interface SharedSyncLogEntry {
-    userId : any
-    deviceId : any
-    createdOn : number
+    userId : number | string
+    deviceId : number | string
+    createdOn : number | '$now'
     sharedOn : number
     data : string
 }
@@ -41,7 +47,7 @@ export function createSharedSyncLogConfig(options : {
                 version: new Date('2019-02-05'),
                 fields: {
                     userId: { type: options.autoPkType },
-                    sharedUntil: { type: 'timestamp' },
+                    sharedUntil: { type: 'timestamp', optional: true },
                 },
                 groupBy: [{ key: 'userId', subcollectionName: 'devices' }]
             },

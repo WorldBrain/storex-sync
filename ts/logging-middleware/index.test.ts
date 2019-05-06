@@ -1,4 +1,4 @@
-import * as expect from 'expect'
+import expect from 'expect'
 import StorageManager, { CollectionFields } from '@worldbrain/storex'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
 import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
@@ -33,7 +33,7 @@ describe('Sync logging middleware', () => {
         await storageManager.collection('user').createObject({id: 53, displayName: 'John Doe'})
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -50,7 +50,7 @@ describe('Sync logging middleware', () => {
         await storageManager.collection('user').updateOneObject({id: 53}, {displayName: 'Jack Doe'})
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -58,7 +58,7 @@ describe('Sync logging middleware', () => {
                 operation: 'create', value: {displayName: 'John Doe'}
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -79,7 +79,7 @@ describe('Sync logging middleware', () => {
         await storageManager.collection('user').updateOneObject({id: 53}, {firstName: 'Jack', lastName: 'Trump'})
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -87,7 +87,7 @@ describe('Sync logging middleware', () => {
                 operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -96,7 +96,7 @@ describe('Sync logging middleware', () => {
                 value: 'Jack',
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 5,
                 sharedOn: null,
                 needsIntegration: false,
@@ -119,7 +119,7 @@ describe('Sync logging middleware', () => {
         await storageManager.collection('user').updateObjects({lastName: 'Doe'}, {lastName: 'Trump'})
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -127,7 +127,7 @@ describe('Sync logging middleware', () => {
                 operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -135,7 +135,7 @@ describe('Sync logging middleware', () => {
                 operation: 'create', value: {firstName: 'Jane', lastName: 'Doe'}
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 5,
                 sharedOn: null,
                 needsIntegration: false,
@@ -143,7 +143,7 @@ describe('Sync logging middleware', () => {
                 operation: 'create', value: {firstName: 'Jack', lastName: 'Daniels'}
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 6,
                 sharedOn: null,
                 needsIntegration: false,
@@ -152,7 +152,7 @@ describe('Sync logging middleware', () => {
                 value: 'Trump',
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 7,
                 sharedOn: null,
                 needsIntegration: false,
@@ -175,7 +175,7 @@ describe('Sync logging middleware', () => {
         await storageManager.collection('user').updateObjects({lastName: 'Doe'}, {firstName: 'Pinata', lastName: 'Trump'})
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -183,7 +183,7 @@ describe('Sync logging middleware', () => {
                 operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -191,7 +191,7 @@ describe('Sync logging middleware', () => {
                 operation: 'create', value: {firstName: 'Jane', lastName: 'Doe'}
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 5,
                 sharedOn: null,
                 needsIntegration: false,
@@ -199,7 +199,7 @@ describe('Sync logging middleware', () => {
                 operation: 'create', value: {firstName: 'Jack', lastName: 'Daniels'}
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 6,
                 sharedOn: null,
                 needsIntegration: false,
@@ -208,7 +208,7 @@ describe('Sync logging middleware', () => {
                 value: 'Pinata',
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 7,
                 sharedOn: null,
                 needsIntegration: false,
@@ -217,7 +217,7 @@ describe('Sync logging middleware', () => {
                 value: 'Trump',
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 8,
                 sharedOn: null,
                 needsIntegration: false,
@@ -226,7 +226,7 @@ describe('Sync logging middleware', () => {
                 value: 'Pinata',
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 9,
                 sharedOn: null,
                 needsIntegration: false,
@@ -256,7 +256,7 @@ describe('Sync logging middleware', () => {
         ])
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -264,7 +264,7 @@ describe('Sync logging middleware', () => {
                 operation: 'create', value: {displayName: 'John Doe'}
             },
             {
-                id: expect.anything(),
+                id: (expect as any).anything(),
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,

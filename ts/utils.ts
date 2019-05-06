@@ -1,13 +1,13 @@
 import { StorageRegistry } from "@worldbrain/storex";
 
-export function getObjectPk(object, collection : string, registry : StorageRegistry) {
+export function getObjectPk(object : any, collection : string, registry : StorageRegistry) {
     const pkIndex = registry.collections[collection].pkIndex
     if (typeof pkIndex === 'string') {
         return object[pkIndex]
     }
 
     const pk = []
-    for (const indexField of pkIndex) {
+    for (const indexField of pkIndex as string[]) {
         if (typeof indexField === 'string') {
             pk.push(object[indexField])
         } else {
@@ -17,7 +17,7 @@ export function getObjectPk(object, collection : string, registry : StorageRegis
     return pk
 }
 
-export function getObjectWithoutPk(object, collection : string, registry : StorageRegistry) {
+export function getObjectWithoutPk(object : any, collection : string, registry : StorageRegistry) {
     object = { ...object }
 
     const pkIndex = registry.collections[collection].pkIndex
@@ -26,7 +26,7 @@ export function getObjectWithoutPk(object, collection : string, registry : Stora
         return object
     }
 
-    for (const indexField of pkIndex) {
+    for (const indexField of pkIndex as string[]) {
         if (typeof indexField === 'string') {
             delete object[indexField]
         } else {
@@ -36,7 +36,7 @@ export function getObjectWithoutPk(object, collection : string, registry : Stora
     return object
 }
 
-export function setObjectPk(object, pk, collection : string, registry : StorageRegistry) {
+export function setObjectPk(object : any, pk : number | string | number[] | string[], collection : string, registry : StorageRegistry) {
     const collectionDefinition = registry.collections[collection]
     if (!collectionDefinition) {
         throw new Error(`Could not find collection definition for '${collection}'`)
@@ -49,7 +49,7 @@ export function setObjectPk(object, pk, collection : string, registry : StorageR
     }
 
     let indexFieldIdx = 0
-    for (const indexField of pkIndex) {
+    for (const indexField of pkIndex as string[]) {
         if (typeof indexField === 'string') {
             object[indexField] = pk[indexFieldIdx++]
         } else {
