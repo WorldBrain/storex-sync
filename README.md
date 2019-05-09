@@ -9,7 +9,7 @@ By itself, right now this package cannot provide offline-first for multi-user ap
 How it works
 ============
 
-1) When you set up Storex as the storage layer for your application (with IndexedDB as the backend for example) you set it up with the Custom PK and Sync Log middleware
+1) When you set up Storex as the storage layer for your application (with IndexedDB as the backend for example) you set it up with the Custom PK and Sync Log [middleware](https://github.com/WorldBrain/storex/blob/master/docs/middleware.md).
 1a) The Custom PK middleware generates a random ID for each new object instead of an auto-incremented ID to prevent ID conflicts between devices
 1b) The Sync Log middleware intercepts all modifications to the database and also writes them to the Client Sync Log
 2) Once in a while you sync the Client Log with the Shared Log, sending and receiving changes
@@ -72,3 +72,7 @@ export async function sync(options : { storageManager : StorageManager, clientSy
 }
 ```
 
+Deeper understanding
+====================
+
+Since this a complex piece of software that with the risk that it brings with it, it's highly recommended to dive into the code and get a thorough understand of it before implementing any of this in your own application. The best point to start would be the [integration tests](./ts/index.test.ts) and drilling down from there.
