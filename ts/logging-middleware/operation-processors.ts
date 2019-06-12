@@ -160,41 +160,59 @@ async function _processDeleteObjects({next, operation, executeAndLog, getNow, in
 }
 
 async function _logEntriesForDeleteObjects(
-    {next, collection, where, getNow, storageRegistry} :
-    {next : { process: (options : { operation : any }) => any }, collection : string, where : any, getNow : () => number | '$now', storageRegistry : StorageRegistry}
+    {next, collection, where, getNow, storageRegistry}:
+        { next: { process: (options: { operation: any }) => any }, collection: string, where: any, getNow: () => number | '$now', storageRegistry: StorageRegistry }
 ) {
     const affected = await next.process({operation: ['findObjects', collection, where]})
-    const logEntries : ClientSyncLogEntry[] = []
+    return _logEntriesForAffectedDeleteObjects({affected, collection, getNow, storageRegistry});
+}
+
+function _logEntriesForAffectedDeleteObjects({affected, collection, getNow, storageRegistry}: { affected: any, collection: string, getNow: () => number | '$now', storageRegistry: StorageRegistry }) {
+    const logEntries: ClientSyncLogEntry[] = []
     for (const object of affected) {
         const pk = getObjectPk(object, collection, storageRegistry)
-            logEntries.push({
-                createdOn: getNow(),
-                sharedOn: null,
-                needsIntegration: false,
-                collection,
-                operation: 'delete',
-                pk: pk,
-            })
+        logEntries.push({
+            createdOn: getNow(),
+            sharedOn: null,
+            needsIntegration: false,
+            collection,
+            operation: 'delete',
+            pk: pk,
+        })
     }
     return logEntries
 }
 
 
-async function _processExecuteBatch({next, operation, executeAndLog, getNow, includeCollections, storageRegistry} : OperationProcessorArgs) {
-    const batch : OperationBatch = operation[1]
-    const logEntries : ClientSyncLogEntry[] = []
+async function _processExecuteBatch({next, operation, executeAndLog, getNow, includeCollections, storageRegistry}: OperationProcessorArgs) {
+    const batch: OperationBatch = operation[1]
+    const logEntries: ClientSyncLogEntry[] = []
     for (const step of batch) {
         if (!includeCollections.has(step.collection)) {
             continue
         }
 
         if (step.operation === 'createObject') {
-            logEntries.push(_logEntryForCreateObject({collection: step.collection, value: step.args, getNow, storageRegistry}))
+            logEntries.push(_logEntryForCreateObject({
+                collection: step.collection,
+                value: step.args,
+                getNow,
+                storageRegistry
+            }))
+        } else if (step.operation === 'deleteObjects') {
+            const deleteLogs = await _logEntriesForDeleteObjects({
+                next,
+                collection: step.collection,
+                where: step.where,
+                getNow,
+                storageRegistry
+            })
+            deleteLogs.forEach((log: ClientSyncLogEntry) => logEntries.push(log))
         }
         //todo: need other operations here?
     }
     if (!logEntries) {
-        return next.process({ operation })
+        return next.process({operation})
     }
 
     return executeAndLog(

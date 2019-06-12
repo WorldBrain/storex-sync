@@ -162,7 +162,7 @@ describe('Sync logging middleware', () => {
             },
         ])
     })
-    
+
     it('should write updateObjects operations done on multiple fields to the ClientSyncLog in a batch write', async () => {
         let now = 2
         const { storageManager, clientSyncLog } = await setupTest({now: () => ++now, userFields: {
@@ -429,6 +429,7 @@ describe('Sync logging middleware', () => {
         await storageManager.collection('user').createObject({id: 55, firstName: 'Jess', lastName: 'Doe'})
         await storageManager.collection('user').deleteObjects({firstName: 'John'}, {limit: 1})
         //Note, is it deterministic which object get's deleted with a limit? In this case we're assuming there's an intrinsic sort by createdOn
+        //todo: This test is failing as the `DeleteManyOptions` with `limit` is not being respected (at least, not in the Dexie implementation)
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
            {
                 id: (expect as any).anything(),
@@ -465,33 +466,19 @@ describe('Sync logging middleware', () => {
         ])
     })
 
-
-    it('should correctly process batch operations with deleteObject operations', async () => {
+    it('should correctly process batch operations with deleteObjects operations', async () => {
         let now = 2
         const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
         await storageManager.operation('executeBatch', [
             {
-                placeholder: 'john',
-                operation: 'createObject',
-                collection: 'user',
-                args: {id: 53, displayName: 'John Doe'}
-            },
-            {
                 placeholder: 'jane',
-                operation: 'deleteObject',
+                operation: 'deleteObjects',
                 collection: 'user',
-                args: {id: 54}
+                args: {displayName: 'John Doe'}
             },
         ])
-        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
-            {
-                id: (expect as any).anything(),
-                createdOn: 3,
-                sharedOn: null,
-                needsIntegration: false,
-                collection: 'user', pk: 53,
-                operation: 'create', value: {displayName: 'John Doe'}
-            },
+        expect(await clientSyncLog.getEntriesCreatedAfter(4)).toEqual([
             {
                 id: (expect as any).anything(),
                 createdOn: 4,
