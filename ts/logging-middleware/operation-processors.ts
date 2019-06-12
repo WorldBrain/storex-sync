@@ -1,13 +1,15 @@
 import { getObjectWithoutPk, getObjectPk } from '../utils'
-import {ClientSyncLogDeletionEntry, ClientSyncLogEntry} from '../client-sync-log/types'
+import {ClientSyncLogDeletionEntry, ClientSyncLogEntry, ClientSyncLogModificationEntry} from '../client-sync-log/types'
 import { StorageRegistry, OperationBatch } from '@worldbrain/storex';
 
 export type ExecuteAndLog = (originalOperation : any, logEntries : ClientSyncLogEntry[]) => Promise<any>
+export interface Next {process: (options : { operation : any[] }) => any}
+export type GetNow = () => number | '$now' | '$now'
 export interface OperationProcessorArgs {
-    next : {process: (options : { operation : any[] }) => any},
+    next : Next,
     operation : any[],
     executeAndLog : ExecuteAndLog,
-    getNow : () => number | '$now' | '$now',
+    getNow : GetNow,
     storageRegistry : StorageRegistry
     includeCollections : Set<string>
 }
@@ -22,6 +24,9 @@ export const DEFAULT_OPERATION_PROCESSORS : OperationProcessorMap = {
     executeBatch: _processExecuteBatch,
 }
 
+/**
+ * Creates
+ */
 async function _processCreateObject({next, operation, executeAndLog, getNow, includeCollections, storageRegistry} : OperationProcessorArgs) {
     const [collection, value] = operation.slice(1)
     if (!includeCollections.has(collection)) {
@@ -38,7 +43,7 @@ async function _processCreateObject({next, operation, executeAndLog, getNow, inc
 
 function _logEntryForCreateObject(
     {collection, value, getNow, storageRegistry} :
-    {collection : string, value : any, getNow : () => number | '$now', storageRegistry : StorageRegistry}
+    {collection : string, value : any, getNow : GetNow, storageRegistry : StorageRegistry}
 ) : ClientSyncLogEntry {
     return {
         collection,
@@ -51,6 +56,9 @@ function _logEntryForCreateObject(
     }
 }
 
+/**
+ * Updates
+ */
 async function _processUpdateObject({next, operation, executeAndLog, getNow, includeCollections, storageRegistry} : OperationProcessorArgs) {
     const [collection, where, updates] = operation.slice(1)
     if (!includeCollections.has(collection)) {
@@ -60,16 +68,7 @@ async function _processUpdateObject({next, operation, executeAndLog, getNow, inc
     const pk = getObjectPk(where, collection, storageRegistry)
     const logEntries : ClientSyncLogEntry[] = []
     for (const [fieldName, newValue] of Object.entries(updates)) {
-        logEntries.push({
-            createdOn: getNow(),
-            sharedOn: null,
-            needsIntegration: false,
-            field: fieldName,
-            collection,
-            operation: 'modify',
-            pk: pk,
-            value: newValue
-        })
+        logEntries.push(_updateOperationToLogEntry({getNow, collection, pk, fieldName, newValue}))
     }
     await executeAndLog(
         {placeholder: 'object', operation: 'updateObjects', collection, where, updates},
@@ -83,41 +82,46 @@ async function _processUpdateObjects({next, operation, executeAndLog, getNow, in
         return next.process({operation})
     }
 
-    const logEntries : ClientSyncLogEntry[] = await _logEntriesForUpdateObjects({
-        next, collection, where, updates, getNow, storageRegistry
-    })
-    
+    const logEntries: ClientSyncLogModificationEntry[] = await _updateOperationQueryToLogEntry({next,collection,where,updates,getNow,storageRegistry})
+
     await executeAndLog(
         {placeholder: 'update', operation: 'updateObjects', collection, where, updates},
         logEntries,
     )
 }
 
-async function _logEntriesForUpdateObjects(
-    {next, collection, where, updates, getNow, storageRegistry} :
-    {next : { process: (options : { operation : any }) => any }, collection : string, where : any, updates : any, getNow : () => number | '$now', storageRegistry : StorageRegistry}
-) {
-    const affected = await next.process({operation: ['findObjects', collection, where]})
-    const logEntries : ClientSyncLogEntry[] = []
-    for (const object of affected) {
+async function _updateOperationQueryToLogEntry({next, collection, where, updates, getNow, storageRegistry}:
+ { next: Next, collection: string, where: any, updates: any, getNow: GetNow, storageRegistry: StorageRegistry }): Promise<ClientSyncLogModificationEntry[]>
+{
+    const affectedObjects = await next.process({operation: ['findObjects', collection, where]})
+
+    const logEntries: ClientSyncLogModificationEntry[] = []
+    for (const object of affectedObjects) {
         const pk = getObjectPk(object, collection, storageRegistry)
         for (const [fieldName, newValue] of Object.entries(updates)) {
-            logEntries.push({
-                createdOn: getNow(),
-                sharedOn: null,
-                needsIntegration: false,
-                field: fieldName,
-                collection,
-                operation: 'modify',
-                pk: pk,
-                value: newValue
-            })
+            logEntries.push(_updateOperationToLogEntry({getNow, collection, pk, fieldName, newValue}));
         }
     }
-    return logEntries
+
+    return logEntries;
 }
 
+function _updateOperationToLogEntry({getNow,collection,pk, fieldName, newValue} : { getNow: GetNow, collection: string, pk: any, fieldName: any, newValue: any }) : ClientSyncLogModificationEntry {
+    return {
+        createdOn: getNow(),
+        sharedOn: null,
+        needsIntegration: false,
+        collection,
+        operation: "modify",
+        pk: pk,
+        field: fieldName,
+        value: newValue
+    } as ClientSyncLogModificationEntry;
+}
 
+/**
+ * Deletes
+ */
 async function _processDeleteObject({next, operation, executeAndLog, getNow, includeCollections, storageRegistry} : OperationProcessorArgs) {
 
     const [collection, where] = operation.slice(1)
@@ -126,15 +130,8 @@ async function _processDeleteObject({next, operation, executeAndLog, getNow, inc
     }
 
     const pk = getObjectPk(where, collection, storageRegistry)
-    const logEntries : ClientSyncLogEntry[] = []
-        logEntries.push({
-            createdOn: getNow(),
-            sharedOn: null,
-            needsIntegration: false,
-            collection,
-            operation: 'delete',
-            pk: pk
-        })
+
+    const logEntries: ClientSyncLogEntry[] = [_deleteOperationToLogEntry(getNow,collection,pk)]
 
     await executeAndLog(
         {placeholder: 'delete', operation: 'deleteObjects', collection, where},
@@ -149,9 +146,7 @@ async function _processDeleteObjects({next, operation, executeAndLog, getNow, in
         return next.process({operation})
     }
 
-    const logEntries : ClientSyncLogEntry[] = await _logEntriesForDeleteObjects({
-        next, collection, where, getNow, storageRegistry
-    })
+    const logEntries: ClientSyncLogEntry[] = await _deleteOperationQueryToLogEntry({next,getNow,collection,where})
 
     await executeAndLog(
         {placeholder: 'delete', operation: 'deleteObjects', collection, where},
@@ -159,34 +154,33 @@ async function _processDeleteObjects({next, operation, executeAndLog, getNow, in
     )
 }
 
-async function _logEntriesForDeleteObjects(
-    {next, collection, where, getNow, storageRegistry}:
-        { next: { process: (options: { operation: any }) => any }, collection: string, where: any, getNow: () => number | '$now', storageRegistry: StorageRegistry }
-) {
-    const affected = await next.process({operation: ['findObjects', collection, where]})
-    return _logEntriesForAffectedDeleteObjects({affected, collection, getNow, storageRegistry});
+
+async function _deleteOperationQueryToLogEntry({next, getNow, collection,where} : {next: any, getNow: GetNow, collection: string,where: any}) : Promise<ClientSyncLogDeletionEntry[]> {
+    const affectedObjects = await next.process({operation: ['findObjects', collection, where]})
+
+    return affectedObjects.map(
+        (object:any) => _deleteOperationToLogEntry(getNow,collection,object.id)
+    );
 }
 
-function _logEntriesForAffectedDeleteObjects({affected, collection, getNow, storageRegistry}: { affected: any, collection: string, getNow: () => number | '$now', storageRegistry: StorageRegistry }) {
-    const logEntries: ClientSyncLogEntry[] = []
-    for (const object of affected) {
-        const pk = getObjectPk(object, collection, storageRegistry)
-        logEntries.push({
-            createdOn: getNow(),
-            sharedOn: null,
-            needsIntegration: false,
-            collection,
-            operation: 'delete',
-            pk: pk,
-        })
-    }
-    return logEntries
+function _deleteOperationToLogEntry(getNow: any,collection:string,pk:any) : ClientSyncLogDeletionEntry {
+    return {
+        createdOn: getNow(),
+        sharedOn: null,
+        needsIntegration: false,
+        collection,
+        operation: "delete",
+        pk: pk
+    };
 }
 
 
+/**
+ * Batch
+ */
 async function _processExecuteBatch({next, operation, executeAndLog, getNow, includeCollections, storageRegistry}: OperationProcessorArgs) {
     const batch: OperationBatch = operation[1]
-    const logEntries: ClientSyncLogEntry[] = []
+    let logEntries: ClientSyncLogEntry[] = []
     for (const step of batch) {
         if (!includeCollections.has(step.collection)) {
             continue
@@ -199,18 +193,13 @@ async function _processExecuteBatch({next, operation, executeAndLog, getNow, inc
                 getNow,
                 storageRegistry
             }))
+        } else if (step.operation === 'updateObjects') {
+            const logs = await _updateOperationQueryToLogEntry({next,collection: step.collection ,where: step.where, updates: step.updates, storageRegistry,getNow})
+            logEntries = logEntries.concat(logs)
         } else if (step.operation === 'deleteObjects') {
-            const deleteLogs = await _logEntriesForDeleteObjects({
-                next,
-                collection: step.collection,
-                where: step.where,
-                getNow,
-                storageRegistry
-            })
-            deleteLogs.forEach((log: ClientSyncLogEntry) => logEntries.push(log))
+            const logs = await _deleteOperationQueryToLogEntry({next,getNow, collection: step.collection, where: step.where});
+            logEntries = logEntries.concat(logs)
         }
-        //todo: need update operation here also
-        //todo: tidy it up into a case statement or map or something
     }
     if (!logEntries) {
         return next.process({operation})
