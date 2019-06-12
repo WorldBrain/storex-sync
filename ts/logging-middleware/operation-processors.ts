@@ -1,5 +1,5 @@
 import { getObjectWithoutPk, getObjectPk } from '../utils'
-import { ClientSyncLogEntry } from '../client-sync-log/types'
+import {ClientSyncLogDeletionEntry, ClientSyncLogEntry} from '../client-sync-log/types'
 import { StorageRegistry, OperationBatch } from '@worldbrain/storex';
 
 export type ExecuteAndLog = (originalOperation : any, logEntries : ClientSyncLogEntry[]) => Promise<any>
@@ -119,18 +119,64 @@ async function _logEntriesForUpdateObjects(
 
 
 async function _processDeleteObject({next, operation, executeAndLog, getNow, includeCollections, storageRegistry} : OperationProcessorArgs) {
-    console.log("WARN: Running _processDeleteObject - Needs implementing")
+
+    const [collection, where] = operation.slice(1)
+    if (!includeCollections.has(collection)) {
+        return next.process({operation})
+    }
+
+    const pk = getObjectPk(where, collection, storageRegistry)
+    const logEntries : ClientSyncLogEntry[] = []
+        logEntries.push({
+            createdOn: getNow(),
+            sharedOn: null,
+            needsIntegration: false,
+            collection,
+            operation: 'delete',
+            pk: pk
+        })
+
+    await executeAndLog(
+        {placeholder: 'delete', operation: 'deleteObjects', collection, where},
+        logEntries,
+    )
 }
 
 async function _processDeleteObjects({next, operation, executeAndLog, getNow, includeCollections, storageRegistry} : OperationProcessorArgs) {
-    console.log("WARN: Running _processDeleteObjects - Needs implementing")
+
+    const [collection, where] = operation.slice(1)
+    if (!includeCollections.has(collection)) {
+        return next.process({operation})
+    }
+
+    const logEntries : ClientSyncLogEntry[] = await _logEntriesForDeleteObjects({
+        next, collection, where, getNow, storageRegistry
+    })
+
+    await executeAndLog(
+        {placeholder: 'delete', operation: 'deleteObjects', collection, where},
+        logEntries,
+    )
 }
 
 async function _logEntriesForDeleteObjects(
-    {next, collection, where, updates, getNow, storageRegistry} :
-    {next : { process: (options : { operation : any }) => any }, collection : string, where : any, updates : any, getNow : () => number | '$now', storageRegistry : StorageRegistry}
+    {next, collection, where, getNow, storageRegistry} :
+    {next : { process: (options : { operation : any }) => any }, collection : string, where : any, getNow : () => number | '$now', storageRegistry : StorageRegistry}
 ) {
-    console.log("WARN: Running _logEntriesForDeleteObjects - Needs implementing")
+    const affected = await next.process({operation: ['findObjects', collection, where]})
+    const logEntries : ClientSyncLogEntry[] = []
+    for (const object of affected) {
+        const pk = getObjectPk(object, collection, storageRegistry)
+            logEntries.push({
+                createdOn: getNow(),
+                sharedOn: null,
+                needsIntegration: false,
+                collection,
+                operation: 'delete',
+                pk: pk,
+            })
+    }
+    return logEntries
 }
 
 
@@ -145,6 +191,7 @@ async function _processExecuteBatch({next, operation, executeAndLog, getNow, inc
         if (step.operation === 'createObject') {
             logEntries.push(_logEntryForCreateObject({collection: step.collection, value: step.args, getNow, storageRegistry}))
         }
+        //todo: need other operations here?
     }
     if (!logEntries) {
         return next.process({ operation })
