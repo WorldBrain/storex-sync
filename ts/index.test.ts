@@ -279,8 +279,8 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             await sync({ clientName: 'one' })
             await sync({ clientName: 'two' })
 
-            //todo: expect deleted
-            expect(false).toBeTruthy()
+            expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toBeFalsy()
+            expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
 
         }, { includeTimestampChecks: true })
 
@@ -290,17 +290,15 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             const orig = (await clients.one.storageManager.collection('user').createObject({
                 displayName: 'Joe', emails: [{ address: 'joe@doe.com' }]
             })).object
-            //todo - CH - Question -
-            // Not sure about the format of the object created with createObject({displayName: 'Joe', emails: [{ address: 'joe@doe.com' }] }
-            // With regard to querying for deleteObjets, can I query for what looks like nested objects as below or is this something else?
+
             await clients.one.storageManager.collection('user').deleteObjects({emails: {address: 'joe@dow.com'}})
             const { emails, ...user } = { ...orig, displayName: 'Joe Black' } as any
 
             await sync({ clientName: 'one' })
             await sync({ clientName: 'two' })
 
-            //todo: expect deleted
-            expect(false).toBeTruthy()
+            expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toBeFalsy()
+            expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
 
         }, { includeTimestampChecks: true })
     })

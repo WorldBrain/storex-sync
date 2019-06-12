@@ -209,7 +209,8 @@ async function _processExecuteBatch({next, operation, executeAndLog, getNow, inc
             })
             deleteLogs.forEach((log: ClientSyncLogEntry) => logEntries.push(log))
         }
-        //todo: need other operations here?
+        //todo: need update operation here also
+        //todo: tidy it up into a case statement or map or something
     }
     if (!logEntries) {
         return next.process({operation})
