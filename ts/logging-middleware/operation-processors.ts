@@ -17,6 +17,8 @@ export const DEFAULT_OPERATION_PROCESSORS : OperationProcessorMap = {
     createObject: _processCreateObject,
     updateObject: _processUpdateObject,
     updateObjects: _processUpdateObjects,
+    deleteObject: _processDeleteObject,
+    deleteObjects: _processDeleteObjects,
     executeBatch: _processExecuteBatch,
 }
 
@@ -114,6 +116,23 @@ async function _logEntriesForUpdateObjects(
     }
     return logEntries
 }
+
+
+async function _processDeleteObject({next, operation, executeAndLog, getNow, includeCollections, storageRegistry} : OperationProcessorArgs) {
+    console.log("WARN: Running _processDeleteObject - Needs implementing")
+}
+
+async function _processDeleteObjects({next, operation, executeAndLog, getNow, includeCollections, storageRegistry} : OperationProcessorArgs) {
+    console.log("WARN: Running _processDeleteObjects - Needs implementing")
+}
+
+async function _logEntriesForDeleteObjects(
+    {next, collection, where, updates, getNow, storageRegistry} :
+    {next : { process: (options : { operation : any }) => any }, collection : string, where : any, updates : any, getNow : () => number | '$now', storageRegistry : StorageRegistry}
+) {
+    console.log("WARN: Running _logEntriesForDeleteObjects - Needs implementing")
+}
+
 
 async function _processExecuteBatch({next, operation, executeAndLog, getNow, includeCollections, storageRegistry} : OperationProcessorArgs) {
     const batch : OperationBatch = operation[1]

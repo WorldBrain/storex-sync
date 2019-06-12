@@ -273,4 +273,83 @@ describe('Sync logging middleware', () => {
             },
         ])
     })
+
+    it('should write deleteObject operations done by pk to the ClientSyncLog in a batch write', async () => {
+
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.collection('user').createObject({id: 53, displayName: 'John Doe'})
+        await storageManager.collection('user').deleteOneObject({id: 53})
+        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+            {
+                id: (expect as any).anything(),
+                createdOn: 3,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'create', value: {displayName: 'John Doe'}
+            },
+            {
+                id: (expect as any).anything(),
+                createdOn: 4,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'delete',
+            },
+        ])
+    })
+
+
+    it('should write deleteObjects operations done by a query on a single field to the ClientSyncLog in a batch write', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
+        await storageManager.collection('user').deleteOneObject({id: 53})
+        //todo: expect..
+        expect(false).toBeTruthy()
+    })
+
+    it('should write deleteObjects operations done by a query on multiple fields to the ClientSyncLog in a batch write', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
+        await storageManager.collection('user').createObject({id: 54, firstName: 'John', lastName: 'Paul'})
+        await storageManager.collection('user').createObject({id: 55, firstName: 'Jess', lastName: 'Doe'})
+        await storageManager.collection('user').deleteObjects({firstName: 'John'})
+        //todo: expect the two johns have been deleted in the ClientSyncLog
+        expect(false).toBeTruthy()
+    })
+
+    it('should write deleteObjects operations done by a query on a single field with a delete limit to the ClientSyncLog in a batch write', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
+        await storageManager.collection('user').createObject({id: 54, firstName: 'John', lastName: 'Paul'})
+        await storageManager.collection('user').createObject({id: 55, firstName: 'Jess', lastName: 'Doe'})
+        await storageManager.collection('user').deleteObjects({firstName: 'John'}, {limit: 1})
+        //todo: expect only one john has been deleted in the ClientSyncLog
+        expect(false).toBeTruthy()
+    })
+
+    it('should correctly process batch operations with deleteObject operations', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.operation('executeBatch', [
+            {
+                placeholder: 'john',
+                operation: 'deleteObject',
+                collection: 'user',
+                args: {id: 53, displayName: 'John Doe'}
+            },
+            {
+                placeholder: 'jane',
+                operation: 'createObject',
+                collection: 'user',
+                args: {id: 54, displayName: 'Jane Does'}
+            },
+        ])
+        //todo: expect the right entries in clientSyncLog
+        expect(false).toBeTruthy()
+    })
 })

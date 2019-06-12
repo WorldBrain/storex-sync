@@ -267,6 +267,42 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toEqual(user)
             expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
         }, { includeTimestampChecks: true })
+
+        wrappedIt('should correctly sync deleteObject operations', async (dependencies : TestDependencies) => {
+            const { clients, sync } = await setupSyncTest(dependencies)
+            const orig = (await clients.one.storageManager.collection('user').createObject({
+                displayName: 'Joe', emails: [{ address: 'joe@doe.com' }]
+            })).object
+            await clients.one.storageManager.collection('user').deleteOneObject(orig)
+            const { emails, ...user } = { ...orig, displayName: 'Joe Black' } as any
+
+            await sync({ clientName: 'one' })
+            await sync({ clientName: 'two' })
+
+            //todo: expect deleted
+            expect(false).toBeTruthy()
+
+        }, { includeTimestampChecks: true })
+
+
+        wrappedIt('should correctly sync deleteObjects operations', async (dependencies : TestDependencies) => {
+            const { clients, sync } = await setupSyncTest(dependencies)
+            const orig = (await clients.one.storageManager.collection('user').createObject({
+                displayName: 'Joe', emails: [{ address: 'joe@doe.com' }]
+            })).object
+            //todo - CH - Question -
+            // Not sure about the format of the object created with createObject({displayName: 'Joe', emails: [{ address: 'joe@doe.com' }] }
+            // With regard to querying for deleteObjets, can I query for what looks like nested objects as below or is this something else?
+            await clients.one.storageManager.collection('user').deleteObjects({emails: {address: 'joe@dow.com'}})
+            const { emails, ...user } = { ...orig, displayName: 'Joe Black' } as any
+
+            await sync({ clientName: 'one' })
+            await sync({ clientName: 'two' })
+
+            //todo: expect deleted
+            expect(false).toBeTruthy()
+
+        }, { includeTimestampChecks: true })
     })
 }
 
