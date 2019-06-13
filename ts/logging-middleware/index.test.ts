@@ -162,7 +162,7 @@ describe('Sync logging middleware', () => {
             },
         ])
     })
-    
+
     it('should write updateObjects operations done on multiple fields to the ClientSyncLog in a batch write', async () => {
         let now = 2
         const { storageManager, clientSyncLog } = await setupTest({now: () => ++now, userFields: {
@@ -270,6 +270,220 @@ describe('Sync logging middleware', () => {
                 needsIntegration: false,
                 collection: 'user', pk: 54,
                 operation: 'create', value: {displayName: 'Jane Does'}
+            },
+        ])
+    })
+
+    it('should write deleteObject operations done by pk to the ClientSyncLog in a batch write', async () => {
+
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.collection('user').createObject({id: 53, displayName: 'John Doe'})
+        await storageManager.collection('user').deleteOneObject({id: 53})
+        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+            {
+                id: (expect as any).anything(),
+                createdOn: 3,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'create', value: {displayName: 'John Doe'}
+            },
+            {
+                id: (expect as any).anything(),
+                createdOn: 4,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'delete',
+            },
+        ])
+    })
+
+
+    it('should write deleteObjects operations done by a query on a single field to the ClientSyncLog in a batch write', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
+        await storageManager.collection('user').deleteObjects({firstName: 'John', lastName: 'Doe'})
+        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+            {
+                id: (expect as any).anything(),
+                createdOn: 3,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
+            },
+            {
+                id: (expect as any).anything(),
+                createdOn: 4,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'delete',
+            },
+        ])
+    })
+
+    it('should write deleteObjects operations done by a query on multiple fields to the ClientSyncLog in a batch write', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
+        await storageManager.collection('user').createObject({id: 54, firstName: 'John', lastName: 'Paul'})
+        await storageManager.collection('user').createObject({id: 55, firstName: 'Jess', lastName: 'Doe'})
+        await storageManager.collection('user').deleteObjects({firstName: 'John', lastName: 'Doe'})
+        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+            {
+                id: (expect as any).anything(),
+                createdOn: 3,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
+            },
+            {
+                id: (expect as any).anything(),
+                createdOn: 4,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 54,
+                operation: 'create', value: {firstName: 'John', lastName: 'Paul'}
+            },
+            {
+                id: (expect as any).anything(),
+                createdOn: 5,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 55,
+                operation: 'create', value: {firstName: 'Jess', lastName: 'Doe'}
+            },
+            {
+                id: (expect as any).anything(),
+                createdOn: 6,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'delete',
+            },
+        ])
+    })
+
+    it('should write deleteObjects operations done by a query on a single field matching multiple objects, to the ClientSyncLog in a batch write', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
+        await storageManager.collection('user').createObject({id: 54, firstName: 'John', lastName: 'Paul'})
+        await storageManager.collection('user').createObject({id: 55, firstName: 'Jess', lastName: 'Doe'})
+        await storageManager.collection('user').deleteObjects({firstName: 'John'})
+        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+            {
+                id: (expect as any).anything(),
+                createdOn: 3,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
+            },
+            {
+                id: (expect as any).anything(),
+                createdOn: 4,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 54,
+                operation: 'create', value: {firstName: 'John', lastName: 'Paul'}
+            },
+            {
+                id: (expect as any).anything(),
+                createdOn: 5,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 55,
+                operation: 'create', value: {firstName: 'Jess', lastName: 'Doe'}
+            },
+            {
+                id: (expect as any).anything(),
+                createdOn: 6,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'delete',
+            },
+            {
+                id: (expect as any).anything(),
+                createdOn: 7,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 54,
+                operation: 'delete',
+            },
+        ])
+    })
+
+    // Skip this test as no storage backends currently implement the limit field
+    it.skip('should write deleteObjects operations done by a query on a single field with a delete limit, to the ClientSyncLog in a batch write', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
+        await storageManager.collection('user').createObject({id: 54, firstName: 'John', lastName: 'Paul'})
+        await storageManager.collection('user').createObject({id: 55, firstName: 'Jess', lastName: 'Doe'})
+        await storageManager.collection('user').deleteObjects({firstName: 'John'}, {limit: 1})
+        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+           {
+                id: (expect as any).anything(),
+                createdOn: 3,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'create', value: {firstName: 'John', lastName: 'Doe'}
+            },
+            {
+                id: (expect as any).anything(),
+                createdOn: 4,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 54,
+                operation: 'create', value: {firstName: 'John', lastName: 'Paul'}
+            },
+            {
+                id: (expect as any).anything(),
+                createdOn: 5,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 55,
+                operation: 'create', value: {firstName: 'Jess', lastName: 'Doe'}
+            },
+            {
+                id: (expect as any).anything(),
+                createdOn: 6,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'delete',
+            },
+        ])
+    })
+
+    it('should correctly process batch operations with deleteObjects operations', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog } = await setupTest({now: () => ++now})
+        await storageManager.collection('user').createObject({id: 53, firstName: 'John', lastName: 'Doe'})
+        await storageManager.operation('executeBatch', [
+            {
+                placeholder: 'jane',
+                operation: 'deleteObjects',
+                collection: 'user',
+                args: {displayName: 'John Doe'}
+            },
+        ])
+        expect(await clientSyncLog.getEntriesCreatedAfter(4)).toEqual([
+            {
+                id: (expect as any).anything(),
+                createdOn: 4,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user', pk: 53,
+                operation: 'delete',
             },
         ])
     })

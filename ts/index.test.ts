@@ -267,6 +267,40 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toEqual(user)
             expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
         }, { includeTimestampChecks: true })
+
+        wrappedIt('should correctly sync deleteObject operations', async (dependencies : TestDependencies) => {
+            const { clients, sync } = await setupSyncTest(dependencies)
+            const orig = (await clients.one.storageManager.collection('user').createObject({
+                displayName: 'Joe', emails: [{ address: 'joe@doe.com' }]
+            })).object
+            await clients.one.storageManager.collection('user').deleteOneObject(orig)
+            const { emails, ...user } = { ...orig, displayName: 'Joe Black' } as any
+
+            await sync({ clientName: 'one' })
+            await sync({ clientName: 'two' })
+
+            expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toBeFalsy()
+            expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
+
+        }, { includeTimestampChecks: true })
+
+
+        wrappedIt('should correctly sync deleteObjects operations', async (dependencies : TestDependencies) => {
+            const { clients, sync } = await setupSyncTest(dependencies)
+            const orig = (await clients.one.storageManager.collection('user').createObject({
+                displayName: 'Joe', emails: [{ address: 'joe@doe.com' }]
+            })).object
+
+            await clients.one.storageManager.collection('user').deleteObjects({emails: {address: 'joe@dow.com'}})
+            const { emails, ...user } = { ...orig, displayName: 'Joe Black' } as any
+
+            await sync({ clientName: 'one' })
+            await sync({ clientName: 'two' })
+
+            expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toBeFalsy()
+            expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
+
+        }, { includeTimestampChecks: true })
     })
 }
 
