@@ -72,6 +72,12 @@ export async function sync(options : { storageManager : StorageManager, clientSy
 }
 ```
 
+The shared sync log
+===================
+
+As mentioned above, Sync works by sending and receiving changes from a shared log. Currently, we have working PoCs of doing this through GraphQL to a custom back-end, through Firestore, the local Filesystem and entirely within the same browser for testing purposes. However, all that's neded for a different kind of shared log is implementing the [SharedSyncLog interface](./ts/shared-sync-log/types.ts) and passing that into the `doSync()` function as shown above. Example implementations can be found [here](./ts/shared-sync-log/storex.ts) and [here](./ts/shared-sync-log/fs.ts).
+
+
 Deeper understanding
 ====================
 
