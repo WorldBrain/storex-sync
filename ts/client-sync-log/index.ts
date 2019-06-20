@@ -1,7 +1,7 @@
 const sortBy = require('lodash/sortBy')
 import { StorageModule, StorageModuleConfig } from '@worldbrain/storex-pattern-modules'
 import { ClientSyncLogEntry } from "./types"
-import { SharedSyncLogEntry } from '../shared-sync-log/types';
+import { SharedSyncLogEntry, SharedSyncLogEntryData } from '../shared-sync-log/types';
 
 export class ClientSyncLogStorage extends StorageModule {
     getConfig() : StorageModuleConfig {
@@ -86,20 +86,37 @@ export class ClientSyncLogStorage extends StorageModule {
         }
     }
 
-    async insertReceivedEntries(sharedEntries : SharedSyncLogEntry[], options : { now : number | '$now' }) {
-        await this.insertEntries(sharedEntries.map(sharedEntry => {
-            const data = JSON.parse(sharedEntry.data)
-            const clientEntry : ClientSyncLogEntry = {
+    async insertReceivedEntries(sharedEntries : Array<SharedSyncLogEntry<'deserialized-data'>>, options : { now : number | '$now' }) {
+        await this.insertEntries(sharedEntries.map((sharedEntry) : ClientSyncLogEntry => {
+            const data = sharedEntry.data
+            const common = {
                 createdOn: sharedEntry.createdOn,
                 sharedOn: typeof options.now === 'string' ? Date.now() : options.now,
                 needsIntegration: true,
-                operation: data.operation,
                 collection: data.collection,
                 pk: data.pk,
-                field: data.field,
-                value: data.value,
             }
-            return clientEntry
+            if (data.operation === 'create') {
+                return {
+                    ...common,
+                    operation: 'create',
+                    value: data.value,
+                }
+            } else if (data.operation === 'modify') {
+                return {
+                    ...common,
+                    operation: 'modify',
+                    field: data.field!,
+                    value: data.value,
+                }
+            } else if (data.operation === 'delete') {
+                return {
+                    ...common,
+                    operation: 'delete'
+                }
+            } else {
+                throw new Error(`Unknown operation received: ${data.operation}`)
+            }
         }))
     }
 

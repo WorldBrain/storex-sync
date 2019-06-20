@@ -8,7 +8,7 @@ import { SharedSyncLogStorage } from './shared-sync-log/storex';
 import { ClientSyncLogStorage } from './client-sync-log';
 import { CustomAutoPkMiddleware } from './custom-auto-pk';
 import { SyncLoggingMiddleware } from './logging-middleware';
-import { shareLogEntries, receiveLogEntries, doSync } from '.';
+import { shareLogEntries, receiveLogEntries, doSync, SyncSerializer } from '.';
 import { reconcileSyncLog } from './reconciliation';
 import { SharedSyncLog } from './shared-sync-log';
 import { PromiseContentType } from './types.test';
@@ -197,7 +197,6 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
                     needsIntegration: true,
                     collection: 'user',
                     pk: 'id-2',
-                    field: null,
                     operation: 'create',
                     value: { displayName: 'Joe' },
                 },
@@ -208,7 +207,6 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
                     needsIntegration: true,
                     collection: 'email',
                     pk: 'id-3',
-                    field: null,
                     operation: 'create',
                     value: { address: 'joe@doe.com' },
                 }
@@ -224,7 +222,7 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
                 clients: [{ name: 'one' }, { name: 'two' }],
                 getNow,
             })
-            const sync = async (options : { clientName : string }) => {
+            const sync = async (options : { clientName : string, serializer? : SyncSerializer }) => {
                 const client = clients[options.clientName]
                 await doSync({
                     clientSyncLog: client.modules.clientSyncLog,
@@ -233,17 +231,18 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
                     reconciler: reconcileSyncLog,
                     now: getNow(),
                     userId,
-                    deviceId: client.deviceId
+                    deviceId: client.deviceId,
+                    serializer: options.serializer,
                 })
             }
-            return { clients, sync }
+            return { clients, backend, sync, userId }
         }
 
         wrappedIt('should correctly sync createObject operations', async (dependencies : TestDependencies) => {
             const { clients, sync } = await setupSyncTest(dependencies)
             const orig = (await clients.one.storageManager.collection('user').createObject({
-                displayName: 'Joe', emails: [{address: 'joe@doe.com'}
-            ]})).object
+                displayName: 'Joe', emails: [{address: 'joe@doe.com'}]
+            })).object
             const { emails, ...user } = orig
 
             await sync({ clientName: 'one' })
@@ -300,6 +299,33 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toBeFalsy()
             expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
 
+        }, { includeTimestampChecks: true })
+
+        wrappedIt('should work with custom serialization/deserialization', async (dependencies : TestDependencies) => {
+            const { clients, backend, userId, sync } = await setupSyncTest(dependencies)
+            const orig = (await clients.one.storageManager.collection('user').createObject({
+                displayName: 'Joe'
+            })).object
+            const { emails, ...user } = orig
+
+            const serializer : SyncSerializer = {
+                serializeSharedSyncLogEntryData: async (data) => `!!!${JSON.stringify(data)}`,
+                deserializeSharedSyncLogEntryData: async (serialized) => JSON.parse(serialized.substr(3))
+            }
+
+            await sync({ clientName: 'one', serializer })
+            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId })).toEqual([
+                {
+                    userId,
+                    deviceId: clients.one.deviceId,
+                    createdOn: 50,
+                    sharedOn: 55,
+                    data: "!!!{\"operation\":\"create\",\"collection\":\"user\",\"pk\":\"id-1\",\"field\":null,\"value\":{\"displayName\":\"Joe\"}}"
+                },
+            ])
+            await sync({ clientName: 'two', serializer })
+            
+            expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toEqual(user)
         }, { includeTimestampChecks: true })
     })
 }

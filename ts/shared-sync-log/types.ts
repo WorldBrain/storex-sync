@@ -1,6 +1,7 @@
 import { StorageModuleConfig, StorageOperationDefinitions, AccessRules } from "@worldbrain/storex-pattern-modules";
 import { CollectionDefinitionMap } from "@worldbrain/storex";
 import { Omit } from "../types";
+import { ClientSyncLogEntry, ClientSyncLogModificationEntry } from "../client-sync-log/types";
 
 export interface SharedSyncLog {
     createDeviceId(options : {userId : number | string, sharedUntil : number | null }) : Promise<string>
@@ -15,12 +16,23 @@ export interface SharedSyncLog {
     ) : Promise<void>
 }
 
-export interface SharedSyncLogEntry {
+interface SharedSyncLogEntryBase {
     userId : number | string
     deviceId : number | string
     createdOn : number | '$now'
     sharedOn : number
-    data : string
+}
+
+export type SharedSyncLogEntry<SerializedData extends 'serialized-data' | 'deserialized-data' = 'serialized-data'> =
+    SharedSyncLogEntryBase
+    & (SerializedData extends 'serialized-data' ? { data : string } : { data : SharedSyncLogEntryData })
+
+export interface SharedSyncLogEntryData {
+    operation: ClientSyncLogEntry['operation'],
+    collection: ClientSyncLogEntry['collection'],
+    pk: ClientSyncLogEntry['pk'],
+    field: ClientSyncLogModificationEntry['field'] | null,
+    value: ClientSyncLogModificationEntry['value'] | null,
 }
 
 export function createSharedSyncLogConfig(options : {

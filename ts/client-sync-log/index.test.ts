@@ -107,12 +107,13 @@ describe('Client sync log', () => {
             deviceId: 'u1d1',
             createdOn: entry.createdOn,
             sharedOn: now - 10,
-            data: JSON.stringify({
+            data: {
+                operation: entry.operation,
                 collection: entry.collection,
                 pk: entry.pk,
-                operation: entry.operation,
+                field: null,
                 value: entry['value'],
-            })
+            }
         })), {now})
         expect(await syncLogStorage.getEntriesCreatedAfter(1)).toEqual([
             {
