@@ -36,10 +36,10 @@
     "@types/node": "^10.12.11",
     "@worldbrain/storex": "^0.3.6",
     "@worldbrain/storex-backend-dexie": "^0.2.3",
-    "@worldbrain/storex-pattern-modules": "^0.3.0",
     "@worldbrain/storex-backend-firestore": "^0.1.1",
     "@worldbrain/storex-graphql-client": "^0.1.0",
     "@worldbrain/storex-graphql-schema": "^0.1.1",
+    "@worldbrain/storex-pattern-modules": "^0.3.0",
     "apollo-server-express": "^2.4.8",
     "chai": "^4.1.2",
     "expect": "^23.5.0",
@@ -54,12 +54,13 @@
     "supertest": "^4.0.2",
     "tmp": "^0.1.0",
     "ts-node": "^7.0.1",
+    "typed-emitter": "^0.1.0",
     "typescript": "^3.0.1"
   },
   "peerDependencies": {
     "@worldbrain/storex": "^0.3.6",
-    "@worldbrain/storex-pattern-modules": "^0.3.0",
-    "@worldbrain/storex-graphql-schema": "^0.1.0"
+    "@worldbrain/storex-graphql-schema": "^0.1.0",
+    "@worldbrain/storex-pattern-modules": "^0.3.0"
   },
   "resolutions": {
     "**/graphql": "^14.0.0"
