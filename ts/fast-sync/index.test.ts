@@ -111,10 +111,10 @@ describe('Fast initial sync', () => {
             return { events, listen, popEvents }
         }
 
-        return { createDevice, createChannel, createSenderFastSync, createReceiverFastSync, createEventSpy }
+        return { createDevice, createChannels: createChannel, createSenderFastSync, createReceiverFastSync, createEventSpy }
     }
 
-    it('should work', async () => {
+    async function runMinimalTest() {
         const testSetup = await setupTest()
 
         const device1 = await testSetup.createDevice()
@@ -122,15 +122,15 @@ describe('Fast initial sync', () => {
         await device1.storageManager.collection('test').createObject({ key: 'one', label: 'Foo' })
         await device1.storageManager.collection('test').createObject({ key: 'two', label: 'Bar' })
 
-        const dummyChannel = testSetup.createChannel()
+        const channels = testSetup.createChannels()
         
         const senderFastSync = testSetup.createSenderFastSync({
-            storageManager: device1.storageManager, channel: dummyChannel.senderChannel,
+            storageManager: device1.storageManager, channel: channels.senderChannel,
             collections: ['test']
         })
         const receiverFastSync = testSetup.createReceiverFastSync({
             storageManager: device2.storageManager,
-            channel: dummyChannel.receiverChannel
+            channel: channels.receiverChannel
         })
 
         const senderEventSpy = testSetup.createEventSpy()
@@ -161,5 +161,9 @@ describe('Fast initial sync', () => {
             { key: 'one', label: 'Foo' },
             { key: 'two', label: 'Bar' },
         ])
+    }
+
+    it('should work with a very minimal example over an in-memory data channel', async () => {
+        await runMinimalTest()
     })
 })
