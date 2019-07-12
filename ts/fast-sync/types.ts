@@ -1,2 +1,16 @@
-export type FastSyncSenderChannel = any
-export type FastSyncReceiverChannel = any
+export interface FastSyncSenderChannel {
+    sendSyncInfo : (syncInfo : FastSyncInfo) => Promise<void>
+    sendObjectBatch : (batch : FastSyncBatch) => Promise<void>
+    finish : () => Promise<void>
+}
+export interface FastSyncReceiverChannel {
+    streamObjectBatches : () => AsyncIterableIterator<FastSyncBatch>
+}
+export interface FastSyncInfo {
+    objectCount : number
+    collectionCount : number
+}
+export interface FastSyncBatch {
+    collection : string
+    objects : any[]
+}
