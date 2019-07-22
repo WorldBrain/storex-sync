@@ -1,15 +1,25 @@
 import expect from "expect"
-import { setupStorexTest } from "@worldbrain/storex-pattern-modules/lib/index.tests";
-import StorageManager from "@worldbrain/storex";
-import { FastSyncSenderChannel, FastSyncReceiverChannel, FastSyncBatch } from "./types";
-import { FastSyncReceiver, FastSyncSender, FastSyncSenderOptions } from ".";
 import { EventEmitter } from "events";
-import { ResolvablePromise, resolvablePromise } from "./utils";
+import { setupStorexTest } from "@worldbrain/storex-pattern-modules/lib/index.tests";
+const wrtc = require('wrtc')
+import Peer from 'simple-peer'
+import { MemorySignalTransportManager } from "simple-signalling/lib/memory"
+import { FirebaseSignalTransport } from "simple-signalling/lib/firebase"
+import { createSignallingFirebaseTestApp } from "simple-signalling/lib/firebase.tests"
+import { signalSimplePeer } from "simple-signalling/lib/simple-peer"
+import { FastSyncReceiver, FastSyncSender } from ".";
+import { createMemoryChannel, WebRTCFastSyncSenderChannel, WebRTCFastSyncReceiverChannel } from "./channels";
+import { FastSyncSenderChannel, FastSyncReceiverChannel } from "./types";
+import { SignalTransport } from "simple-signalling/lib/types";
 
 describe('Fast initial sync', () => {
-    async function setupTest() {
+    interface SetupTestOptions {
+        createChannels : () => Promise<{ senderChannel: FastSyncSenderChannel, receiverChannel: FastSyncReceiverChannel }>
+    }
+
+    async function setupTest(options : SetupTestOptions) {
         async function createDevice() {
-            const { storageManager, modules } = await setupStorexTest({
+            const { storageManager } = await setupStorexTest({
                 collections: {
                     test: {
                         version: new Date(),
@@ -24,71 +34,6 @@ describe('Fast initial sync', () => {
             })
 
             return { storageManager }
-        }
-
-        function createChannel() {
-            // let transmitPromise! : ResolvablePromise<void>
-            // let sendPromise = resolvablePromise<void>()
-
-            // resolves when data has been sent, and replaced before yielding data to receivcer
-            let sendBatchPromise = resolvablePromise<FastSyncBatch | null>()
-
-            // resolves when data has been received, and replaced right after
-            let recvBatchPromise = resolvablePromise<void>()
-
-            const senderChannel : FastSyncSenderChannel = {
-                sendSyncInfo: async () => {
-                    // transmitPromise = resolvablePromise()
-                    // sendPromise.resolve()
-                    // await transmitPromise.promise
-                    // sendPromise = resolvablePromise<void>()
-                },
-                sendObjectBatch: async (batch : FastSyncBatch) => {
-                    sendBatchPromise.resolve(batch)
-                    await recvBatchPromise.promise
-                },
-                finish: async () => {
-                    // console.log('senderChannel.finish()')
-                    sendBatchPromise.resolve(null)
-                }
-            }
-            const receiverChannel : FastSyncReceiverChannel = {
-                streamObjectBatches: async function* () : AsyncIterableIterator<{collection : string, objects : any[]}> {
-                    // console.log('stream: start')
-                    while (true) {
-                        // console.log('stream: start iter')
-                        const batch = await sendBatchPromise.promise
-                        if (!batch) {
-                            break
-                        }
-                        sendBatchPromise = resolvablePromise<FastSyncBatch | null>()
-                        yield batch
-                        recvBatchPromise.resolve()
-                        recvBatchPromise = resolvablePromise<void>()
-                        // console.log('stream: end iter')
-                    }
-                    // console.log('stream: end')
-                }
-            }
-
-            return {
-                senderChannel,
-                receiverChannel,
-                // transmit: () => {
-                //     transmitPromise.resolve()
-                // },
-                // waitForSend: async () => {
-
-                // }
-            }
-        }
-
-        function createSenderFastSync(options : FastSyncSenderOptions) : FastSyncSender {
-            return new FastSyncSender(options)
-        }
-
-        function createReceiverFastSync(options : { storageManager : StorageManager, channel : FastSyncReceiverChannel }) : FastSyncReceiver {
-            return new FastSyncReceiver(options)
         }
 
         function createEventSpy() {
@@ -111,11 +56,33 @@ describe('Fast initial sync', () => {
             return { events, listen, popEvents }
         }
 
-        return { createDevice, createChannels: createChannel, createSenderFastSync, createReceiverFastSync, createEventSpy }
+        return { createDevice, createChannels: createMemoryChannel, createEventSpy }
     }
 
-    async function runMinimalTest() {
-        const testSetup = await setupTest()
+    async function createWebRTCSyncChannels(options : { transports : [SignalTransport, SignalTransport] }) {
+        const { transports } = options
+        const { initialMessage } = await transports[0].allocateChannel()
+        const channels = [
+            await transports[0].openChannel({ initialMessage, deviceId: 'device one' }),
+            await transports[1].openChannel({ initialMessage, deviceId: 'device two' }),
+        ]
+        const peers = [
+            new Peer({ initiator: true, wrtc }),
+            new Peer({ wrtc }),
+        ]
+        await Promise.all([
+            signalSimplePeer({ signalChannel: channels[0], simplePeer: peers[0] }),
+            signalSimplePeer({ signalChannel: channels[1], simplePeer: peers[1] }),
+        ])
+
+        return {
+            senderChannel: new WebRTCFastSyncSenderChannel({ peer: peers[0] }),
+            receiverChannel: new WebRTCFastSyncReceiverChannel({ peer: peers[1] }),
+        }
+    }
+
+    async function runMinimalTest(options : SetupTestOptions) {
+        const testSetup = await setupTest(options)
 
         const device1 = await testSetup.createDevice()
         const device2 = await testSetup.createDevice()
@@ -124,11 +91,11 @@ describe('Fast initial sync', () => {
 
         const channels = testSetup.createChannels()
         
-        const senderFastSync = testSetup.createSenderFastSync({
+        const senderFastSync = new FastSyncSender({
             storageManager: device1.storageManager, channel: channels.senderChannel,
             collections: ['test']
         })
-        const receiverFastSync = testSetup.createReceiverFastSync({
+        const receiverFastSync = new FastSyncReceiver({
             storageManager: device2.storageManager,
             channel: channels.receiverChannel
         })
@@ -164,6 +131,35 @@ describe('Fast initial sync', () => {
     }
 
     it('should work with a very minimal example over an in-memory data channel', async () => {
-        await runMinimalTest()
+        await runMinimalTest({ createChannels: async () => createMemoryChannel() })
+    })
+
+    it('should work with a very minimal example over a WebRTC data channel with in-memory signalling', async () => {
+        await runMinimalTest({ createChannels: async () => {
+            const transportManager = new MemorySignalTransportManager()
+            const transports : [SignalTransport, SignalTransport] = [
+                transportManager.createTransport(), transportManager.createTransport()
+            ]
+            return createWebRTCSyncChannels({ transports })
+        } })
+    })
+
+    it('should work with a very minimal example over a WebRTC data channel with Firebase signalling', async function() {
+        if (process.env.TEST_FIREBASE_SIGNALLING !== 'true') {
+            this.skip()
+        }
+
+        const { app: firebaseApp, collectionName } = await createSignallingFirebaseTestApp()
+        try {
+            await runMinimalTest({ createChannels: async () => {
+                const createTransport = () => new FirebaseSignalTransport({ database: firebaseApp.database(), collectionName })
+                const transports : [SignalTransport, SignalTransport] = [
+                    createTransport(), createTransport(),
+                ]
+                return createWebRTCSyncChannels({ transports })
+            } })
+        } finally {
+            await firebaseApp.delete()
+        }
     })
 })
