@@ -9,10 +9,12 @@ export interface FastSyncSenderOptions {
     collections : string[]
 }
 
+export interface FastSyncEvents {
+    prepared : (event : { syncInfo: FastSyncInfo }) => void
+}
+
 export class FastSyncSender {
-    public events : TypedEmitter<{
-        prepared : (event : { syncInfo: FastSyncInfo }) => void
-    }> = new EventEmitter() as any
+    public events : TypedEmitter<FastSyncEvents> = new EventEmitter() as TypedEmitter<FastSyncEvents>
     
     constructor(private options : FastSyncSenderOptions) {
 
@@ -35,7 +37,7 @@ export class FastSyncSender {
 }
 
 export class FastSyncReceiver {
-    public events : TypedEmitter<{}> = new EventEmitter() as any
+    public events : TypedEmitter<FastSyncEvents> = new EventEmitter() as any
 
     constructor(private options : { storageManager : StorageManager, channel : FastSyncReceiverChannel }) {
 

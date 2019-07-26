@@ -90,7 +90,6 @@ describe('Fast initial sync', () => {
         await device1.storageManager.collection('test').createObject({ key: 'two', label: 'Bar' })
 
         const channels = testSetup.createChannels()
-        
         const senderFastSync = new FastSyncSender({
             storageManager: device1.storageManager, channel: channels.senderChannel,
             collections: ['test']
