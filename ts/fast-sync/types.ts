@@ -11,6 +11,9 @@ export interface FastSyncInfo {
     objectCount : number
     collectionCount : number
 }
+export interface FastSyncProgress {
+    objectsProcessed: number
+}
 export interface FastSyncBatch {
     collection : string
     objects : any[]

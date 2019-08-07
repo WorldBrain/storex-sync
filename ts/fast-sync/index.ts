@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 import TypedEmitter from 'typed-emitter';
 import StorageManager from "@worldbrain/storex";
-import { FastSyncReceiverChannel, FastSyncSenderChannel, FastSyncInfo } from "./types";
+import {FastSyncReceiverChannel, FastSyncSenderChannel, FastSyncInfo, FastSyncProgress} from "./types";
 
 export interface FastSyncSenderOptions {
     storageManager : StorageManager
@@ -11,6 +11,7 @@ export interface FastSyncSenderOptions {
 
 export interface FastSyncEvents {
     prepared : (event : { syncInfo: FastSyncInfo }) => void
+    progress : (event : { progress: FastSyncProgress }) => void
 }
 
 export class FastSyncSender {
@@ -27,9 +28,12 @@ export class FastSyncSender {
         this.events.emit('prepared', { syncInfo })
         await channel.sendSyncInfo(syncInfo)
 
+        this.events.emit('progress', { progress: {objectsProcessed: 0} })
+
         for (const collection of this.options.collections) {
             for await (const objects of streamObjectBatches(this.options.storageManager, collection)) {
                 await channel.sendObjectBatch({ collection, objects })
+                this.events.emit('progress',{progress: {objectsProcessed: objects.length}})
             }
         }
         await channel.finish()
@@ -54,6 +58,7 @@ export class FastSyncReceiver {
             for (const object of objectBatch.objects) {
                 await this.options.storageManager.collection(objectBatch.collection).createObject(object)
             }
+            this.events.emit('progress',{progress: {objectsProcessed: objectBatch.objects.length}})
             // console.log('recv: end iter')
         }
     }

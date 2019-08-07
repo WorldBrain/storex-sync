@@ -102,8 +102,8 @@ describe('Fast initial sync', () => {
         const senderEventSpy = testSetup.createEventSpy()
         const receiverEventSpy = testSetup.createEventSpy()
 
-        senderEventSpy.listen(senderFastSync.events as EventEmitter, ['prepared'])
-        receiverEventSpy.listen(senderFastSync.events as EventEmitter, ['prepared'])
+        senderEventSpy.listen(senderFastSync.events as EventEmitter, ['prepared', 'progress'])
+        receiverEventSpy.listen(senderFastSync.events as EventEmitter, ['prepared', 'progress'])
 
         const senderPromise = senderFastSync.execute()
         const receiverPromise = receiverFastSync.execute()
@@ -114,23 +114,31 @@ describe('Fast initial sync', () => {
         await receiverPromise
         await senderPromise
 
-        expect(senderEventSpy.popEvents()).toEqual([
+        const allExpectedEvents = [
             ['prepared', [{
                 syncInfo: {
                     collectionCount: 1,
                     objectCount: 2,
                 }
-            }]]
-        ])
-
-        expect(receiverEventSpy.popEvents()).toEqual([
-            ['prepared', [{
-                syncInfo: {
-                    collectionCount: 1,
-                    objectCount: 2,
+            }]],
+            ['progress', [{
+                progress: {
+                    objectsProcessed: 0,
+                }
+            }]],
+            ['progress', [{
+                progress: {
+                    objectsProcessed: 1,
+                }
+            }]],
+            ['progress', [{
+                progress: {
+                    objectsProcessed: 1,
                 }
             }]]
-        ])
+        ]
+        expect(senderEventSpy.popEvents()).toEqual(allExpectedEvents)
+        expect(receiverEventSpy.popEvents()).toEqual(allExpectedEvents)
 
         expect(await device2.storageManager.collection('test').findObjects({})).toEqual([
             { key: 'one', label: 'Foo' },
