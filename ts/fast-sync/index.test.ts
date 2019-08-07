@@ -123,17 +123,20 @@ describe('Fast initial sync', () => {
             }]],
             ['progress', [{
                 progress: {
-                    objectsProcessed: 0,
+                    lastObjectsProcessed: 0,
+                    totalObjectsProcessed: 0,
                 }
             }]],
             ['progress', [{
                 progress: {
-                    objectsProcessed: 1,
+                    lastObjectsProcessed: 1,
+                    totalObjectsProcessed: 1,
                 }
             }]],
             ['progress', [{
                 progress: {
-                    objectsProcessed: 1,
+                    lastObjectsProcessed: 1,
+                    totalObjectsProcessed: 2,
                 }
             }]]
         ]
