@@ -44,6 +44,10 @@ export class FastSyncReceiver {
     }
 
     async execute() {
+
+        const syncInfo = await this.options.channel.receiveSyncInfo();
+        this.events.emit('prepared',{syncInfo})
+
         // console.log('recv: entering loop')
         for await (const objectBatch of this.options.channel.streamObjectBatches()) {
             // console.log('recv: start iter')

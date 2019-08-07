@@ -123,6 +123,15 @@ describe('Fast initial sync', () => {
             }]]
         ])
 
+        expect(receiverEventSpy.popEvents()).toEqual([
+            ['prepared', [{
+                syncInfo: {
+                    collectionCount: 1,
+                    objectCount: 2,
+                }
+            }]]
+        ])
+
         expect(await device2.storageManager.collection('test').findObjects({})).toEqual([
             { key: 'one', label: 'Foo' },
             { key: 'two', label: 'Bar' },
