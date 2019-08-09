@@ -27,8 +27,11 @@ export class FastSyncSender {
         this.events.emit('prepared', { syncInfo })
         await channel.sendSyncInfo(syncInfo)
 
+        // console.log('sending batches')
         for (const collection of this.options.collections) {
             for await (const objects of streamObjectBatches(this.options.storageManager, collection)) {
+                // console.log('sending batch')
+                // console.log(channel)
                 await channel.sendObjectBatch({ collection, objects })
             }
         }
