@@ -1,27 +1,31 @@
-import { StorageModule, StorageModuleConfig } from '@worldbrain/storex-pattern-modules'
+import {
+    StorageModule,
+    StorageModuleConfig,
+} from '@worldbrain/storex-pattern-modules'
 import { SharedSyncLog, SharedSyncLogEntry } from './types'
 
-export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog {
-    getConfig() : StorageModuleConfig {
+export class SharedSyncLogStorage extends StorageModule
+    implements SharedSyncLog {
+    getConfig(): StorageModuleConfig {
         return {
             collections: {
                 sharedSyncLogEntry: {
                     version: new Date(2019, 2, 5),
                     fields: {
-                        userId: {type: 'string'},
-                        deviceId: {type: 'string'},
-                        createdOn: {type: 'timestamp'}, // when was this entry created on a device
-                        sharedOn: {type: 'timestamp'}, // when was this entry uploaded
-                        data: {type: 'string'},
+                        userId: { type: 'string' },
+                        deviceId: { type: 'string' },
+                        createdOn: { type: 'timestamp' }, // when was this entry created on a device
+                        sharedOn: { type: 'timestamp' }, // when was this entry uploaded
+                        data: { type: 'string' },
                     },
                 },
                 sharedSyncLogDeviceInfo: {
                     version: new Date(2019, 2, 5),
                     fields: {
-                        userId: {type: 'string'},
-                        sharedUntil: {type: 'timestamp'},
+                        userId: { type: 'string' },
+                        sharedUntil: { type: 'timestamp' },
                     },
-                }
+                },
             },
             operations: {
                 createDeviceInfo: {
@@ -31,12 +35,15 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                 getDeviceInfo: {
                     operation: 'findObject',
                     collection: 'sharedSyncLogDeviceInfo',
-                    args: {id: '$deviceId'}
+                    args: { id: '$deviceId' },
                 },
                 updateSharedUntil: {
                     operation: 'updateObjects',
                     collection: 'sharedSyncLogDeviceInfo',
-                    args: [{id: '$deviceId'}, {sharedUntil: '$sharedUntil:timestamp'}]
+                    args: [
+                        { id: '$deviceId' },
+                        { sharedUntil: '$sharedUntil:timestamp' },
+                    ],
                 },
 
                 createLogEntry: {
@@ -47,33 +54,38 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                     operation: 'findObjects',
                     collection: 'sharedSyncLogEntry',
                     args: [
-                        {sharedOn: {$gt: '$sharedUntil:timestamp'}},
-                        {sort: ['sharedOn', 'asc']}
-                    ]
-                }
+                        { sharedOn: { $gt: '$sharedUntil:timestamp' } },
+                        { sort: ['sharedOn', 'asc'] },
+                    ],
+                },
             },
             methods: {
                 createDeviceId: {
                     type: 'mutation',
                     args: {
                         userId: 'string',
-                        sharedUntil: 'float'
+                        sharedUntil: 'float',
                     },
-                    returns: 'string'
+                    returns: 'string',
                 },
                 writeEntries: {
                     type: 'mutation',
                     args: {
-                        entries: { type: { array: { collection: 'sharedSyncLogEntry' } }, positional: true },
+                        entries: {
+                            type: {
+                                array: { collection: 'sharedSyncLogEntry' },
+                            },
+                            positional: true,
+                        },
                     },
-                    returns: 'void'
+                    returns: 'void',
                 },
                 getUnsyncedEntries: {
                     type: 'query',
                     args: {
                         devicedId: { type: 'string' },
                     },
-                    returns: { collection: 'sharedSyncLogEntry' }
+                    returns: { collection: 'sharedSyncLogEntry' },
                 },
                 updateSharedUntil: {
                     type: 'mutation',
@@ -82,31 +94,45 @@ export class SharedSyncLogStorage extends StorageModule implements SharedSyncLog
                         until: { type: 'float' },
                     },
                     returns: 'void',
-                }
-            }
+                },
+            },
         }
     }
 
-    async createDeviceId(options : {userId, sharedUntil : number}) : Promise<string> {
+    async createDeviceId(options: {
+        userId
+        sharedUntil: number
+    }): Promise<string> {
         return (await this.operation('createDeviceInfo', options)).object.id
     }
 
-    async writeEntries(entries : SharedSyncLogEntry[], options : { userId, deviceId }) : Promise<void> {
+    async writeEntries(
+        entries: SharedSyncLogEntry[],
+        options: { userId; deviceId },
+    ): Promise<void> {
         for (const entry of entries) {
             await this.operation('createLogEntry', { ...entry, ...options })
         }
     }
 
-    async getUnsyncedEntries(options : { deviceId }) : Promise<SharedSyncLogEntry[]> {
+    async getUnsyncedEntries(options: {
+        deviceId
+    }): Promise<SharedSyncLogEntry[]> {
         const deviceInfo = await this.operation('getDeviceInfo', options)
         if (!deviceInfo) {
             return null
         }
 
-        return this.operation('findUnsyncedEntries', { deviceId: options.deviceId, sharedUntil: deviceInfo.sharedUntil })
+        return this.operation('findUnsyncedEntries', {
+            deviceId: options.deviceId,
+            sharedUntil: deviceInfo.sharedUntil,
+        })
     }
 
-    async updateSharedUntil(args : {until : number, deviceId}) : Promise<void> {
-        await this.operation('updateSharedUntil', { deviceId: args.deviceId, sharedUntil: args.until })
+    async updateSharedUntil(args: { until: number; deviceId }): Promise<void> {
+        await this.operation('updateSharedUntil', {
+            deviceId: args.deviceId,
+            sharedUntil: args.until,
+        })
     }
 }
