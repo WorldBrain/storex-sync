@@ -42,7 +42,9 @@ describe('CustomAutoPkMiddleware', () => {
     it('should be able to set custom auto PKs on complex createObject operations', async () => {
         let counter = 0
         const { storageManager } = await setupTest({pkGenerator: () => `some-pk-${++counter}`})
-        const { object: user } = await storageManager.collection('user').createObject({ displayName: 'Joe', emails: [{address: 'foo@bla.com'}] })
+        const { object: user } = await storageManager.collection('user').createObject({
+            displayName: 'Joe', emails: [{address: 'foo@bla.com'}]
+        })
         expect(user).toEqual({
             id: 'some-pk-1',
             displayName: 'Joe',
@@ -53,9 +55,22 @@ describe('CustomAutoPkMiddleware', () => {
         expect(await storageManager.collection('email').findOneObject({ id: email.id })).toEqual({id: email.id, user: user.id, address: 'foo@bla.com'})
     })
     
+    it('should not override manually provided PKs', async () => {
+        let counter = 0
+        const { storageManager } = await setupTest({pkGenerator: () => `some-pk-${++counter}`})
+        const { object: user } = await storageManager.collection('user').createObject({
+            id: 'very manually set',
+            displayName: 'Joe', emails: [{address: 'foo@bla.com'}]
+        })
+        expect(user).toEqual({
+            id: 'very manually set',
+            displayName: 'Joe',
+            emails: [(expect as any).objectContaining({id: 'some-pk-1'})]
+        })
+        expect(await storageManager.collection('user').findOneObject({ id: user.id })).toEqual({id: user.id, displayName: 'Joe'})
+    })
+
     it('should be able to set custom auto PKs on batches')
 
     it('should be able to migrate from normal to custom auto PKs')
-
-    it('should not override manually provided PKs')
 })

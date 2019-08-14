@@ -47,7 +47,9 @@ export class CustomAutoPkMiddleware implements StorageMiddleware {
                 continue
             }
 
-            batchElement.args[collectionInfo.pkIndex] = this._pkGenerator()
+            if (!batchElement.args[collectionInfo.pkIndex]) {
+                batchElement.args[collectionInfo.pkIndex] = this._pkGenerator()
+            }
         }
 
         const batchResult = await next.process({ operation: ['executeBatch', batch] })

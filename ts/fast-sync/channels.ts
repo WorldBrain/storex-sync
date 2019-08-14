@@ -29,6 +29,7 @@ export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
 
                 const syncPackage : WebRTCSyncPackage = JSON.parse(data)
                 if (syncPackage.type === 'finish') {
+                    // console.log('received finish package')
                     break
                 }
 
@@ -39,7 +40,8 @@ export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
 
                 if (syncPackage.type === 'batch') {
                     yield syncPackage.batch
-                    this.options.peer.send(JSON.stringify({ type: 'confirmation' }))
+                    const confirmationPackage : WebRTCSyncPackage = { type: 'confirm' }
+                    this.options.peer.send(JSON.stringify(confirmationPackage))
                 }
             }
         } finally {
@@ -62,21 +64,27 @@ export class WebRTCFastSyncSenderChannel implements FastSyncSenderChannel {
     }
 
     async sendObjectBatch (batch : FastSyncBatch) {
+        // console.log('send WebRTC object batch')
+
         const confirmationPromise = resolvablePromise<string>()
         this.options.peer.once('data', (data : any) => {
             confirmationPromise.resolve(data.toString())
         })
         const syncPackage : WebRTCSyncPackage = { type: 'batch', batch };
+        // console.log('sending package')
         this.options.peer.send(JSON.stringify(syncPackage))
         
         const response : WebRTCSyncPackage = JSON.parse(await confirmationPromise.promise)
+        // console.log('received package', response)
         if (response.type !== 'confirm') {
+            console.error(`Invalid confirmation received:`, response)
             throw new Error(`Invalid confirmation received`)
         }
     }
 
     async finish() {
-        this.options.peer.send(JSON.stringify({ type: 'confirm' }))
+        const syncPackage : WebRTCSyncPackage = { type: 'finish' }
+        this.options.peer.send(JSON.stringify(syncPackage))
     }
 }
 

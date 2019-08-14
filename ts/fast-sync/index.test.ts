@@ -56,25 +56,31 @@ describe('Fast initial sync', () => {
             return { events, listen, popEvents }
         }
 
-        return { createDevice, createChannels: createMemoryChannel, createEventSpy }
+        return { createDevice, createChannels: options.createChannels, createEventSpy }
     }
 
     async function createWebRTCSyncChannels(options : { transports : [SignalTransport, SignalTransport] }) {
         const { transports } = options
         const { initialMessage } = await transports[0].allocateChannel()
         const channels = [
-            await transports[0].openChannel({ initialMessage, deviceId: 'device one' }),
-            await transports[1].openChannel({ initialMessage, deviceId: 'device two' }),
+            await transports[0].openChannel({ initialMessage, deviceId: 'first' }),
+            await transports[1].openChannel({ initialMessage, deviceId: 'second' }),
         ]
+        await Promise.all(channels.map(channel => channel.connect()))
+
         const peers = [
             new Peer({ initiator: true, wrtc }),
             new Peer({ wrtc }),
         ]
         await Promise.all([
-            signalSimplePeer({ signalChannel: channels[0], simplePeer: peers[0] }),
-            signalSimplePeer({ signalChannel: channels[1], simplePeer: peers[1] }),
+            signalSimplePeer({ signalChannel: channels[0], simplePeer: peers[0], reporter: (eventName, event) => {
+                // console.log('peer 0', eventName, event)
+            } }),
+            signalSimplePeer({ signalChannel: channels[1], simplePeer: peers[1], reporter: (eventName, event) => {
+                // console.log('peer 1', eventName, event)
+            } }),
         ])
-
+        
         return {
             senderChannel: new WebRTCFastSyncSenderChannel({ peer: peers[0] }),
             receiverChannel: new WebRTCFastSyncReceiverChannel({ peer: peers[1] }),
@@ -89,7 +95,7 @@ describe('Fast initial sync', () => {
         await device1.storageManager.collection('test').createObject({ key: 'one', label: 'Foo' })
         await device1.storageManager.collection('test').createObject({ key: 'two', label: 'Bar' })
 
-        const channels = testSetup.createChannels()
+        const channels = await testSetup.createChannels()
         const senderFastSync = new FastSyncSender({
             storageManager: device1.storageManager, channel: channels.senderChannel,
             collections: ['test']
