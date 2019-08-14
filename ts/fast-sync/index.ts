@@ -29,17 +29,17 @@ export class FastSyncSender {
         this.events.emit('prepared', { syncInfo })
         await channel.sendSyncInfo(syncInfo)
 
-        this.events.emit('progress', { progress: {
-                totalObjectsProcessed: this.totalObjectsProcessed,
-                lastObjectsProcessed: 0
-        } })
+        this.events.emit('progress', {
+            progress: { ...syncInfo, totalObjectsProcessed: this.totalObjectsProcessed}
+        })
 
         for (const collection of this.options.collections) {
             for await (const objects of streamObjectBatches(this.options.storageManager, collection)) {
                 await channel.sendObjectBatch({ collection, objects })
-                this.events.emit('progress',{progress: {
-                    totalObjectsProcessed: this.totalObjectsProcessed+=objects.length,
-                        lastObjectsProcessed: objects.length}})
+                this.totalObjectsProcessed+=objects.length
+                this.events.emit('progress',{
+                    progress: { ...syncInfo, totalObjectsProcessed: this.totalObjectsProcessed }
+                })
             }
         }
         await channel.finish()
@@ -48,10 +48,9 @@ export class FastSyncSender {
 
 export class FastSyncReceiver {
     public events : TypedEmitter<FastSyncEvents> = new EventEmitter() as any
-    private totalObjectsProcessed: number;
+    private totalObjectsProcessed: number = 0
 
     constructor(private options : { storageManager : StorageManager, channel : FastSyncReceiverChannel }) {
-        this.totalObjectsProcessed = 0
     }
 
     async execute() {
@@ -60,17 +59,18 @@ export class FastSyncReceiver {
         this.events.emit('prepared',{syncInfo})
 
         // console.log('recv: entering loop')
-        this.events.emit('progress', { progress: {
-                totalObjectsProcessed: this.totalObjectsProcessed,
-                lastObjectsProcessed: 0
-            } })
+        this.events.emit('progress', {
+            progress: { ...syncInfo, totalObjectsProcessed: this.totalObjectsProcessed }
+        })
         for await (const objectBatch of this.options.channel.streamObjectBatches()) {
             // console.log('recv: start iter')
             for (const object of objectBatch.objects) {
                 await this.options.storageManager.collection(objectBatch.collection).createObject(object)
             }
-            this.events.emit('progress',{progress: {totalObjectsProcessed: this.totalObjectsProcessed+=objectBatch.objects.length, lastObjectsProcessed: objectBatch.objects.length}})
-
+            this.totalObjectsProcessed+=objectBatch.objects.length
+            this.events.emit('progress',{
+                progress: { ...syncInfo, totalObjectsProcessed: this.totalObjectsProcessed }
+            })
             // console.log('recv: end iter')
         }
     }

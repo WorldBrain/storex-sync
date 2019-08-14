@@ -114,28 +114,31 @@ describe('Fast initial sync', () => {
         await receiverPromise
         await senderPromise
 
+        const expectedSyncInfo = {
+            collectionCount: 1,
+            objectCount: 2,
+        }
         const allExpectedEvents = [
             ['prepared', [{
                 syncInfo: {
-                    collectionCount: 1,
-                    objectCount: 2,
+                    ...expectedSyncInfo
                 }
             }]],
             ['progress', [{
                 progress: {
-                    lastObjectsProcessed: 0,
+                    ...expectedSyncInfo,
                     totalObjectsProcessed: 0,
                 }
             }]],
             ['progress', [{
                 progress: {
-                    lastObjectsProcessed: 1,
+                    ...expectedSyncInfo,
                     totalObjectsProcessed: 1,
                 }
             }]],
             ['progress', [{
                 progress: {
-                    lastObjectsProcessed: 1,
+                    ...expectedSyncInfo,
                     totalObjectsProcessed: 2,
                 }
             }]]

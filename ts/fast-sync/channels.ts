@@ -9,9 +9,10 @@ type WebRTCSyncPackage =
     { type: 'finish' }
 
 export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
-    private syncInfoPromise: ResolvablePromise<FastSyncInfo>;
+
+    private syncInfoPromise: ResolvablePromise<FastSyncInfo> = resolvablePromise<FastSyncInfo>();
+
     constructor(private options : { peer : SimplePeer.Instance }) {
-        this.syncInfoPromise = resolvablePromise<FastSyncInfo>()
     }
 
     async* streamObjectBatches() : AsyncIterableIterator<{collection : string, objects : any[]}> {

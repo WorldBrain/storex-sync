@@ -11,9 +11,8 @@ export interface FastSyncInfo {
     objectCount : number
     collectionCount : number
 }
-export interface FastSyncProgress {
+export interface FastSyncProgress extends FastSyncInfo {
     totalObjectsProcessed: number
-    lastObjectsProcessed: number
 }
 export interface FastSyncBatch {
     collection : string
