@@ -108,8 +108,8 @@ describe('Fast initial sync', () => {
         const senderEventSpy = testSetup.createEventSpy()
         const receiverEventSpy = testSetup.createEventSpy()
 
-        senderEventSpy.listen(senderFastSync.events as EventEmitter, ['prepared'])
-        receiverEventSpy.listen(senderFastSync.events as EventEmitter, ['prepared'])
+        senderEventSpy.listen(senderFastSync.events as EventEmitter, ['prepared', 'progress'])
+        receiverEventSpy.listen(senderFastSync.events as EventEmitter, ['prepared', 'progress'])
 
         const senderPromise = senderFastSync.execute()
         const receiverPromise = receiverFastSync.execute()
@@ -120,14 +120,37 @@ describe('Fast initial sync', () => {
         await receiverPromise
         await senderPromise
 
-        expect(senderEventSpy.popEvents()).toEqual([
+        const expectedSyncInfo = {
+            collectionCount: 1,
+            objectCount: 2,
+        }
+        const allExpectedEvents = [
             ['prepared', [{
                 syncInfo: {
-                    collectionCount: 1,
-                    objectCount: 2,
+                    ...expectedSyncInfo
+                }
+            }]],
+            ['progress', [{
+                progress: {
+                    ...expectedSyncInfo,
+                    totalObjectsProcessed: 0,
+                }
+            }]],
+            ['progress', [{
+                progress: {
+                    ...expectedSyncInfo,
+                    totalObjectsProcessed: 1,
+                }
+            }]],
+            ['progress', [{
+                progress: {
+                    ...expectedSyncInfo,
+                    totalObjectsProcessed: 2,
                 }
             }]]
-        ])
+        ]
+        expect(senderEventSpy.popEvents()).toEqual(allExpectedEvents)
+        expect(receiverEventSpy.popEvents()).toEqual(allExpectedEvents)
 
         expect(await device2.storageManager.collection('test').findObjects({})).toEqual([
             { key: 'one', label: 'Foo' },

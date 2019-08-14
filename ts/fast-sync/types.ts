@@ -5,10 +5,14 @@ export interface FastSyncSenderChannel {
 }
 export interface FastSyncReceiverChannel {
     streamObjectBatches : () => AsyncIterableIterator<FastSyncBatch>
+    receiveSyncInfo: () => Promise<FastSyncInfo>
 }
 export interface FastSyncInfo {
     objectCount : number
     collectionCount : number
+}
+export interface FastSyncProgress extends FastSyncInfo {
+    totalObjectsProcessed: number
 }
 export interface FastSyncBatch {
     collection : string
