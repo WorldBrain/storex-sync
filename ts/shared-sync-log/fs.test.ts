@@ -1,11 +1,11 @@
 const tmp = require('tmp')
-import { runTests } from "./index.tests"
-import { FilesystemSharedSyncLogStorage } from "./fs"
+import { runTests } from './index.tests'
+import { FilesystemSharedSyncLogStorage } from './fs'
 
-export function withTempDirFactory(f : (createTempDir : () => string) => void) {
-    let tmpDirs : { removeCallback : () => void }[] = []
+export function withTempDirFactory(f: (createTempDir: () => string) => void) {
+    let tmpDirs: { removeCallback: () => void }[] = []
 
-    const createTempDir : () => string = () => {
+    const createTempDir: () => string = () => {
         const tmpDir = tmp.dirSync()
         tmpDirs.push(tmpDir)
         return tmpDir.name
@@ -21,13 +21,13 @@ export function withTempDirFactory(f : (createTempDir : () => string) => void) {
 }
 
 describe('FilesystemSharedSyncLogStorage', () => {
-    withTempDirFactory((createTempDir) => {
+    withTempDirFactory(createTempDir => {
         async function createLog() {
             return new FilesystemSharedSyncLogStorage({
                 basePath: createTempDir(),
             })
         }
-        
-        runTests({createLog})
+
+        runTests({ createLog })
     })
 })

@@ -1,46 +1,75 @@
-import { StorageModuleConfig, StorageOperationDefinitions, AccessRules } from "@worldbrain/storex-pattern-modules";
-import { CollectionDefinitionMap } from "@worldbrain/storex";
-import { Omit } from "../types";
-import { ClientSyncLogEntry, ClientSyncLogModificationEntry } from "../client-sync-log/types";
+import {
+    StorageModuleConfig,
+    StorageOperationDefinitions,
+    AccessRules,
+} from '@worldbrain/storex-pattern-modules'
+import { CollectionDefinitionMap } from '@worldbrain/storex'
+import { Omit } from '../types'
+import {
+    ClientSyncLogEntry,
+    ClientSyncLogModificationEntry,
+} from '../client-sync-log/types'
 
 export interface SharedSyncLog {
-    createDeviceId(options : {userId : number | string, sharedUntil : number | null }) : Promise<string>
+    createDeviceId(options: {
+        userId: number | string
+        sharedUntil: number | null
+    }): Promise<string>
     writeEntries(
-        entries : Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[],
-        options : { userId : number | string, deviceId : string | number, now? : number | '$now' }
-    ) : Promise<void>
-    getUnsyncedEntries(options : { userId : string | number, deviceId : string | number }) : Promise<SharedSyncLogEntry[]>
+        entries: Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[],
+        options: {
+            userId: number | string
+            deviceId: string | number
+            now?: number | '$now'
+        },
+    ): Promise<void>
+    getUnsyncedEntries(options: {
+        userId: string | number
+        deviceId: string | number
+    }): Promise<SharedSyncLogEntry[]>
     markAsSeen(
-        entries : Array<{ deviceId: string | number, createdOn : number | '$now' }>,
-        options : { userId: string | number, deviceId: string | number, now?: number | '$now' }
-    ) : Promise<void>
+        entries: Array<{
+            deviceId: string | number
+            createdOn: number | '$now'
+        }>,
+        options: {
+            userId: string | number
+            deviceId: string | number
+            now?: number | '$now'
+        },
+    ): Promise<void>
 }
 
 interface SharedSyncLogEntryBase {
-    userId : number | string
-    deviceId : number | string
-    createdOn : number | '$now'
-    sharedOn : number
+    userId: number | string
+    deviceId: number | string
+    createdOn: number | '$now'
+    sharedOn: number
 }
 
-export type SharedSyncLogEntry<SerializedData extends 'serialized-data' | 'deserialized-data' = 'serialized-data'> =
-    SharedSyncLogEntryBase
-    & (SerializedData extends 'serialized-data' ? { data : string } : { data : SharedSyncLogEntryData })
+export type SharedSyncLogEntry<
+    SerializedData extends
+        | 'serialized-data'
+        | 'deserialized-data' = 'serialized-data'
+> = SharedSyncLogEntryBase &
+    (SerializedData extends 'serialized-data'
+        ? { data: string }
+        : { data: SharedSyncLogEntryData })
 
 export interface SharedSyncLogEntryData {
-    operation: ClientSyncLogEntry['operation'],
-    collection: ClientSyncLogEntry['collection'],
-    pk: ClientSyncLogEntry['pk'],
-    field: ClientSyncLogModificationEntry['field'] | null,
-    value: ClientSyncLogModificationEntry['value'] | null,
+    operation: ClientSyncLogEntry['operation']
+    collection: ClientSyncLogEntry['collection']
+    pk: ClientSyncLogEntry['pk']
+    field: ClientSyncLogModificationEntry['field'] | null
+    value: ClientSyncLogModificationEntry['value'] | null
 }
 
-export function createSharedSyncLogConfig(options : {
-    autoPkType : 'int' | 'string',
-    collections? : CollectionDefinitionMap,
-    operations? : StorageOperationDefinitions,
-    accessRules? : AccessRules
-}) : StorageModuleConfig {
+export function createSharedSyncLogConfig(options: {
+    autoPkType: 'int' | 'string'
+    collections?: CollectionDefinitionMap
+    operations?: StorageOperationDefinitions
+    accessRules?: AccessRules
+}): StorageModuleConfig {
     return {
         operations: options.operations,
         collections: {
@@ -61,25 +90,28 @@ export function createSharedSyncLogConfig(options : {
                     userId: { type: options.autoPkType },
                     sharedUntil: { type: 'timestamp', optional: true },
                 },
-                groupBy: [{ key: 'userId', subcollectionName: 'devices' }]
+                groupBy: [{ key: 'userId', subcollectionName: 'devices' }],
             },
-            ...(options.collections || {})
+            ...(options.collections || {}),
         },
         methods: {
             createDeviceId: {
                 type: 'mutation',
                 args: {
                     userId: options.autoPkType,
-                    sharedUntil: 'float'
+                    sharedUntil: 'float',
                 },
-                returns: options.autoPkType
+                returns: options.autoPkType,
             },
             writeEntries: {
                 type: 'mutation',
                 args: {
-                    entries: { type: { array: { collection: 'sharedSyncLogEntry' } }, positional: true },
+                    entries: {
+                        type: { array: { collection: 'sharedSyncLogEntry' } },
+                        positional: true,
+                    },
                 },
-                returns: 'void'
+                returns: 'void',
             },
             getUnsyncedEntries: {
                 type: 'query',
@@ -91,11 +123,21 @@ export function createSharedSyncLogConfig(options : {
             markAsSeen: {
                 type: 'mutation',
                 args: {
-                    entries: { type: { array: { object: { createdOn: 'float', deviceId: options.autoPkType }, singular: 'entry' } } },
+                    entries: {
+                        type: {
+                            array: {
+                                object: {
+                                    createdOn: 'float',
+                                    deviceId: options.autoPkType,
+                                },
+                                singular: 'entry',
+                            },
+                        },
+                    },
                     deviceId: { type: options.autoPkType },
                 },
                 returns: 'void',
-            }
+            },
         },
         accessRules: options.accessRules,
     }

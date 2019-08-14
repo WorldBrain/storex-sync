@@ -1,29 +1,35 @@
 const sortBy = require('lodash/sortBy')
-import { StorageModule, StorageModuleConfig } from '@worldbrain/storex-pattern-modules'
-import { ClientSyncLogEntry } from "./types"
-import { SharedSyncLogEntry, SharedSyncLogEntryData } from '../shared-sync-log/types';
+import {
+    StorageModule,
+    StorageModuleConfig,
+} from '@worldbrain/storex-pattern-modules'
+import { ClientSyncLogEntry } from './types'
+import {
+    SharedSyncLogEntry,
+    SharedSyncLogEntryData,
+} from '../shared-sync-log/types'
 
 export class ClientSyncLogStorage extends StorageModule {
-    getConfig() : StorageModuleConfig {
+    getConfig(): StorageModuleConfig {
         return {
             collections: {
                 clientSyncLogEntry: {
                     version: new Date('2019-02-05'),
                     fields: {
-                        createdOn: {type: 'timestamp'},
-                        sharedOn: {type: 'timestamp', optional: true}, // when was this sent or received?
-                        needsIntegration: {type: 'boolean', optional: true},
-                        collection: {type: 'string'},
-                        pk: {type: 'json'},
-                        field: {type: 'string', optional: true},
-                        operation: {type: 'string'},
-                        value: {type: 'json', optional: true},
+                        createdOn: { type: 'timestamp' },
+                        sharedOn: { type: 'timestamp', optional: true }, // when was this sent or received?
+                        needsIntegration: { type: 'boolean', optional: true },
+                        collection: { type: 'string' },
+                        pk: { type: 'json' },
+                        field: { type: 'string', optional: true },
+                        operation: { type: 'string' },
+                        value: { type: 'json', optional: true },
                     },
                     indices: [
-                        {field: 'createdOn'},
-                        {field: ['collection', 'pk']}
-                    ]
-                }
+                        { field: 'createdOn' },
+                        { field: ['collection', 'pk'] },
+                    ],
+                },
             },
             operations: {
                 createEntry: {
@@ -33,117 +39,149 @@ export class ClientSyncLogStorage extends StorageModule {
                 findEntriesCreatedAfter: {
                     operation: 'findObjects',
                     collection: 'clientSyncLogEntry',
-                    args: [
-                        {createdOn: {$gte: '$timestamp:timestamp'}},
-                    ]
+                    args: [{ createdOn: { $gte: '$timestamp:timestamp' } }],
                 },
                 updateSharedUntil: {
                     operation: 'updateObjects',
                     collection: 'clientSyncLogEntry',
                     args: [
-                        {createdOn: {$lte: '$until:timestamp'}},
-                        {sharedOn: '$sharedOn:timestamp'}
-                    ]
+                        { createdOn: { $lte: '$until:timestamp' } },
+                        { sharedOn: '$sharedOn:timestamp' },
+                    ],
                 },
                 findUnsharedEntries: {
                     operation: 'findObjects',
                     collection: 'clientSyncLogEntry',
                     args: {
-                        sharedOn: {$eq: null},
-                    }
+                        sharedOn: { $eq: null },
+                    },
                 },
                 markAsIntegrated: {
                     operation: 'updateObjects',
                     collection: 'clientSyncLogEntry',
                     args: [
-                        {id: {$in: '$ids:array:pk'}},
-                        {needsIntegration: false}
-                    ]
+                        { id: { $in: '$ids:array:pk' } },
+                        { needsIntegration: false },
+                    ],
                 },
                 findFirstUnintegratedEntry: {
                     operation: 'findObjects',
                     collection: 'clientSyncLogEntry',
                     args: [
                         { needsIntegration: true },
-                        { sort: [['createdOn', 'asc']], limit: 1 }
-                    ]
+                        { sort: [['createdOn', 'asc']], limit: 1 },
+                    ],
                 },
                 findEntriesByObjectPk: {
                     operation: 'findObjects',
                     collection: 'clientSyncLogEntry',
                     args: [
                         { collection: '$collection:string', pk: '$pk' },
-                        { sort: [['createdOn', 'asc']] }
-                    ]
-                }
-            }
+                        { sort: [['createdOn', 'asc']] },
+                    ],
+                },
+            },
         }
     }
 
-    async insertEntries(entries : ClientSyncLogEntry[]) {
+    async insertEntries(entries: ClientSyncLogEntry[]) {
         for (const entry of entries) {
             await this.operation('createEntry', entry)
         }
     }
 
-    async insertReceivedEntries(sharedEntries : Array<SharedSyncLogEntry<'deserialized-data'>>, options : { now : number | '$now' }) {
-        await this.insertEntries(sharedEntries.map((sharedEntry) : ClientSyncLogEntry => {
-            const data = sharedEntry.data
-            const common = {
-                createdOn: sharedEntry.createdOn,
-                sharedOn: typeof options.now === 'string' ? Date.now() : options.now,
-                needsIntegration: true,
-                collection: data.collection,
-                pk: data.pk,
-            }
-            if (data.operation === 'create') {
-                return {
-                    ...common,
-                    operation: 'create',
-                    value: data.value,
-                }
-            } else if (data.operation === 'modify') {
-                return {
-                    ...common,
-                    operation: 'modify',
-                    field: data.field!,
-                    value: data.value,
-                }
-            } else if (data.operation === 'delete') {
-                return {
-                    ...common,
-                    operation: 'delete'
-                }
-            } else {
-                throw new Error(`Unknown operation received: ${data.operation}`)
-            }
-        }))
+    async insertReceivedEntries(
+        sharedEntries: Array<SharedSyncLogEntry<'deserialized-data'>>,
+        options: { now: number | '$now' },
+    ) {
+        await this.insertEntries(
+            sharedEntries.map(
+                (sharedEntry): ClientSyncLogEntry => {
+                    const data = sharedEntry.data
+                    const common = {
+                        createdOn: sharedEntry.createdOn,
+                        sharedOn:
+                            typeof options.now === 'string'
+                                ? Date.now()
+                                : options.now,
+                        needsIntegration: true,
+                        collection: data.collection,
+                        pk: data.pk,
+                    }
+                    if (data.operation === 'create') {
+                        return {
+                            ...common,
+                            operation: 'create',
+                            value: data.value,
+                        }
+                    } else if (data.operation === 'modify') {
+                        return {
+                            ...common,
+                            operation: 'modify',
+                            field: data.field!,
+                            value: data.value,
+                        }
+                    } else if (data.operation === 'delete') {
+                        return {
+                            ...common,
+                            operation: 'delete',
+                        }
+                    } else {
+                        throw new Error(
+                            `Unknown operation received: ${data.operation}`,
+                        )
+                    }
+                },
+            ),
+        )
     }
 
-    async getEntriesCreatedAfter(timestamp : number) : Promise<ClientSyncLogEntry[]> {
-        return sortBy(await this.operation('findEntriesCreatedAfter', {timestamp}), 'createdOn')
+    async getEntriesCreatedAfter(
+        timestamp: number,
+    ): Promise<ClientSyncLogEntry[]> {
+        return sortBy(
+            await this.operation('findEntriesCreatedAfter', { timestamp }),
+            'createdOn',
+        )
     }
 
-    async updateSharedUntil({until, sharedOn} : { until : number | '$now', sharedOn : number | '$now' }) {
-        await this.operation('updateSharedUntil', {until, sharedOn})
+    async updateSharedUntil({
+        until,
+        sharedOn,
+    }: {
+        until: number | '$now'
+        sharedOn: number | '$now'
+    }) {
+        await this.operation('updateSharedUntil', { until, sharedOn })
     }
 
-    async getUnsharedEntries() : Promise<ClientSyncLogEntry[]> {
-        return sortBy(await this.operation('findUnsharedEntries', {}), 'createdOn')
+    async getUnsharedEntries(): Promise<ClientSyncLogEntry[]> {
+        return sortBy(
+            await this.operation('findUnsharedEntries', {}),
+            'createdOn',
+        )
     }
 
-    async markAsIntegrated(entries : ClientSyncLogEntry[]) {
-        await this.operation('markAsIntegrated', {ids: entries.map(entry => entry.id)})
+    async markAsIntegrated(entries: ClientSyncLogEntry[]) {
+        await this.operation('markAsIntegrated', {
+            ids: entries.map(entry => entry.id),
+        })
     }
 
-    async getNextEntriesToIntgrate() : Promise<ClientSyncLogEntry[] | null> {
-        const firstEntryList = await this.operation('findFirstUnintegratedEntry', {})
+    async getNextEntriesToIntgrate(): Promise<ClientSyncLogEntry[] | null> {
+        const firstEntryList = await this.operation(
+            'findFirstUnintegratedEntry',
+            {},
+        )
         if (!firstEntryList.length) {
             return null
         }
 
         const firstEntry = firstEntryList[0]
-        const entries = await this.operation('findEntriesByObjectPk', {collection: firstEntry.collection, pk: firstEntry.pk})
+        const entries = await this.operation('findEntriesByObjectPk', {
+            collection: firstEntry.collection,
+            pk: firstEntry.pk,
+        })
         return entries
     }
 }
