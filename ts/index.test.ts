@@ -15,6 +15,7 @@ import { PromiseContentType } from './types.test';
 import { withTempDirFactory } from './shared-sync-log/fs.test';
 import { FilesystemSharedSyncLogStorage } from './shared-sync-log/fs';
 import { inspect } from 'util';
+import { RegistryCollections } from '@worldbrain/storex/lib/registry';
 
 export type TestDependencies = { sharedSyncLog : SharedSyncLog, userId? : number | string, getNow? : () => number | '$now' }
 export type TestRunnerOptions = { includeTimestampChecks? : boolean }
@@ -45,11 +46,12 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
         backend : { modules: { sharedSyncLog: SharedSyncLog } },
         clientName : string,
         getNow : () => number | '$now',
-        pkGenerator : () => string
+        pkGenerator : () => string,
+        collections? : RegistryCollections
     }) {
         const { storageManager, modules } = await setupStorexTest<{clientSyncLog : ClientSyncLogStorage}>({
             dbName: `client-${options.clientName}`,
-            collections: {
+            collections: options.collections || {
                 user: {
                     version: new Date('2019-01-01'),
                     fields: {
@@ -70,7 +72,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 clientSyncLog: ({storageManager}) => new ClientSyncLogStorage({storageManager})
             }
         })
-        const includeCollections = ['user', 'email']
+        const includeCollections = options.collections ? Object.keys(options.collections) : ['user', 'email']
         
         const pkMiddleware = new CustomAutoPkMiddleware({ pkGenerator: options.pkGenerator })
         pkMiddleware.setup({ storageRegistry: storageManager.registry, collections: includeCollections })
@@ -87,7 +89,12 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
         return { storageManager, modules, deviceId, objects: {} }
     }
 
-    async function setupTest(options : {dependencies : TestDependencies, clients? : {name : string}[], getNow : () => number | '$now'}) {
+    async function setupTest(options : {
+        dependencies : TestDependencies,
+        getNow : () => number | '$now'
+        clients? : {name : string}[],
+        collections? : RegistryCollections
+    }) {
         let idsGenerated = 0
         const pkGenerator = () => `id-${++idsGenerated}`
 
@@ -96,7 +103,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
 
         const clients : {[name : string] : PromiseContentType<ReturnType<typeof setupClient>>} = {}
         for (const { name } of options.clients || []) {
-            clients[name] = await setupClient({backend, clientName: name, getNow: options.getNow, pkGenerator})
+            clients[name] = await setupClient({backend, clientName: name, getNow: options.getNow, pkGenerator, collections: options.collections})
             clients[name].deviceId = await backend.modules.sharedSyncLog.createDeviceId({ userId, sharedUntil: null })
         }
 
@@ -230,12 +237,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
     describe('doSync()', () => {
         const it = makeTestFactory(withTestDependencies)
 
-        async function setupSyncTest(dependencies : TestDependencies) {
+        async function setupSyncTest(dependencies : TestDependencies, options? : { collections : RegistryCollections }) {
             const getNow = dependencies.getNow || createGetNow({ start: 50, step: 5 })
             const { backend, clients, userId } = await setupTest({
                 dependencies,
                 clients: [{ name: 'one' }, { name: 'two' }],
                 getNow,
+                collections: options && options.collections,
             })
             const sync = async (options : { clientName : string, serializer? : SyncSerializer }) => {
                 const client = clients[options.clientName]
@@ -342,6 +350,30 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             
             expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toEqual(user)
         }, { includeTimestampChecks: true })
+
+        it('should correctly sync datetimes', async (dependencies : TestDependencies) => {
+            const { clients, backend, userId, sync } = await setupSyncTest(dependencies, {
+                collections: {
+                    entry: {
+                        version: new Date(),
+                        fields: {
+                            createdWhen: { type: 'datetime' },
+                        },
+                    }
+                }
+            })
+
+            const createdWhen = new Date()
+            const orig = (await clients.one.storageManager.collection('entry').createObject({
+                createdWhen
+            })).object
+            expect(orig.createdWhen).toEqual(createdWhen)
+
+            await sync({ clientName: 'one' })
+            await sync({ clientName: 'two' })
+
+            expect(await clients.two.storageManager.collection('entry').findObject({id: orig.id})).toEqual(orig)
+        })
     })
 }
 

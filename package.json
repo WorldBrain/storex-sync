@@ -23,6 +23,7 @@
   "author": "Vincent den Boer",
   "dependencies": {
     "immutability-helper": "^3.0.0",
+    "json-date-parser": "^1.0.1",
     "lodash": "^4.17.10",
     "source-map-support": "^0.4.18"
   },

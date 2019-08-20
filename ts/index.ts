@@ -1,3 +1,4 @@
+import { jsonDateParser } from "json-date-parser"
 import pick from 'lodash/pick'
 import StorageManager from "@worldbrain/storex"
 import { ClientSyncLogStorage } from "./client-sync-log"
@@ -43,7 +44,7 @@ export async function receiveLogEntries(args : {
 }) {
     const deserializeEntryData = args.serializer
         ? args.serializer.deserializeSharedSyncLogEntryData
-        : (async (serialized: string) => JSON.parse(serialized))
+        : (async (serialized: string) => JSON.parse(serialized, jsonDateParser))
 
     const entries = await args.sharedSyncLog.getUnsyncedEntries({ userId: args.userId, deviceId: args.deviceId })
     await args.clientSyncLog.insertReceivedEntries(await Promise.all(entries.map(async entry => {
