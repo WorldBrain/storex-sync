@@ -6,9 +6,9 @@ import { dissectCreateObjectOperation, convertCreateObjectDissectionToBatch, rec
 export type CustomPkGenerator = () => string
 
 export class CustomAutoPkMiddleware implements StorageMiddleware {
-    private _collections : {[name : string]: {pkIndex : string}}
+    private _collections? : {[name : string]: {pkIndex : string}}
     private _pkGenerator : CustomPkGenerator
-    private _storageRegistry : StorageRegistry
+    private _storageRegistry? : StorageRegistry
 
     constructor({pkGenerator} : {pkGenerator : CustomPkGenerator}) {
         this._pkGenerator = pkGenerator
@@ -30,6 +30,10 @@ export class CustomAutoPkMiddleware implements StorageMiddleware {
     }
 
     async process({ next, operation }: { next: { process: ({ operation }: { operation: any; }) => any; }; operation: any[]; }) {
+        if (!this._collections || !this._storageRegistry) {
+            throw new Error(`You tried to do a storage operation without calling CustomAutoPkMiddleware.setup() first`)
+        }
+
         const mainCollection = operation[1]
         if (operation[0] !== 'createObject' || !this._collections[mainCollection]) {
             return next.process({operation})

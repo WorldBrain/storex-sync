@@ -11,7 +11,8 @@ export class FilesystemSharedSyncLogStorage implements SharedSyncLog {
     private basePath: string
 
     constructor(options: { basePath: string; fs?: typeof fs }) {
-        Object.assign(this, { ...options, fs: options.fs || require('fs') })
+        this.basePath = options.basePath
+        this.fs = options.fs || require('fs')
     }
 
     async createDeviceId(options: {

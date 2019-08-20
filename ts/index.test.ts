@@ -438,7 +438,7 @@ if (process.env.TEST_SYNC_GRAPHQL === 'true') {
 
 if (process.env.TEST_SYNC_FIRESTORE === 'true') {
     describe('Storex Sync integration with Storex Firestore backend', () => {
-        integrationTests(async (body : (dependencies : TestDependencies) => Promise<void>, options : TestRunnerOptions) => {
+        integrationTests(async (body : (dependencies : TestDependencies) => Promise<void>, options? : TestRunnerOptions) => {
             await withEmulatedFirestoreBackend({
                 sharedSyncLog: ({ storageManager }) => new SharedSyncLogStorage({
                     storageManager, autoPkType: 'string', excludeTimestampChecks: !options || !options.includeTimestampChecks

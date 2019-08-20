@@ -142,7 +142,7 @@ export function createMemoryChannel() {
                 if (!batch) {
                     break
                 }
-                sendBatchPromise = resolvablePromise<FastSyncBatch>()
+                sendBatchPromise = resolvablePromise<FastSyncBatch | null>()
                 yield batch
                 recvBatchPromise.resolve()
                 recvBatchPromise = resolvablePromise<void>()

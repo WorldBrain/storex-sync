@@ -104,7 +104,7 @@ describe('Fast initial sync', () => {
                 },
             }),
         ])
-
+        
         return {
             senderChannel: new WebRTCFastSyncSenderChannel({ peer: peers[0] }),
             receiverChannel: new WebRTCFastSyncReceiverChannel({

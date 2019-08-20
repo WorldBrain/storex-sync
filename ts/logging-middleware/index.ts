@@ -18,10 +18,9 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         storageManager: StorageManager
         includeCollections: string[]
     }) {
-        Object.assign(this, {
-            ...options,
-            includeCollections: new Set(options.includeCollections),
-        })
+        this.clientSyncLog = options.clientSyncLog
+        this.storageManager = options.storageManager
+        this.includeCollections = new Set(options.includeCollections)
     }
 
     async process({
