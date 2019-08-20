@@ -88,17 +88,13 @@ export class FastSyncReceiver {
         })
         for await (const objectBatch of this.options.channel.streamObjectBatches()) {
             // console.log('recv: start iter')
-            for (const object of objectBatch.objects) {
-                await this.options.storageManager
-                    .collection(objectBatch.collection)
-                    .createObject(object)
-            }
+            await this.options.storageManager.collection(objectBatch.collection).rawCreateObjects(objectBatch.objects, {withNestedObjects: false})
             this.totalObjectsProcessed += objectBatch.objects.length
             this.events.emit('progress', {
                 progress: {
                     ...syncInfo,
                     totalObjectsProcessed: this.totalObjectsProcessed,
-                },
+                }
             })
             // console.log('recv: end iter')
         }
