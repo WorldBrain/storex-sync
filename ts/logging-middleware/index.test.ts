@@ -61,6 +61,16 @@ describe('Sync logging middleware', () => {
         ])
     })
 
+    it('should not write rawCreateObjects operations to the ClientSyncLog', async () => {
+        const { storageManager, clientSyncLog } = await setupTest({now: () => 3})
+        await storageManager.collection('user').rawCreateObjects([
+            {id: 53, displayName: 'John Doe'},
+            {id: 54, displayName: 'Jane Doe'},
+        ],{withNestedObjects: false})
+        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+        ])
+    })
+
     it('should write updateObject operations done by pk on a single field to the ClientSyncLog in a batch write', async () => {
         let now = 2
         const { storageManager, clientSyncLog } = await setupTest({
