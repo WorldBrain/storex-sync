@@ -18,8 +18,20 @@ import { inspect } from 'util';
 
 export type TestDependencies = { sharedSyncLog : SharedSyncLog, userId? : number | string, getNow? : () => number | '$now' }
 export type TestRunnerOptions = { includeTimestampChecks? : boolean }
+type TestDependencyInjector = (body : (dependencies : TestDependencies) => Promise<void>, options? : TestRunnerOptions) => Promise<void>
+type TestFunction = (dependencies : TestDependencies) => Promise<void>
 
-function integrationTests(withTestDependencies : (body : (dependencies : TestDependencies) => Promise<void>, options? : TestRunnerOptions) => Promise<void>) {
+function makeTestFactory(withTestDependencies: TestDependencyInjector) {
+    return async function wrappedIt(description : string, test : TestFunction, options? : TestRunnerOptions) {
+        it(description, async () => {
+            await withTestDependencies(async (dependencies : TestDependencies) => {
+                await test(dependencies)
+            }, options)
+        })
+    }
+}
+
+function integrationTests(withTestDependencies: TestDependencyInjector) {
     function createGetNow(options : { start : number, step?: number }) {
         let now = options.start
         return () => {
@@ -29,7 +41,12 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
         }
     }
 
-    async function setupClient(options : { backend : { modules: { sharedSyncLog: SharedSyncLog } }, clientName : string, getNow : () => number | '$now', pkGenerator : () => string}) {
+    async function setupClient(options : {
+        backend : { modules: { sharedSyncLog: SharedSyncLog } },
+        clientName : string,
+        getNow : () => number | '$now',
+        pkGenerator : () => string
+    }) {
         const { storageManager, modules } = await setupStorexTest<{clientSyncLog : ClientSyncLogStorage}>({
             dbName: `client-${options.clientName}`,
             collections: {
@@ -86,15 +103,9 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
         return { backend, clients, userId }
     }
 
-    async function wrappedIt(description : string, test : (dependencies : TestDependencies) => Promise<void>, options? : TestRunnerOptions) {
-        it(description, async () => {
-            await withTestDependencies(async (dependencies : TestDependencies) => {
-                await test(dependencies)
-            }, options)
-        })
-    }
-
     describe('shareLogEntries()', () => {
+        const it = makeTestFactory(withTestDependencies)
+
         async function setupShareTest(dependencies : TestDependencies) {
             const { backend, clients, userId } = await setupTest({
                 dependencies,
@@ -111,7 +122,7 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             return { backend, clients, userId, share }
         }
 
-        wrappedIt('should correctly share log entries', async (dependencies : TestDependencies) => {
+        it('should correctly share log entries', async (dependencies : TestDependencies) => {
             const { backend, clients, userId, share } = await setupShareTest(dependencies)
 
             await share({now: 55})
@@ -133,7 +144,7 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             ])
         })
 
-        wrappedIt('should not reshare entries that are already shared', async (dependencies : TestDependencies) => {
+        it('should not reshare entries that are already shared', async (dependencies : TestDependencies) => {
             const { backend, userId, clients, share } = await setupShareTest(dependencies)
 
             await share({now: 55})
@@ -144,6 +155,8 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
     })
 
     describe('receiveLogEntries()', () => {
+        const it = makeTestFactory(withTestDependencies)
+
         async function setupReceiveTest(dependencies : TestDependencies) {
             const { backend, clients, userId } = await setupTest({
                 dependencies,
@@ -163,7 +176,7 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             return { backend, clients, userId, receive }
         }
 
-        wrappedIt('should correctly receive unsynced entries and write them to the local log marked as needing integration', async (dependencies : TestDependencies) => {
+        it('should correctly receive unsynced entries and write them to the local log marked as needing integration', async (dependencies : TestDependencies) => {
             const { backend, clients, userId, receive } = await setupReceiveTest(dependencies)
             await clients.one.storageManager.collection('user').createObject({displayName: 'Bob'})
 
@@ -215,6 +228,8 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
     })
 
     describe('doSync()', () => {
+        const it = makeTestFactory(withTestDependencies)
+
         async function setupSyncTest(dependencies : TestDependencies) {
             const getNow = dependencies.getNow || createGetNow({ start: 50, step: 5 })
             const { backend, clients, userId } = await setupTest({
@@ -238,7 +253,7 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             return { clients, backend, sync, userId }
         }
 
-        wrappedIt('should correctly sync createObject operations', async (dependencies : TestDependencies) => {
+        it('should correctly sync createObject operations', async (dependencies : TestDependencies) => {
             const { clients, sync } = await setupSyncTest(dependencies)
             const orig = (await clients.one.storageManager.collection('user').createObject({
                 displayName: 'Joe', emails: [{address: 'joe@doe.com'}]
@@ -252,7 +267,7 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
         }, { includeTimestampChecks: true })
 
-        wrappedIt('should correctly sync updateObject operations', async (dependencies : TestDependencies) => {
+        it('should correctly sync updateObject operations', async (dependencies : TestDependencies) => {
             const { clients, sync } = await setupSyncTest(dependencies)
             const orig = (await clients.one.storageManager.collection('user').createObject({
                 displayName: 'Joe', emails: [{ address: 'joe@doe.com' }]
@@ -267,7 +282,7 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
             expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
         }, { includeTimestampChecks: true })
 
-        wrappedIt('should correctly sync deleteObject operations', async (dependencies : TestDependencies) => {
+        it('should correctly sync deleteObject operations', async (dependencies : TestDependencies) => {
             const { clients, sync } = await setupSyncTest(dependencies)
             const orig = (await clients.one.storageManager.collection('user').createObject({
                 displayName: 'Joe', emails: [{ address: 'joe@doe.com' }]
@@ -284,7 +299,7 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
         }, { includeTimestampChecks: true })
 
 
-        wrappedIt('should correctly sync deleteObjects operations', async (dependencies : TestDependencies) => {
+        it('should correctly sync deleteObjects operations', async (dependencies : TestDependencies) => {
             const { clients, sync } = await setupSyncTest(dependencies)
             const orig = (await clients.one.storageManager.collection('user').createObject({
                 displayName: 'Joe', emails: [{ address: 'joe@doe.com' }]
@@ -301,7 +316,7 @@ function integrationTests(withTestDependencies : (body : (dependencies : TestDep
 
         }, { includeTimestampChecks: true })
 
-        wrappedIt('should work with custom serialization/deserialization', async (dependencies : TestDependencies) => {
+        it('should work with custom serialization/deserialization', async (dependencies : TestDependencies) => {
             const { clients, backend, userId, sync } = await setupSyncTest(dependencies)
             const orig = (await clients.one.storageManager.collection('user').createObject({
                 displayName: 'Joe'
