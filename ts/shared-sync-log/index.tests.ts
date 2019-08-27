@@ -122,5 +122,35 @@ export async function runTests(options: {
         ).toEqual([])
     })
 
-    it('should not include its own entries when retrieving unseen entries')
+    it('should not include its own entries when retrieving unseen entries', async () => {
+        const sharedSyncLog = await options.createLog()
+        const userId = 1
+        const firstDeviceId = await sharedSyncLog.createDeviceId({
+            userId,
+            sharedUntil: 2,
+        })
+
+        expect(
+            await sharedSyncLog.getUnsyncedEntries({
+                userId,
+                deviceId: firstDeviceId,
+            }),
+        ).toEqual([])
+
+        const entries: Omit<SharedSyncLogEntry, 'sharedOn' | 'userId'>[] = [
+            { deviceId: firstDeviceId, createdOn: 4, data: 'joe-2' },
+            { deviceId: firstDeviceId, createdOn: 6, data: 'joe-3' },
+        ]
+        await sharedSyncLog.writeEntries(entries, {
+            userId,
+            deviceId: firstDeviceId,
+            now: 8,
+        })
+
+        const unseenEntries = await sharedSyncLog.getUnsyncedEntries({
+            userId,
+            deviceId: firstDeviceId,
+        })
+        expect(unseenEntries).toEqual([])
+    })
 }

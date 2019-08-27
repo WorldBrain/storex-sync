@@ -24,7 +24,7 @@ export class FilesystemSharedSyncLogStorage implements SharedSyncLog {
             this.fs.mkdirSync(devicesPath)
         }
 
-        const deviceId = Date.now().toFixed(0)
+        const deviceId = Math.random().toString().replace('.', '')
         const devicePath = path.join(devicesPath, deviceId)
         fs.writeFileSync(
             devicePath,
@@ -86,8 +86,14 @@ export class FilesystemSharedSyncLogStorage implements SharedSyncLog {
             const batchContent = JSON.parse(
                 fs.readFileSync(batchPath).toString(),
             )
+            if (batchContent.deviceId === options.deviceId.toString()) {
+                continue
+            }
+
             for (const entry of batchContent.entries) {
-                if (!seenEntries.has(`${entry.deviceId}-${entry.createdOn}`)) {
+                if (
+                    !seenEntries.has(`${entry.deviceId}-${entry.createdOn}`)
+                ) {
                     entries.push({
                         ...entry,
                         userId: options.userId,

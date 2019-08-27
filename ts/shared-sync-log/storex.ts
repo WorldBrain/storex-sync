@@ -13,6 +13,13 @@ import {
 } from './types'
 import { Omit } from '../types'
 
+interface SharedSyncLogEntryBatch {
+    userId: string | number
+    deviceId: string | number
+    sharedOn: number
+    data: string
+}
+
 export class SharedSyncLogStorage extends StorageModule
     implements SharedSyncLog {
     constructor(
@@ -107,21 +114,19 @@ export class SharedSyncLogStorage extends StorageModule
                         access: ['list', 'read', 'create', 'delete'],
                     },
                 },
-                validation: {
-                    sharedSyncLogDeviceInfo: !this.options
-                        .excludeTimestampChecks
-                        ? [
-                              {
-                                  field: 'sharedUntil',
-                                  rule: { eq: ['$value', '$context.now'] },
-                              },
-                          ]
-                        : [],
-                },
+                // validation: {
+                //     sharedSyncLogDeviceInfo: !this.options
+                //         .excludeTimestampChecks
+                //         ? [
+                //               {
+                //                   field: 'sharedUntil',
+                //                   rule: { eq: ['$value', '$context.now'] },
+                //               },
+                //           ]
+                //         : [],
+                // },
             },
         })
-
-    // debug = true
 
     async createDeviceId(options: {
         userId: number | string
@@ -141,12 +146,13 @@ export class SharedSyncLogStorage extends StorageModule
             now: number | '$now'
         },
     ): Promise<void> {
-        await this.operation('createLogEntryBatch', {
+        const batch : SharedSyncLogEntryBatch = {
             data: JSON.stringify(entries),
             userId: options.userId,
             deviceId: options.deviceId,
-            sharedOn: (options && options.now) || '$now',
-        })
+            sharedOn: (options && options.now) || '$now' as any,
+        }
+        await this.operation('createLogEntryBatch', batch)
     }
 
     async getUnsyncedEntries(options: {
@@ -164,24 +170,21 @@ export class SharedSyncLogStorage extends StorageModule
             ),
         )
 
-        const entryBatches = await this.operation('findSyncEntries', {
+        const entryBatches : Array<SharedSyncLogEntryBatch> = await this.operation('findSyncEntries', {
             userId: options.userId,
-            fromWhen: 0,
         })
         const entries = flatten(
-            entryBatches.map(
-                (batch: {
-                    data: string
-                    deviceId: number | string
-                    sharedOn: number
-                }): SharedSyncLogEntry[] =>
-                    JSON.parse(batch.data).map((entry: SharedSyncLogEntry) => ({
-                        ...entry,
-                        sharedOn: batch.sharedOn,
-                        deviceId: batch.deviceId,
-                        userId: options.userId,
-                    })),
-            ),
+            entryBatches
+                .filter(batch => batch.deviceId !== options.deviceId)
+                .map(
+                    (batch): SharedSyncLogEntry[] =>
+                        JSON.parse(batch.data).map((entry: SharedSyncLogEntry) => ({
+                            ...entry,
+                            sharedOn: batch.sharedOn,
+                            deviceId: batch.deviceId,
+                            userId: options.userId,
+                        })),
+                ),
         ) as SharedSyncLogEntry[]
 
         const unseenEntries = entries.filter(

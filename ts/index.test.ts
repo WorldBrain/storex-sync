@@ -196,7 +196,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     createdOn: 7,
                     data: '{"operation":"create","collection":"email","pk":"id-3","field":null,"value":{"address":"joe@doe.com"}}',
                 },
-            ], { now: 55, userId, deviceId: clients.one.deviceId })
+            ], { now: 55, userId, deviceId: clients.two.deviceId })
             
             await receive({now: 60})
             expect(await clients.one.modules.clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
