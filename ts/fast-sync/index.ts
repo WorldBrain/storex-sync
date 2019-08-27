@@ -60,6 +60,7 @@ export class FastSyncSender {
                 })
             }
         }
+        console.log('cal fin')
         await channel.finish()
     }
 }

@@ -157,6 +157,9 @@ describe('Fast initial sync', () => {
         await receiverPromise
         await senderPromise
 
+        await channels.senderChannel.destroy()
+        await channels.receiverChannel.destroy()
+
         const expectedSyncInfo = {
             collectionCount: 1,
             objectCount: 2,

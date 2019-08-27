@@ -34,7 +34,7 @@ export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
             while (true) {
                 const syncPackage: WebRTCSyncPackage = await this._receivePackage()
                 if (syncPackage.type === 'finish') {
-                    // console.log('received finish package')
+                    console.log('received finish package')
                     break
                 }
 
@@ -53,6 +53,10 @@ export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
             throw new Error(`Received package with unexpected type while waiting for initial Sync info: ${syncPackage.type}`)
         }
         return syncPackage.info
+    }
+
+    async destroy() {
+        await this.options.peer.destroy()
     }
 
     async _receivePackage() : Promise<WebRTCSyncPackage> {
@@ -86,6 +90,10 @@ export class WebRTCFastSyncSenderChannel implements FastSyncSenderChannel {
     async finish() {
         const syncPackage: WebRTCSyncPackage = { type: 'finish' }
         await this._sendPackage(syncPackage)
+    }
+
+    async destroy() {
+        await this.options.peer.destroy()
     }
 
     async _sendPackage(syncPackage : WebRTCSyncPackage) {
@@ -135,6 +143,7 @@ export function createMemoryChannel() {
             // console.log('senderChannel.finish()')
             sendBatchPromise.resolve(null)
         },
+        destroy: async () => {}
     }
     const receiverChannel: FastSyncReceiverChannel = {
         streamObjectBatches: async function*(): AsyncIterableIterator<{
@@ -163,6 +172,7 @@ export function createMemoryChannel() {
             recvSyncInfoPromise = resolvablePromise<void>()
             return info
         },
+        destroy: async () => {}
     }
 
     return {

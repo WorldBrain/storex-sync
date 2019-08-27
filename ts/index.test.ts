@@ -12,8 +12,6 @@ import { shareLogEntries, receiveLogEntries, doSync, SyncSerializer } from '.';
 import { reconcileSyncLog } from './reconciliation';
 import { SharedSyncLog } from './shared-sync-log';
 import { PromiseContentType } from './types.test';
-import { withTempDirFactory } from './shared-sync-log/fs.test';
-import { FilesystemSharedSyncLogStorage } from './shared-sync-log/fs';
 import { inspect } from 'util';
 import { RegistryCollections } from '@worldbrain/storex/lib/registry';
 
@@ -390,22 +388,6 @@ describe('Storex Sync integration with Storex backend', () => {
 
     integrationTests(async (body : (dependencies : TestDependencies) => Promise<void>) => {
         await body(await setupTestDependencies())
-    })
-})
-
-describe('Storex Sync integration with Filesystem backend', () => {
-    withTempDirFactory((createTempDir) => {
-        async function setupTestDependencies() : Promise<TestDependencies> {
-            return {
-                sharedSyncLog: new FilesystemSharedSyncLogStorage({
-                    basePath: createTempDir(),
-                })
-            }
-        }
-        
-        integrationTests(async (body : (dependencies : TestDependencies) => Promise<void>) => {
-            await body(await setupTestDependencies())
-        })
     })
 })
 
