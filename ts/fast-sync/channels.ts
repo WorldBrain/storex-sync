@@ -34,7 +34,7 @@ export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
             while (true) {
                 const syncPackage: WebRTCSyncPackage = await this._receivePackage()
                 if (syncPackage.type === 'finish') {
-                    console.log('received finish package')
+                    // console.log('received finish package')
                     break
                 }
 
