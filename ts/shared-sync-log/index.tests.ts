@@ -212,6 +212,71 @@ export async function runTests(options: {
         ] })
     })
 
-    // it(`should retrieve entries added between when a device fetches new entries and marks them as read`, async () => {
-    // })
+    it(`should retrieve entries added between when a device fetches new entries and marks them as read`, async () => {
+        const sharedSyncLog = await options.createLog()
+        const userId = 1
+        const firstDeviceId = await sharedSyncLog.createDeviceId({
+            userId,
+            sharedUntil: 2,
+        })
+        const secondDeviceId = await sharedSyncLog.createDeviceId({
+            userId,
+            sharedUntil: 2,
+        })
+
+        const firstBatch: Omit<SharedSyncLogEntry, 'sharedOn'>[] = [
+            { userId, deviceId: firstDeviceId, createdOn: 2, data: 'joe-1' },
+            { userId, deviceId: firstDeviceId, createdOn: 6, data: 'joe-2' },
+        ]
+        await sharedSyncLog.writeEntries(firstBatch, {
+            userId,
+            deviceId: firstDeviceId,
+        })
+        const firstLogUpdate = await sharedSyncLog.getUnsyncedEntries({
+            userId,
+            deviceId: secondDeviceId,
+        })
+        expect(firstLogUpdate).toEqual({ entries: [
+            (expect as any).objectContaining({
+                ...firstBatch[0],
+                userId: 1,
+                deviceId: firstDeviceId,
+            }),
+            (expect as any).objectContaining({
+                ...firstBatch[1],
+                userId: 1,
+                deviceId: firstDeviceId,
+            }),
+        ] })
+
+        const secondBatch: Omit<SharedSyncLogEntry, 'sharedOn'>[] = [
+            { userId, deviceId: firstDeviceId, createdOn: 8, data: 'joe-3' },
+            { userId, deviceId: firstDeviceId, createdOn: 10, data: 'joe-4' },
+        ]
+        await sharedSyncLog.writeEntries(secondBatch, {
+            userId,
+            deviceId: firstDeviceId,
+        })
+        await sharedSyncLog.markAsSeen(firstLogUpdate, {
+            userId,
+            deviceId: secondDeviceId,
+        })
+
+        const secondLogUpdate = await sharedSyncLog.getUnsyncedEntries({
+            userId,
+            deviceId: secondDeviceId,
+        })
+        expect(secondLogUpdate).toEqual({ entries: [
+            (expect as any).objectContaining({
+                ...secondBatch[0],
+                userId: 1,
+                deviceId: firstDeviceId,
+            }),
+            (expect as any).objectContaining({
+                ...secondBatch[1],
+                userId: 1,
+                deviceId: firstDeviceId,
+            }),
+        ] })
+    })
 }
