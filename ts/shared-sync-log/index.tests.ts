@@ -26,23 +26,27 @@ export async function runTests(options: {
         await sharedSyncLog.writeEntries(entries, {
             userId,
             deviceId: firstDeviceId,
+            now: 8,
         })
         const logUpdate = await sharedSyncLog.getUnsyncedEntries({
             userId,
             deviceId: secondDeviceId,
         })
-        expect(logUpdate).toEqual({ entries: [
-            (expect as any).objectContaining({
-                ...entries[0],
-                userId: 1,
-                deviceId: firstDeviceId,
-            }),
-            (expect as any).objectContaining({
-                ...entries[1],
-                userId: 1,
-                deviceId: firstDeviceId,
-            }),
-        ]})
+        expect(logUpdate).toEqual({
+            entries: [
+                (expect as any).objectContaining({
+                    ...entries[0],
+                    userId: 1,
+                    deviceId: firstDeviceId,
+                }),
+                (expect as any).objectContaining({
+                    ...entries[1],
+                    userId: 1,
+                    deviceId: firstDeviceId,
+                }),
+            ],
+            memo: expect.any(Object)
+        })
         await sharedSyncLog.markAsSeen(logUpdate, {
             userId,
             deviceId: secondDeviceId,
@@ -53,7 +57,7 @@ export async function runTests(options: {
                 userId,
                 deviceId: secondDeviceId,
             }),
-        ).toEqual({ entries: [] })
+        ).toEqual({ entries: [], memo: expect.any(Object) })
     })
 
     it('should work correctly even if entries from the past are added', async () => {
@@ -73,7 +77,7 @@ export async function runTests(options: {
                 userId,
                 deviceId: secondDeviceId,
             }),
-        ).toEqual({ entries: [] })
+        ).toEqual({ entries: [], memo: expect.any(Object) })
 
         const entries: Omit<SharedSyncLogEntry, 'sharedOn' | 'userId'>[] = [
             { deviceId: firstDeviceId, createdOn: 4, data: 'joe-2' },
@@ -104,24 +108,28 @@ export async function runTests(options: {
             userId,
             deviceId: secondDeviceId,
         })
-        expect(secondLogUpdate).toEqual({ entries: [
-            (expect as any).objectContaining({
-                ...newEntries[0],
-                userId: 1,
-                deviceId: firstDeviceId,
-            }),
-        ]})
+        expect(secondLogUpdate).toEqual({
+            entries: [
+                (expect as any).objectContaining({
+                    ...newEntries[0],
+                    userId: 1,
+                    deviceId: firstDeviceId,
+                }),
+            ],
+            memo: expect.any(Object)
+        })
 
         await sharedSyncLog.markAsSeen(secondLogUpdate, {
             userId,
             deviceId: secondDeviceId,
         })
+
         expect(
             await sharedSyncLog.getUnsyncedEntries({
                 userId,
                 deviceId: secondDeviceId,
             }),
-        ).toEqual({ entries: [] })
+        ).toEqual({ entries: [], memo: expect.any(Object) })
     })
 
     it('should not include its own entries when retrieving unseen entries', async () => {
@@ -137,7 +145,7 @@ export async function runTests(options: {
                 userId,
                 deviceId: firstDeviceId,
             }),
-        ).toEqual({ entries: [] })
+        ).toEqual({ entries: [], memo: expect.any(Object) })
 
         const entries: Omit<SharedSyncLogEntry, 'sharedOn' | 'userId'>[] = [
             { deviceId: firstDeviceId, createdOn: 4, data: 'joe-2' },
@@ -153,7 +161,7 @@ export async function runTests(options: {
             userId,
             deviceId: firstDeviceId,
         })
-        expect(unseenEntries).toEqual({ entries: [] })
+        expect(unseenEntries).toEqual({ entries: [], memo: expect.any(Object) })
     })
 
     it(`should keep giving me old entries as long as I don't mark retrieved entries as seen`, async () => {
@@ -176,40 +184,47 @@ export async function runTests(options: {
         await sharedSyncLog.writeEntries(entries, {
             userId,
             deviceId: firstDeviceId,
+            now: 8,
         })
         const firstLogUpdate = await sharedSyncLog.getUnsyncedEntries({
             userId,
             deviceId: secondDeviceId,
         })
-        expect(firstLogUpdate).toEqual({ entries: [
-            (expect as any).objectContaining({
-                ...entries[0],
-                userId: 1,
-                deviceId: firstDeviceId,
-            }),
-            (expect as any).objectContaining({
-                ...entries[1],
-                userId: 1,
-                deviceId: firstDeviceId,
-            }),
-        ] })
+        expect(firstLogUpdate).toEqual({
+            entries: [
+                (expect as any).objectContaining({
+                    ...entries[0],
+                    userId: 1,
+                    deviceId: firstDeviceId,
+                }),
+                (expect as any).objectContaining({
+                    ...entries[1],
+                    userId: 1,
+                    deviceId: firstDeviceId,
+                }),
+            ],
+            memo: expect.any(Object)
+        })
 
         const secondLogUpdate = await sharedSyncLog.getUnsyncedEntries({
             userId,
             deviceId: secondDeviceId,
         })
-        expect(secondLogUpdate).toEqual({ entries: [
-            (expect as any).objectContaining({
-                ...entries[0],
-                userId: 1,
-                deviceId: firstDeviceId,
-            }),
-            (expect as any).objectContaining({
-                ...entries[1],
-                userId: 1,
-                deviceId: firstDeviceId,
-            }),
-        ] })
+        expect(secondLogUpdate).toEqual({
+            entries: [
+                (expect as any).objectContaining({
+                    ...entries[0],
+                    userId: 1,
+                    deviceId: firstDeviceId,
+                }),
+                (expect as any).objectContaining({
+                    ...entries[1],
+                    userId: 1,
+                    deviceId: firstDeviceId,
+                }),
+            ],
+            memo: expect.any(Object),
+        })
     })
 
     it(`should retrieve entries added between when a device fetches new entries and marks them as read`, async () => {
@@ -231,23 +246,27 @@ export async function runTests(options: {
         await sharedSyncLog.writeEntries(firstBatch, {
             userId,
             deviceId: firstDeviceId,
+            now: 8,
         })
         const firstLogUpdate = await sharedSyncLog.getUnsyncedEntries({
             userId,
             deviceId: secondDeviceId,
         })
-        expect(firstLogUpdate).toEqual({ entries: [
-            (expect as any).objectContaining({
-                ...firstBatch[0],
-                userId: 1,
-                deviceId: firstDeviceId,
-            }),
-            (expect as any).objectContaining({
-                ...firstBatch[1],
-                userId: 1,
-                deviceId: firstDeviceId,
-            }),
-        ] })
+        expect(firstLogUpdate).toEqual({
+            entries: [
+                (expect as any).objectContaining({
+                    ...firstBatch[0],
+                    userId: 1,
+                    deviceId: firstDeviceId,
+                }),
+                (expect as any).objectContaining({
+                    ...firstBatch[1],
+                    userId: 1,
+                    deviceId: firstDeviceId,
+                }),
+            ],
+            memo: expect.any(Object)
+        })
 
         const secondBatch: Omit<SharedSyncLogEntry, 'sharedOn'>[] = [
             { userId, deviceId: firstDeviceId, createdOn: 8, data: 'joe-3' },
@@ -256,6 +275,7 @@ export async function runTests(options: {
         await sharedSyncLog.writeEntries(secondBatch, {
             userId,
             deviceId: firstDeviceId,
+            now: 10,
         })
         await sharedSyncLog.markAsSeen(firstLogUpdate, {
             userId,
@@ -266,17 +286,20 @@ export async function runTests(options: {
             userId,
             deviceId: secondDeviceId,
         })
-        expect(secondLogUpdate).toEqual({ entries: [
-            (expect as any).objectContaining({
-                ...secondBatch[0],
-                userId: 1,
-                deviceId: firstDeviceId,
-            }),
-            (expect as any).objectContaining({
-                ...secondBatch[1],
-                userId: 1,
-                deviceId: firstDeviceId,
-            }),
-        ] })
+        expect(secondLogUpdate).toEqual({
+            entries: [
+                (expect as any).objectContaining({
+                    ...secondBatch[0],
+                    userId: 1,
+                    deviceId: firstDeviceId,
+                }),
+                (expect as any).objectContaining({
+                    ...secondBatch[1],
+                    userId: 1,
+                    deviceId: firstDeviceId,
+                }),
+            ],
+            memo: { lastBatchTime: 10 }
+        })
     })
 }

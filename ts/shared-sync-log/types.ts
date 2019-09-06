@@ -28,7 +28,7 @@ export interface SharedSyncLog {
         deviceId: string | number
     }): Promise<SharedSyncLogUpdate>
     markAsSeen(
-        update: SharedSyncLogUpdate,
+        update: Pick<SharedSyncLogUpdate, 'memo'>,
         options: {
             userId: string | number
             deviceId: string | number
@@ -38,6 +38,7 @@ export interface SharedSyncLog {
 }
 export interface SharedSyncLogUpdate {
     entries: SharedSyncLogEntry[]
+    memo?: any
 }
 
 interface SharedSyncLogEntryBase {

@@ -1,5 +1,6 @@
 import flatten from 'lodash/flatten'
 import sortBy from 'lodash/sortBy'
+import omit from 'lodash/omit'
 import {
     StorageModule,
     StorageModuleConfig,
@@ -46,16 +47,16 @@ export class SharedSyncLogStorage extends StorageModule
                     },
                     groupBy: [{ key: 'userId', subcollectionName: 'entries' }],
                 },
-                sharedSyncLogSeenEntry: {
-                    version: new Date('2019-02-05'),
-                    fields: {
-                        userId: { type: this.options.autoPkType },
-                        creatorDeviceId: { type: this.options.autoPkType },
-                        retrieverDeviceId: { type: this.options.autoPkType },
-                        createdOn: { type: 'timestamp' },
-                    },
-                    groupBy: [{ key: 'userId', subcollectionName: 'entries' }],
-                },
+                // sharedSyncLogSeenEntry: {
+                //     version: new Date('2019-02-05'),
+                //     fields: {
+                //         userId: { type: this.options.autoPkType },
+                //         creatorDeviceId: { type: this.options.autoPkType },
+                //         retrieverDeviceId: { type: this.options.autoPkType },
+                //         createdOn: { type: 'timestamp' },
+                //     },
+                //     groupBy: [{ key: 'userId', subcollectionName: 'entries' }],
+                // },
             },
             operations: {
                 createDeviceInfo: {
@@ -82,23 +83,26 @@ export class SharedSyncLogStorage extends StorageModule
                     operation: 'createObject',
                     collection: 'sharedSyncLogEntryBatch',
                 },
-                findSyncEntries: {
+                findUnseenSyncEntries: {
                     operation: 'findObjects',
                     collection: 'sharedSyncLogEntryBatch',
-                    args: [{ userId: '$userId' }],
+                    args: [{
+                        userId: '$userId',
+                        sharedOn: { $gt: '$after:timestamp' },
+                    }],
                 },
-                insertSeenEntries: {
-                    operation: 'executeBatch',
-                    args: ['$operations'],
-                },
-                retrieveSeenEntries: {
-                    operation: 'findObjects',
-                    collection: 'sharedSyncLogSeenEntry',
-                    args: {
-                        userId: '$userId:pk',
-                        retrieverDeviceId: '$deviceId:pk',
-                    },
-                },
+                // insertSeenEntries: {
+                //     operation: 'executeBatch',
+                //     args: ['$operations'],
+                // },
+                // retrieveSeenEntries: {
+                //     operation: 'findObjects',
+                //     collection: 'sharedSyncLogSeenEntry',
+                //     args: {
+                //         userId: '$userId:pk',
+                //         retrieverDeviceId: '$deviceId:pk',
+                //     },
+                // },
             },
             accessRules: {
                 ownership: {
@@ -110,10 +114,10 @@ export class SharedSyncLogStorage extends StorageModule
                         field: 'userId',
                         access: ['list', 'read', 'create', 'delete'],
                     },
-                    sharedSyncLogSeenEntry: {
-                        field: 'userId',
-                        access: ['list', 'read', 'create', 'delete'],
-                    },
+                    // sharedSyncLogSeenEntry: {
+                    //     field: 'userId',
+                    //     access: ['list', 'read', 'create', 'delete'],
+                    // },
                 },
                 // validation: {
                 //     sharedSyncLogDeviceInfo: !this.options
@@ -160,20 +164,19 @@ export class SharedSyncLogStorage extends StorageModule
         userId: string | number
         deviceId: string | number
     }): Promise<SharedSyncLogUpdate> {
-        const seenEntries = await this.operation('retrieveSeenEntries', {
-            userId: options.userId,
-            deviceId: options.deviceId,
-        })
-        const seenSet = new Set(
-            seenEntries.map(
-                (entry: Pick<SharedSyncLogEntry, 'createdOn'>) =>
-                    entry.createdOn,
-            ),
-        )
+        const deviceInfo: { sharedUntil: number } = await this.operation('getDeviceInfo', options)
+        if (!deviceInfo) {
+            throw new Error(`No such device: ${options.deviceId}`)
+        }
 
-        const entryBatches : Array<SharedSyncLogEntryBatch> = await this.operation('findSyncEntries', {
+        const entryBatches : Array<SharedSyncLogEntryBatch> = await this.operation('findUnseenSyncEntries', {
             userId: options.userId,
+            after: deviceInfo.sharedUntil || 0,
         })
+
+        const lastBatch = entryBatches.length ? entryBatches[entryBatches.length - 1] : null
+        const lastBatchTime = lastBatch && lastBatch.sharedOn
+
         const entries = flatten(
             entryBatches
                 .filter(batch => batch.deviceId !== options.deviceId)
@@ -188,10 +191,7 @@ export class SharedSyncLogStorage extends StorageModule
                 ),
         ) as SharedSyncLogEntry[]
 
-        const unseenEntries = entries.filter(
-            (entry: SharedSyncLogEntry) => !seenSet.has(entry.createdOn),
-        )
-        return { entries: sortBy(unseenEntries, 'createdOn') }
+        return { entries: sortBy(entries, 'createdOn'), memo: { lastBatchTime } }
     }
 
     async markAsSeen(
@@ -207,23 +207,23 @@ export class SharedSyncLogStorage extends StorageModule
             return
         }
 
-        await this.operation('insertSeenEntries', {
-            operations: entries.map(entry => ({
-                placeholder: 'seenEntry',
-                operation: 'createObject',
-                collection: 'sharedSyncLogSeenEntry',
-                args: {
-                    userId: options.userId,
-                    creatorDeviceId: entry.deviceId,
-                    createdOn: entry.createdOn,
-                    retrieverDeviceId: options.deviceId,
-                },
-            })),
-        })
+        // await this.operation('insertSeenEntries', {
+        //     operations: entries.map(entry => ({
+        //         placeholder: 'seenEntry',
+        //         operation: 'createObject',
+        //         collection: 'sharedSyncLogSeenEntry',
+        //         args: {
+        //             userId: options.userId,
+        //             creatorDeviceId: entry.deviceId,
+        //             createdOn: entry.createdOn,
+        //             retrieverDeviceId: options.deviceId,
+        //         },
+        //     })),
+        // })
         await this.operation('updateSharedUntil', {
             userId: options.userId,
             deviceId: options.deviceId,
-            sharedUntil: options.now || '$now',
+            sharedUntil: update.memo.lastBatchTime,
         })
     }
 }
