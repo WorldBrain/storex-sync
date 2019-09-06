@@ -92,12 +92,14 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
         getNow : () => number | '$now'
         clients? : {name : string}[],
         collections? : RegistryCollections
+        getBackend? : (options: { sharedSyncLog: SharedSyncLog }) => { modules: { sharedSyncLog: SharedSyncLog } }
     }) {
         let idsGenerated = 0
         const pkGenerator = () => `id-${++idsGenerated}`
 
         const userId = options.dependencies.userId || 1
-        const backend = { modules: { sharedSyncLog: options.dependencies.sharedSyncLog } }
+        const getBackend = options.getBackend || (() => ({ modules: { sharedSyncLog: options.dependencies.sharedSyncLog } }))
+        const backend = getBackend({ sharedSyncLog: options.dependencies.sharedSyncLog })
 
         const clients : {[name : string] : PromiseContentType<ReturnType<typeof setupClient>>} = {}
         for (const { name } of options.clients || []) {
@@ -147,7 +149,8 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                         sharedOn: 55,
                         data: '{"operation":"create","collection":"email","pk":"id-2","field":null,"value":{"address":"joe@doe.com"}}',
                     }),
-                ]
+                ],
+                memo: expect.any(Object)
             })
         })
 
@@ -155,9 +158,12 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             const { backend, userId, clients, share } = await setupShareTest(dependencies)
 
             await share({now: 55})
-            const entries = await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId})
+            const update = await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId})
             await share({now: 60})
-            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId })).toEqual(entries)
+            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId })).toEqual({
+                ...update,
+                memo: expect.any(Object)
+            })
         })
     })
 
@@ -237,13 +243,17 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
     describe('doSync()', () => {
         const it = makeTestFactory(withTestDependencies)
 
-        async function setupSyncTest(dependencies : TestDependencies, options? : { collections : RegistryCollections }) {
+        async function setupSyncTest(dependencies : TestDependencies, options? : {
+            collections : RegistryCollections
+            getBackend? : (options : { sharedSyncLog: SharedSyncLog }) => { modules: { sharedSyncLog: SharedSyncLog } }
+        }) {
             const getNow = dependencies.getNow || createGetNow({ start: 50, step: 5 })
             const { backend, clients, userId } = await setupTest({
                 dependencies,
                 clients: [{ name: 'one' }, { name: 'two' }],
                 getNow,
                 collections: options && options.collections,
+                getBackend: options && options.getBackend,
             })
             const sync = async (options : { clientName : string, serializer? : SyncSerializer }) => {
                 const client = clients[options.clientName]
@@ -337,15 +347,16 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             }
 
             await sync({ clientName: 'one', serializer })
-            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId })).toEqual({ entries: [
-                {
+            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId })).toEqual({
+                entries: [{
                     userId,
                     deviceId: clients.one.deviceId,
                     createdOn: 50,
                     sharedOn: 55,
                     data: "!!!{\"operation\":\"create\",\"collection\":\"user\",\"pk\":\"id-1\",\"field\":null,\"value\":{\"displayName\":\"Joe\"}}"
-                },
-            ] })
+                }],
+                memo: expect.any(Object),
+            })
             await sync({ clientName: 'two', serializer })
             
             expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toEqual(user)
@@ -409,6 +420,14 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toEqual({ ...user, ...userUpdate })
             expect(await clients.two.storageManager.collection('email').findObject({id: emails[0].id})).toEqual(emails[0])
         }, { includeTimestampChecks: true })
+        
+        // it('should correctly continue sync even if one time we cannot signal seen entries in between', async (dependencies : TestDependencies) => {
+        //     const { clients, sync } = await setupSyncTest(dependencies)
+        //     const orig = (await clients.one.storageManager.collection('user').createObject({
+        //         displayName: 'Joe'
+        //     })).object
+        //     const { emails, ...user } = orig
+        // }, { includeTimestampChecks: true })
     })
 }
 

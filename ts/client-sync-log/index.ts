@@ -6,7 +6,6 @@ import {
 import { ClientSyncLogEntry } from './types'
 import {
     SharedSyncLogEntry,
-    SharedSyncLogEntryData,
 } from '../shared-sync-log/types'
 
 export class ClientSyncLogStorage extends StorageModule {
@@ -30,6 +29,12 @@ export class ClientSyncLogStorage extends StorageModule {
                         { field: ['collection', 'pk'] },
                     ],
                 },
+                // clientSyncLogInfo: {
+                //     version: new Date('2019-02-05'),
+                //     fields: {
+                //         receivalStartedWhen: { type: 'datetime' },
+                //     }
+                // },
             },
             operations: {
                 createEntry: {
