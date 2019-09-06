@@ -10,6 +10,7 @@ import {
     SharedSyncLog,
     SharedSyncLogEntry,
     createSharedSyncLogConfig,
+    SharedSyncLogUpdate,
 } from './types'
 import { Omit } from '../types'
 
@@ -158,7 +159,7 @@ export class SharedSyncLogStorage extends StorageModule
     async getUnsyncedEntries(options: {
         userId: string | number
         deviceId: string | number
-    }): Promise<SharedSyncLogEntry[]> {
+    }): Promise<SharedSyncLogUpdate> {
         const seenEntries = await this.operation('retrieveSeenEntries', {
             userId: options.userId,
             deviceId: options.deviceId,
@@ -190,17 +191,18 @@ export class SharedSyncLogStorage extends StorageModule
         const unseenEntries = entries.filter(
             (entry: SharedSyncLogEntry) => !seenSet.has(entry.createdOn),
         )
-        return sortBy(unseenEntries, 'createdOn')
+        return { entries: sortBy(unseenEntries, 'createdOn') }
     }
 
     async markAsSeen(
-        entries: Array<{ deviceId: string | number; createdOn: number }>,
+        update: SharedSyncLogUpdate,
         options: {
             userId: string | number
             deviceId: string | number
             now?: number | '$now'
         },
     ): Promise<void> {
+        const { entries } = update
         if (!entries.length) {
             return
         }

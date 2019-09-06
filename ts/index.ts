@@ -46,11 +46,11 @@ export async function receiveLogEntries(args : {
         ? args.serializer.deserializeSharedSyncLogEntryData
         : (async (serialized: string) => JSON.parse(serialized, jsonDateParser))
 
-    const entries = await args.sharedSyncLog.getUnsyncedEntries({ userId: args.userId, deviceId: args.deviceId })
-    await args.clientSyncLog.insertReceivedEntries(await Promise.all(entries.map(async entry => {
+    const logUpdate = await args.sharedSyncLog.getUnsyncedEntries({ userId: args.userId, deviceId: args.deviceId })
+    await args.clientSyncLog.insertReceivedEntries(await Promise.all(logUpdate.entries.map(async entry => {
         return { ...entry, data: await deserializeEntryData(entry.data) }
     })), {now: args.now})
-    await args.sharedSyncLog.markAsSeen(entries, { userId: args.userId, deviceId: args.deviceId })
+    await args.sharedSyncLog.markAsSeen(logUpdate, { userId: args.userId, deviceId: args.deviceId })
 }
 
 export async function writeReconcilation(args : {

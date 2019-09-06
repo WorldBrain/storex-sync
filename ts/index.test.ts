@@ -131,22 +131,24 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             const { backend, clients, userId, share } = await setupShareTest(dependencies)
 
             await share({now: 55})
-            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId })).toEqual([
-                (expect as any).objectContaining({
-                    userId,
-                    deviceId: clients.one.deviceId,
-                    createdOn: 2,
-                    sharedOn: 55,
-                    data: '{"operation":"create","collection":"user","pk":"id-1","field":null,"value":{"displayName":"Joe"}}',
-                }),
-                (expect as any).objectContaining({
-                    userId,
-                    deviceId: clients.one.deviceId,
-                    createdOn: 3,
-                    sharedOn: 55,
-                    data: '{"operation":"create","collection":"email","pk":"id-2","field":null,"value":{"address":"joe@doe.com"}}',
-                }),
-            ])
+            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId })).toEqual({
+                entries: [
+                    (expect as any).objectContaining({
+                        userId,
+                        deviceId: clients.one.deviceId,
+                        createdOn: 2,
+                        sharedOn: 55,
+                        data: '{"operation":"create","collection":"user","pk":"id-1","field":null,"value":{"displayName":"Joe"}}',
+                    }),
+                    (expect as any).objectContaining({
+                        userId,
+                        deviceId: clients.one.deviceId,
+                        createdOn: 3,
+                        sharedOn: 55,
+                        data: '{"operation":"create","collection":"email","pk":"id-2","field":null,"value":{"address":"joe@doe.com"}}',
+                    }),
+                ]
+            })
         })
 
         it('should not reshare entries that are already shared', async (dependencies : TestDependencies) => {
@@ -335,7 +337,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             }
 
             await sync({ clientName: 'one', serializer })
-            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId })).toEqual([
+            expect(await backend.modules.sharedSyncLog.getUnsyncedEntries({ userId, deviceId: clients.two.deviceId })).toEqual({ entries: [
                 {
                     userId,
                     deviceId: clients.one.deviceId,
@@ -343,7 +345,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     sharedOn: 55,
                     data: "!!!{\"operation\":\"create\",\"collection\":\"user\",\"pk\":\"id-1\",\"field\":null,\"value\":{\"displayName\":\"Joe\"}}"
                 },
-            ])
+            ] })
             await sync({ clientName: 'two', serializer })
             
             expect(await clients.two.storageManager.collection('user').findObject({id: user.id})).toEqual(user)

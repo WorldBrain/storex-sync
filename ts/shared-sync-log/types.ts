@@ -26,18 +26,18 @@ export interface SharedSyncLog {
     getUnsyncedEntries(options: {
         userId: string | number
         deviceId: string | number
-    }): Promise<SharedSyncLogEntry[]>
+    }): Promise<SharedSyncLogUpdate>
     markAsSeen(
-        entries: Array<{
-            deviceId: string | number
-            createdOn: number | '$now'
-        }>,
+        update: SharedSyncLogUpdate,
         options: {
             userId: string | number
             deviceId: string | number
             now?: number | '$now'
         },
     ): Promise<void>
+}
+export interface SharedSyncLogUpdate {
+    entries: SharedSyncLogEntry[]
 }
 
 interface SharedSyncLogEntryBase {
