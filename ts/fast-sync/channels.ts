@@ -1,3 +1,4 @@
+import { jsonDateParser } from "json-date-parser"
 import * as SimplePeer from 'simple-peer'
 import {
     FastSyncBatch,
@@ -63,7 +64,7 @@ export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
         const data = await this.dataReceived.promise
         this.dataReceived = resolvablePromise()
 
-        const syncPackage: WebRTCSyncPackage = JSON.parse(data)
+        const syncPackage: WebRTCSyncPackage = JSON.parse(data, jsonDateParser)
 
         const confirmationPackage: WebRTCSyncPackage = {
             type: 'confirm',

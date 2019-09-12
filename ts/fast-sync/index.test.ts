@@ -33,6 +33,7 @@ describe('Fast initial sync', () => {
                         fields: {
                             key: { type: 'string' },
                             label: { type: 'string' },
+                            createWhen: { type: 'datetime' }
                         },
                         indices: [{ field: 'key', pk: true }],
                     },
@@ -118,12 +119,12 @@ describe('Fast initial sync', () => {
 
         const device1 = await testSetup.createDevice()
         const device2 = await testSetup.createDevice()
-        await device1.storageManager
+        const { object: object1 } = await device1.storageManager
             .collection('test')
-            .createObject({ key: 'one', label: 'Foo' })
-        await device1.storageManager
+            .createObject({ key: 'one', label: 'Foo', createdWhen: new Date('2019-09-09 01:23:45') })
+        const { object: object2 } = await device1.storageManager
             .collection('test')
-            .createObject({ key: 'two', label: 'Bar' })
+            .createObject({ key: 'two', label: 'Bar', createdWhen: new Date('2019-09-10 01:23:45') })
 
         const channels = await testSetup.createChannels()
         const senderFastSync = new FastSyncSender({
@@ -214,7 +215,10 @@ describe('Fast initial sync', () => {
 
         expect(
             await device2.storageManager.collection('test').findObjects({}),
-        ).toEqual([{ key: 'one', label: 'Foo' }, { key: 'two', label: 'Bar' }])
+        ).toEqual([
+            { key: 'one', label: 'Foo', createdWhen: object1.createdWhen },
+            { key: 'two', label: 'Bar', createdWhen: object2.createdWhen }
+        ])
     }
 
     it('should work with a very minimal example over an in-memory data channel', async () => {
