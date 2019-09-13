@@ -36,7 +36,7 @@ async function setupTest({
     })
     loggingMiddleware._getNow = now
     storageManager.setMiddleware([loggingMiddleware])
-    return { storageManager, clientSyncLog }
+    return { storageManager, clientSyncLog, loggingMiddleware }
 }
 
 describe('Sync logging middleware', () => {
@@ -656,5 +656,19 @@ describe('Sync logging middleware', () => {
                 operation: 'delete',
             },
         ])
+    })
+
+    it('should not log anything if disabled', async () => {
+        let now = 2
+        const { storageManager, clientSyncLog, loggingMiddleware } = await setupTest({
+            now: () => ++now,
+        })
+        loggingMiddleware.enabled = false
+        
+        await storageManager
+            .collection('user')
+            .createObject({ id: 53, firstName: 'John', lastName: 'Doe' })
+        expect(await clientSyncLog.getEntriesCreatedAfter(0)).toEqual([])
+        expect(now).toEqual(2)
     })
 })

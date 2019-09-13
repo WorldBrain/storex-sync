@@ -8,6 +8,8 @@ import {
 } from './operation-processors'
 
 export class SyncLoggingMiddleware implements StorageMiddleware {
+    public enabled = true
+
     private clientSyncLog: ClientSyncLogStorage
     private storageManager: StorageManager
     private operationProcessors: OperationProcessorMap = DEFAULT_OPERATION_PROCESSORS
@@ -30,6 +32,10 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         next: { process: (options: { operation: any[] }) => any }
         operation: any[]
     }) {
+        if (!this.enabled) {
+            return next.process({ operation })
+        }
+
         const executeAndLog = (
             originalOperation: any | any[],
             logEntries: ClientSyncLogEntry[],
