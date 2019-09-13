@@ -1,4 +1,4 @@
-import { StorageRegistry } from '@worldbrain/storex'
+import { StorageRegistry, OperationBatch } from '@worldbrain/storex'
 import {
     ClientSyncLogEntry,
     ClientSyncLogCreationEntry,
@@ -6,14 +6,13 @@ import {
     ClientSyncLogModificationEntry,
 } from '../client-sync-log/types'
 import { setObjectPk } from '../utils'
-import { ExecutableOperation, ReconcilerFunction } from './types'
+import { ReconcilerFunction } from './types'
 
 type Modifications = { [collection: string]: CollectionModifications }
 type CollectionModifications = { [pk: string]: ObjectModifications }
 interface ObjectModifications {
     shouldBeCreated: boolean
     createdOn?: number | '$now'
-    isDeleted: boolean
     shouldBeDeleted: boolean
     fields: { [field: string]: FieldModification }
 }
@@ -35,7 +34,7 @@ function _throwModificationBeforeCreation(logEntry: ClientSyncLogEntry) {
 export const reconcileSyncLog: ReconcilerFunction = (
     logEntries: ClientSyncLogEntry[],
     options: { storageRegistry: StorageRegistry },
-): ExecutableOperation[] => {
+): OperationBatch => {
     const modificationsByObject: Modifications = {}
     for (const logEntry of logEntries) {
         const collectionModifications = (modificationsByObject[
@@ -67,7 +66,7 @@ export const reconcileSyncLog: ReconcilerFunction = (
         }
     }
 
-    const operations: ExecutableOperation[] = []
+    const operations: OperationBatch = []
     for (const [collection, collectionModifications] of Object.entries(
         modificationsByObject,
     )) {
@@ -111,7 +110,6 @@ export function _processCreationEntry({
         collectionModifications[pkAsJson] = {
             shouldBeCreated: true,
             createdOn: logEntry.createdOn,
-            isDeleted: false,
             shouldBeDeleted: false,
             fields,
         }
@@ -162,7 +160,9 @@ export function _processDeletionEntry({
             shouldBeCreated: false,
             ...updates,
         }
-    } else Object.assign(objectModifications, updates)
+    } else {
+        Object.assign(objectModifications, updates)
+    }
 }
 
 export function _processModificationEntry({
@@ -184,7 +184,6 @@ export function _processModificationEntry({
     if (!objectModifications) {
         collectionModifications[pkAsJson] = {
             shouldBeCreated: false,
-            isDeleted: !!logEntry.sharedOn,
             shouldBeDeleted: false,
             fields: { [logEntry.field]: updates },
         }
@@ -216,18 +215,13 @@ export function _processModifications({
     collection: string
     pk: any
     storageRegistry: StorageRegistry
-}) {
+}) : OperationBatch {
     const pkFields = setObjectPk({}, pk, collection, storageRegistry)
-    if (objectModifications.shouldBeDeleted) {
-        if (
-            !objectModifications.isDeleted &&
-            !objectModifications.shouldBeCreated
-        ) {
-            return [
-                { operation: 'deleteOneObject', collection, args: [pkFields] },
-            ]
-        }
-    } else if (objectModifications.shouldBeCreated) {
+    if (objectModifications.shouldBeDeleted && !objectModifications.shouldBeCreated) {
+        return [
+            { operation: 'deleteObjects', collection, where: pkFields },
+        ]
+    } else if (objectModifications.shouldBeCreated && !objectModifications.shouldBeDeleted) {
         const object = {}
         for (const [key, fieldModification] of Object.entries(
             objectModifications.fields,
@@ -241,19 +235,20 @@ export function _processModifications({
                 args: { ...pkFields, ...object },
             },
         ]
-    } else {
-        const operations = []
+    } else if (!objectModifications.shouldBeCreated && !objectModifications.shouldBeDeleted) {
+        const operations : OperationBatch = []
         for (const [fieldName, fieldModification] of Object.entries(
             objectModifications.fields,
         )) {
-            if (!fieldModification.syncedOn) {
-                operations.push({
-                    operation: 'updateOneObject',
-                    collection,
-                    args: [pkFields, { [fieldName]: fieldModification.value }],
-                })
-            }
+            operations.push({
+                operation: 'updateObjects',
+                collection,
+                where: pkFields,
+                updates: { [fieldName]: fieldModification.value },
+            })
         }
         return operations
     }
+
+    return []
 }

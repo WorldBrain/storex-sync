@@ -1,7 +1,6 @@
-import { StorageRegistry } from '@worldbrain/storex'
+import { StorageRegistry, OperationBatch } from '@worldbrain/storex'
 import expect from 'expect'
 import { ClientSyncLogEntry } from '../client-sync-log/types'
-import { ExecutableOperation } from './types'
 import { reconcileSyncLog } from './default'
 
 function test({
@@ -9,7 +8,7 @@ function test({
     expectedOperations,
 }: {
     logEntries: ClientSyncLogEntry[]
-    expectedOperations?: ExecutableOperation[]
+    expectedOperations?: OperationBatch
 }) {
     const storageRegistry = new StorageRegistry()
     storageRegistry.registerCollections({
@@ -35,12 +34,38 @@ function test({
 }
 
 describe('Reconciliation', () => {
+    it('should integrate field updates', () => {
+        const logEntries: ClientSyncLogEntry[] = [{
+            id: 1,
+            createdOn: 2,
+            sharedOn: 525252,
+            needsIntegration: true,
+            collection: 'list',
+            pk: 'list-id',
+            field: 'title',
+            operation: 'modify',
+            value: 'Updated List Title',
+        }]
+
+        test({
+            logEntries,
+            expectedOperations: [
+                {
+                    operation: 'updateObjects',
+                    collection: 'list',
+                    where: { id: 'list-id' },
+                    updates: { title: 'Updated List Title' }
+                }
+            ]
+        })
+    })
+
     it('should choose the newest write when finding two entries for the same object field', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
                 operation: 'modify',
                 createdOn: 2,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -50,7 +75,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'modify',
                 createdOn: 1,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -63,9 +88,10 @@ describe('Reconciliation', () => {
             logEntries,
             expectedOperations: [
                 {
-                    operation: 'updateOneObject',
+                    operation: 'updateObjects',
                     collection: 'list',
-                    args: [{ id: 'list-one' }, { title: 'second' }],
+                    where: { id: 'list-one' },
+                    updates: { title: 'second' },
                 },
             ],
         })
@@ -76,7 +102,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'modify',
                 createdOn: 2,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -86,7 +112,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'modify',
                 createdOn: 3,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -96,7 +122,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'modify',
                 createdOn: 1,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -109,9 +135,10 @@ describe('Reconciliation', () => {
             logEntries,
             expectedOperations: [
                 {
-                    operation: 'updateOneObject',
+                    operation: 'updateObjects',
                     collection: 'list',
-                    args: [{ id: 'list-one' }, { title: 'third' }],
+                    where: { id: 'list-one' },
+                    updates: { title: 'third' },
                 },
             ],
         })
@@ -122,7 +149,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'modify',
                 createdOn: 2,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -132,7 +159,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'delete',
                 createdOn: 1,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -143,9 +170,9 @@ describe('Reconciliation', () => {
             logEntries,
             expectedOperations: [
                 {
-                    operation: 'deleteOneObject',
+                    operation: 'deleteObjects',
                     collection: 'list',
-                    args: [{ id: 'list-one' }],
+                    where: { id: 'list-one' },
                 },
             ],
         })
@@ -156,7 +183,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'modify',
                 createdOn: 2,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -181,7 +208,13 @@ describe('Reconciliation', () => {
             },
         ]
 
-        test({ logEntries, expectedOperations: [] })
+        test({ logEntries, expectedOperations: [{
+            collection: "list",
+            operation: "deleteObjects",
+            where: {
+                id: "list-one",
+            },
+        }] })
     })
 
     it('should work with only one delete', () => {
@@ -189,7 +222,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'delete',
                 createdOn: 1,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -200,9 +233,9 @@ describe('Reconciliation', () => {
             logEntries,
             expectedOperations: [
                 {
-                    operation: 'deleteOneObject',
+                    operation: 'deleteObjects',
                     collection: 'list',
-                    args: [{ id: 'list-one' }],
+                    where: { id: 'list-one' },
                 },
             ],
         })
@@ -213,7 +246,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'delete',
                 createdOn: 4,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -221,7 +254,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'delete',
                 createdOn: 1,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -232,9 +265,9 @@ describe('Reconciliation', () => {
             logEntries,
             expectedOperations: [
                 {
-                    operation: 'deleteOneObject',
+                    operation: 'deleteObjects',
                     collection: 'list',
-                    args: [{ id: 'list-one' }],
+                    where: { id: 'list-one' },
                 },
             ],
         })
@@ -245,7 +278,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'delete',
                 createdOn: 4,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'listEntry',
                 pk: ['list-one', 3],
@@ -256,47 +289,47 @@ describe('Reconciliation', () => {
             logEntries,
             expectedOperations: [
                 {
-                    operation: 'deleteOneObject',
+                    operation: 'deleteObjects',
                     collection: 'listEntry',
-                    args: [{ id: ['list-one', 3] }],
+                    where: { id: ['list-one', 3] },
                 },
             ],
         })
     })
 
-    it('should ignore writes that are already synced', () => {
-        const logEntries: ClientSyncLogEntry[] = [
-            {
-                operation: 'modify',
-                createdOn: 1,
-                sharedOn: null,
-                needsIntegration: true,
-                collection: 'list',
-                pk: 'list-one',
-                field: 'title',
-                value: 'second',
-            },
-            {
-                operation: 'modify',
-                createdOn: 2,
-                sharedOn: 3,
-                needsIntegration: true,
-                collection: 'list',
-                pk: 'list-one',
-                field: 'title',
-                value: 'second',
-            },
-        ]
+    // it('should ignore writes that are already synced', () => {
+    //     const logEntries: ClientSyncLogEntry[] = [
+    //         {
+    //             operation: 'modify',
+    //             createdOn: 1,
+    //             sharedOn: 52525252,
+    //             needsIntegration: true,
+    //             collection: 'list',
+    //             pk: 'list-one',
+    //             field: 'title',
+    //             value: 'second',
+    //         },
+    //         {
+    //             operation: 'modify',
+    //             createdOn: 2,
+    //             sharedOn: 3,
+    //             needsIntegration: true,
+    //             collection: 'list',
+    //             pk: 'list-one',
+    //             field: 'title',
+    //             value: 'second',
+    //         },
+    //     ]
 
-        test({ logEntries, expectedOperations: [] })
-    })
+    //     test({ logEntries, expectedOperations: [] })
+    // })
 
     it('should create objects', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
                 operation: 'create',
                 createdOn: 1,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -321,7 +354,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'modify',
                 createdOn: 2,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -331,7 +364,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'create',
                 createdOn: 1,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -356,7 +389,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'modify',
                 createdOn: 2,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -366,7 +399,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'create',
                 createdOn: 1,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -375,7 +408,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'delete',
                 createdOn: 3,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -399,7 +432,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'create',
                 createdOn: 2,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -417,7 +450,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'modify',
                 createdOn: 1,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -427,7 +460,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'create',
                 createdOn: 2,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -445,7 +478,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'create',
                 createdOn: 2,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
@@ -454,7 +487,7 @@ describe('Reconciliation', () => {
             {
                 operation: 'modify',
                 createdOn: 1,
-                sharedOn: null,
+                sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
                 pk: 'list-one',
