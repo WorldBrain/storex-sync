@@ -151,7 +151,7 @@ export function _processDeletionEntry({
     pkAsJson: any
 }) {
     const updates = {
-        isDeleted: !!logEntry.sharedOn,
+        // isDeleted: !!logEntry.sharedOn,
         shouldBeDeleted: true,
         fields: {},
     }

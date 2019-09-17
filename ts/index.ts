@@ -1,9 +1,9 @@
 import { jsonDateParser } from "json-date-parser"
 import pick from 'lodash/pick'
-import StorageManager from "@worldbrain/storex"
+import StorageManager, { OperationBatch } from "@worldbrain/storex"
 import { ClientSyncLogStorage } from "./client-sync-log"
 import { SharedSyncLog } from "./shared-sync-log"
-import { ReconcilerFunction, ExecutableOperation } from "./reconciliation"
+import { ReconcilerFunction } from "./reconciliation"
 import { SharedSyncLogEntryData } from './shared-sync-log/types';
 
 export interface SyncSerializer {
@@ -55,7 +55,7 @@ export async function receiveLogEntries(args : {
 
 export async function writeReconcilation(args : {
     storageManager : StorageManager,
-    reconciliation : ExecutableOperation[]
+    reconciliation : OperationBatch
 }) {
     await args.storageManager.backend.operation('executeBatch', args.reconciliation.map(step => ({
         ...step,

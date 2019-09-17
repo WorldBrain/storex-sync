@@ -1,2 +1,2 @@
-export { ReconcilerFunction, ExecutableOperation } from './types'
+export * from './types'
 export { reconcileSyncLog } from './default'
