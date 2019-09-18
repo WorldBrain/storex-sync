@@ -137,8 +137,8 @@ export class SharedSyncLogStorage extends StorageModule
         userId: number | string
         sharedUntil?: number | null
     }): Promise<string> {
-        if (!options.sharedUntil) {
-            options.sharedUntil = null
+        if (typeof options.sharedUntil === 'undefined') {
+            options.sharedUntil = 0
         }
         return (await this.operation('createDeviceInfo', options)).object.id
     }
@@ -151,6 +151,10 @@ export class SharedSyncLogStorage extends StorageModule
             now: number | '$now'
         },
     ): Promise<void> {
+        if (!entries.length) {
+            return
+        }
+
         const batch : SharedSyncLogEntryBatch = {
             data: JSON.stringify(entries),
             userId: options.userId,
@@ -173,7 +177,7 @@ export class SharedSyncLogStorage extends StorageModule
             userId: options.userId,
             after: deviceInfo.sharedUntil || 0,
         })
-
+        
         const lastBatch = entryBatches.length ? entryBatches[entryBatches.length - 1] : null
         const lastBatchTime = lastBatch && lastBatch.sharedOn
 

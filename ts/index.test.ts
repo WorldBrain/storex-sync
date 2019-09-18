@@ -351,8 +351,8 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 entries: [{
                     userId,
                     deviceId: clients.one.deviceId,
-                    createdOn: 50,
-                    sharedOn: 55,
+                    createdOn: expect.any(Number),
+                    sharedOn: expect.any(Number),
                     data: "!!!{\"operation\":\"create\",\"collection\":\"user\",\"pk\":\"id-1\",\"field\":null,\"value\":{\"displayName\":\"Joe\"}}"
                 }],
                 memo: expect.any(Object),
@@ -481,15 +481,15 @@ if (process.env.TEST_SYNC_FIRESTORE === 'true') {
                 sharedSyncLog: ({ storageManager }) => new SharedSyncLogStorage({
                     storageManager, autoPkType: 'string', excludeTimestampChecks: !options || !options.includeTimestampChecks
                 }) as any
-            }, { auth: { userId: 'alice' }, printProjectId: true }, async ({ storageManager, modules }) => {
+            }, { auth: { userId: 'alice' }, printProjectId: false, loadRules: false }, async ({ storageManager, modules }) => {
                 try {
                     await body({
                         sharedSyncLog: modules.sharedSyncLog as any,
                         userId: 'alice',
-                        getNow: options && options.includeTimestampChecks ? (() => '$now') : undefined,
+                        getNow: () => Date.now(),
                     })
                 } catch (e) {
-                    const collectionsToDump = ['sharedSyncLogDeviceInfo', 'sharedSyncLogEntry', 'sharedSyncLogSeenEntry']
+                    const collectionsToDump = ['sharedSyncLogDeviceInfo', 'sharedSyncLogEntryBatch']
                     const dumps = {}
                     try {
                         for (const collectionName of collectionsToDump) {
