@@ -3,6 +3,7 @@ import * as graphqlModule from 'graphql'
 import fromPairs from 'lodash/fromPairs'
 import { setupStorexTest } from '@worldbrain/storex-pattern-modules/lib/index.tests'
 import { setupTestGraphQLStorexClient } from '@worldbrain/storex-graphql-client/lib/index.tests'
+import { TypeORMStorageBackend } from '@worldbrain/storex-backend-typeorm'
 import { withEmulatedFirestoreBackend } from '@worldbrain/storex-backend-firestore/lib/index.tests'
 import { SharedSyncLogStorage } from './shared-sync-log/storex'
 import { ClientSyncLogStorage } from './client-sync-log'
@@ -14,9 +15,11 @@ import { SharedSyncLog } from './shared-sync-log'
 import { PromiseContentType } from './types.test'
 import { inspect } from 'util'
 import { RegistryCollections } from '@worldbrain/storex/lib/registry'
+import { StorageBackend } from '@worldbrain/storex'
 
 export type TestDependencies = {
     sharedSyncLog: SharedSyncLog
+    clientStorageBackend?: StorageBackend
     userId?: number | string
     getNow?: () => number | '$now'
 }
@@ -55,8 +58,9 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
     }
 
     async function setupClient(options: {
-        backend: { modules: { sharedSyncLog: SharedSyncLog } }
+        serverBackend: { modules: { sharedSyncLog: SharedSyncLog } }
         clientName: string
+        clientStorageBackend?: StorageBackend
         getNow: () => number | '$now'
         pkGenerator: () => string
         collections?: RegistryCollections
@@ -65,6 +69,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             clientSyncLog: ClientSyncLogStorage
         }>({
             dbName: `client-${options.clientName}`,
+            backend: options.clientStorageBackend,
             collections: options.collections || {
                 user: {
                     version: new Date('2019-01-01'),
@@ -85,6 +90,8 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     new ClientSyncLogStorage({ storageManager }),
             },
         })
+        await storageManager.backend.migrate()
+
         const includeCollections = options.collections
             ? Object.keys(options.collections)
             : ['user', 'email']
@@ -137,7 +144,8 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
         } = {}
         for (const { name } of options.clients || []) {
             clients[name] = await setupClient({
-                backend,
+                serverBackend: backend,
+                clientStorageBackend: options.dependencies.clientStorageBackend,
                 clientName: name,
                 getNow: options.getNow,
                 pkGenerator,
@@ -659,7 +667,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
     })
 }
 
-describe('Storex Sync integration with Storex backend', () => {
+describe('Storex Sync integration with in-memory Dexie Storex backend', () => {
     async function setupTestDependencies(): Promise<TestDependencies> {
         return (await setupStorexTest<{ sharedSyncLog: SharedSyncLogStorage }>({
             dbName: 'backend',
@@ -677,6 +685,45 @@ describe('Storex Sync integration with Storex backend', () => {
     integrationTests(
         async (body: (dependencies: TestDependencies) => Promise<void>) => {
             await body(await setupTestDependencies())
+        },
+    )
+})
+
+describe('Storex Sync integration with in-memory TypeORM Storex backend', () => {
+    async function setupTestDependencies(
+        backend: StorageBackend,
+    ): Promise<TestDependencies> {
+        const serverModules = (await setupStorexTest<{
+            sharedSyncLog: SharedSyncLogStorage
+        }>({
+            collections: {},
+            modules: {
+                sharedSyncLog: ({ storageManager }) =>
+                    new SharedSyncLogStorage({
+                        storageManager,
+                        autoPkType: 'int',
+                    }),
+            },
+        })).modules
+
+        return {
+            sharedSyncLog: serverModules.sharedSyncLog,
+        }
+    }
+
+    integrationTests(
+        async (body: (dependencies: TestDependencies) => Promise<void>) => {
+            const backend = new TypeORMStorageBackend({
+                connectionOptions: { type: 'sqlite', database: ':memory:' },
+            })
+            try {
+                const dependencies = await setupTestDependencies(backend as any)
+                await body(dependencies)
+            } finally {
+                if (backend.connection) {
+                    await backend.connection.close()
+                }
+            }
         },
     )
 })
