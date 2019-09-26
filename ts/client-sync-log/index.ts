@@ -4,9 +4,7 @@ import {
     StorageModuleConfig,
 } from '@worldbrain/storex-pattern-modules'
 import { ClientSyncLogEntry } from './types'
-import {
-    SharedSyncLogEntry,
-} from '../shared-sync-log/types'
+import { SharedSyncLogEntry } from '../shared-sync-log/types'
 
 export class ClientSyncLogStorage extends StorageModule {
     getConfig(): StorageModuleConfig {

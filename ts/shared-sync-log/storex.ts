@@ -86,10 +86,12 @@ export class SharedSyncLogStorage extends StorageModule
                 findUnseenSyncEntries: {
                     operation: 'findObjects',
                     collection: 'sharedSyncLogEntryBatch',
-                    args: [{
-                        userId: '$userId',
-                        sharedOn: { $gt: '$after:timestamp' },
-                    }],
+                    args: [
+                        {
+                            userId: '$userId',
+                            sharedOn: { $gt: '$after:timestamp' },
+                        },
+                    ],
                 },
                 // insertSeenEntries: {
                 //     operation: 'executeBatch',
@@ -155,11 +157,11 @@ export class SharedSyncLogStorage extends StorageModule
             return
         }
 
-        const batch : SharedSyncLogEntryBatch = {
+        const batch: SharedSyncLogEntryBatch = {
             data: JSON.stringify(entries),
             userId: options.userId,
             deviceId: options.deviceId,
-            sharedOn: (options && options.now) || '$now' as any,
+            sharedOn: (options && options.now) || ('$now' as any),
         }
         await this.operation('createLogEntryBatch', batch)
     }
@@ -168,34 +170,43 @@ export class SharedSyncLogStorage extends StorageModule
         userId: string | number
         deviceId: string | number
     }): Promise<SharedSyncLogUpdate> {
-        const deviceInfo: { sharedUntil: number } = await this.operation('getDeviceInfo', options)
+        const deviceInfo: { sharedUntil: number } = await this.operation(
+            'getDeviceInfo',
+            options,
+        )
         if (!deviceInfo) {
             throw new Error(`No such device: ${options.deviceId}`)
         }
 
-        const entryBatches : Array<SharedSyncLogEntryBatch> = await this.operation('findUnseenSyncEntries', {
+        const entryBatches: Array<
+            SharedSyncLogEntryBatch
+        > = await this.operation('findUnseenSyncEntries', {
             userId: options.userId,
             after: deviceInfo.sharedUntil || 0,
         })
-        
-        const lastBatch = entryBatches.length ? entryBatches[entryBatches.length - 1] : null
+
+        const lastBatch = entryBatches.length
+            ? entryBatches[entryBatches.length - 1]
+            : null
         const lastBatchTime = lastBatch && lastBatch.sharedOn
 
         const entries = flatten(
             entryBatches
                 .filter(batch => batch.deviceId !== options.deviceId)
-                .map(
-                    (batch): SharedSyncLogEntry[] =>
-                        JSON.parse(batch.data).map((entry: SharedSyncLogEntry) => ({
-                            ...entry,
-                            sharedOn: batch.sharedOn,
-                            deviceId: batch.deviceId,
-                            userId: options.userId,
-                        })),
+                .map((batch): SharedSyncLogEntry[] =>
+                    JSON.parse(batch.data).map((entry: SharedSyncLogEntry) => ({
+                        ...entry,
+                        sharedOn: batch.sharedOn,
+                        deviceId: batch.deviceId,
+                        userId: options.userId,
+                    })),
                 ),
         ) as SharedSyncLogEntry[]
 
-        return { entries: sortBy(entries, 'createdOn'), memo: { lastBatchTime } }
+        return {
+            entries: sortBy(entries, 'createdOn'),
+            memo: { lastBatchTime },
+        }
     }
 
     async markAsSeen(

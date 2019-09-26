@@ -1,6 +1,10 @@
-import { StorageRegistry } from "@worldbrain/storex";
+import { StorageRegistry } from '@worldbrain/storex'
 
-export function getObjectPk(object : any, collection : string, registry : StorageRegistry) {
+export function getObjectPk(
+    object: any,
+    collection: string,
+    registry: StorageRegistry,
+) {
     const pkIndex = registry.collections[collection].pkIndex
     if (typeof pkIndex === 'string') {
         return object[pkIndex]
@@ -11,13 +15,19 @@ export function getObjectPk(object : any, collection : string, registry : Storag
         if (typeof indexField === 'string') {
             pk.push(object[indexField])
         } else {
-            throw new Error(`getObject() called with relationship as pk, which is not supported yet.`)
+            throw new Error(
+                `getObject() called with relationship as pk, which is not supported yet.`,
+            )
         }
     }
     return pk
 }
 
-export function getObjectWithoutPk(object : any, collection : string, registry : StorageRegistry) {
+export function getObjectWithoutPk(
+    object: any,
+    collection: string,
+    registry: StorageRegistry,
+) {
     object = { ...object }
 
     const pkIndex = registry.collections[collection].pkIndex
@@ -30,16 +40,25 @@ export function getObjectWithoutPk(object : any, collection : string, registry :
         if (typeof indexField === 'string') {
             delete object[indexField]
         } else {
-            throw new Error(`getObject() called with relationship as pk, which is not supported yet.`)
+            throw new Error(
+                `getObject() called with relationship as pk, which is not supported yet.`,
+            )
         }
     }
     return object
 }
 
-export function setObjectPk(object : any, pk : number | string | number[] | string[], collection : string, registry : StorageRegistry) {
+export function setObjectPk(
+    object: any,
+    pk: number | string | number[] | string[],
+    collection: string,
+    registry: StorageRegistry,
+) {
     const collectionDefinition = registry.collections[collection]
     if (!collectionDefinition) {
-        throw new Error(`Could not find collection definition for '${collection}'`)
+        throw new Error(
+            `Could not find collection definition for '${collection}'`,
+        )
     }
 
     const pkIndex = collectionDefinition.pkIndex
@@ -53,7 +72,9 @@ export function setObjectPk(object : any, pk : number | string | number[] | stri
         if (typeof indexField === 'string') {
             object[indexField] = pk[indexFieldIdx++]
         } else {
-            throw new Error(`setObjectPk() called with relationship as pk, which is not supported yet.`)
+            throw new Error(
+                `setObjectPk() called with relationship as pk, which is not supported yet.`,
+            )
         }
     }
 

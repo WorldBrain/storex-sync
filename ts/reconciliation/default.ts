@@ -215,13 +215,17 @@ export function _processModifications({
     collection: string
     pk: any
     storageRegistry: StorageRegistry
-}) : OperationBatch {
+}): OperationBatch {
     const pkFields = setObjectPk({}, pk, collection, storageRegistry)
-    if (objectModifications.shouldBeDeleted && !objectModifications.shouldBeCreated) {
-        return [
-            { operation: 'deleteObjects', collection, where: pkFields },
-        ]
-    } else if (objectModifications.shouldBeCreated && !objectModifications.shouldBeDeleted) {
+    if (
+        objectModifications.shouldBeDeleted &&
+        !objectModifications.shouldBeCreated
+    ) {
+        return [{ operation: 'deleteObjects', collection, where: pkFields }]
+    } else if (
+        objectModifications.shouldBeCreated &&
+        !objectModifications.shouldBeDeleted
+    ) {
         const object = {}
         for (const [key, fieldModification] of Object.entries(
             objectModifications.fields,
@@ -235,8 +239,11 @@ export function _processModifications({
                 args: { ...pkFields, ...object },
             },
         ]
-    } else if (!objectModifications.shouldBeCreated && !objectModifications.shouldBeDeleted) {
-        const operations : OperationBatch = []
+    } else if (
+        !objectModifications.shouldBeCreated &&
+        !objectModifications.shouldBeDeleted
+    ) {
+        const operations: OperationBatch = []
         for (const [fieldName, fieldModification] of Object.entries(
             objectModifications.fields,
         )) {

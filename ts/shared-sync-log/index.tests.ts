@@ -45,7 +45,7 @@ export async function runTests(options: {
                     deviceId: firstDeviceId,
                 }),
             ],
-            memo: expect.any(Object)
+            memo: expect.any(Object),
         })
         await sharedSyncLog.markAsSeen(logUpdate, {
             userId,
@@ -89,7 +89,10 @@ export async function runTests(options: {
             now: 8,
         })
 
-        const firstLogUpdate = await sharedSyncLog.getUnsyncedEntries({ userId, deviceId: secondDeviceId })
+        const firstLogUpdate = await sharedSyncLog.getUnsyncedEntries({
+            userId,
+            deviceId: secondDeviceId,
+        })
         await sharedSyncLog.markAsSeen(firstLogUpdate, {
             userId,
             deviceId: secondDeviceId,
@@ -116,7 +119,7 @@ export async function runTests(options: {
                     deviceId: firstDeviceId,
                 }),
             ],
-            memo: expect.any(Object)
+            memo: expect.any(Object),
         })
 
         await sharedSyncLog.markAsSeen(secondLogUpdate, {
@@ -203,7 +206,7 @@ export async function runTests(options: {
                     deviceId: firstDeviceId,
                 }),
             ],
-            memo: expect.any(Object)
+            memo: expect.any(Object),
         })
 
         const secondLogUpdate = await sharedSyncLog.getUnsyncedEntries({
@@ -265,7 +268,7 @@ export async function runTests(options: {
                     deviceId: firstDeviceId,
                 }),
             ],
-            memo: expect.any(Object)
+            memo: expect.any(Object),
         })
 
         const secondBatch: Omit<SharedSyncLogEntry, 'sharedOn'>[] = [
@@ -299,7 +302,7 @@ export async function runTests(options: {
                     deviceId: firstDeviceId,
                 }),
             ],
-            memo: { lastBatchTime: 10 }
+            memo: { lastBatchTime: 10 },
         })
     })
 }

@@ -1,4 +1,4 @@
-import { jsonDateParser } from "json-date-parser"
+import { jsonDateParser } from 'json-date-parser'
 import * as SimplePeer from 'simple-peer'
 import {
     FastSyncBatch,
@@ -51,7 +51,9 @@ export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
     async receiveSyncInfo() {
         const syncPackage: WebRTCSyncPackage = await this._receivePackage()
         if (syncPackage.type !== 'sync-info') {
-            throw new Error(`Received package with unexpected type while waiting for initial Sync info: ${syncPackage.type}`)
+            throw new Error(
+                `Received package with unexpected type while waiting for initial Sync info: ${syncPackage.type}`,
+            )
         }
         return syncPackage.info
     }
@@ -60,7 +62,7 @@ export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
         await this.options.peer.destroy()
     }
 
-    async _receivePackage() : Promise<WebRTCSyncPackage> {
+    async _receivePackage(): Promise<WebRTCSyncPackage> {
         const data = await this.dataReceived.promise
         this.dataReceived = resolvablePromise()
 
@@ -97,7 +99,7 @@ export class WebRTCFastSyncSenderChannel implements FastSyncSenderChannel {
         await this.options.peer.destroy()
     }
 
-    async _sendPackage(syncPackage : WebRTCSyncPackage) {
+    async _sendPackage(syncPackage: WebRTCSyncPackage) {
         const confirmationPromise = resolvablePromise<string>()
         this.options.peer.once('data', (data: any) => {
             confirmationPromise.resolve(data.toString())
@@ -144,7 +146,7 @@ export function createMemoryChannel() {
             // console.log('senderChannel.finish()')
             sendBatchPromise.resolve(null)
         },
-        destroy: async () => {}
+        destroy: async () => {},
     }
     const receiverChannel: FastSyncReceiverChannel = {
         streamObjectBatches: async function*(): AsyncIterableIterator<{
@@ -173,7 +175,7 @@ export function createMemoryChannel() {
             recvSyncInfoPromise = resolvablePromise<void>()
             return info
         },
-        destroy: async () => {}
+        destroy: async () => {},
     }
 
     return {

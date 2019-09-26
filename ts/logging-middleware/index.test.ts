@@ -660,11 +660,15 @@ describe('Sync logging middleware', () => {
 
     it('should not log anything if disabled', async () => {
         let now = 2
-        const { storageManager, clientSyncLog, loggingMiddleware } = await setupTest({
+        const {
+            storageManager,
+            clientSyncLog,
+            loggingMiddleware,
+        } = await setupTest({
             now: () => ++now,
         })
         loggingMiddleware.enabled = false
-        
+
         await storageManager
             .collection('user')
             .createObject({ id: 53, firstName: 'John', lastName: 'Doe' })

@@ -35,17 +35,19 @@ function test({
 
 describe('Reconciliation', () => {
     it('should integrate field updates', () => {
-        const logEntries: ClientSyncLogEntry[] = [{
-            id: 1,
-            createdOn: 2,
-            sharedOn: 525252,
-            needsIntegration: true,
-            collection: 'list',
-            pk: 'list-id',
-            field: 'title',
-            operation: 'modify',
-            value: 'Updated List Title',
-        }]
+        const logEntries: ClientSyncLogEntry[] = [
+            {
+                id: 1,
+                createdOn: 2,
+                sharedOn: 525252,
+                needsIntegration: true,
+                collection: 'list',
+                pk: 'list-id',
+                field: 'title',
+                operation: 'modify',
+                value: 'Updated List Title',
+            },
+        ]
 
         test({
             logEntries,
@@ -54,9 +56,9 @@ describe('Reconciliation', () => {
                     operation: 'updateObjects',
                     collection: 'list',
                     where: { id: 'list-id' },
-                    updates: { title: 'Updated List Title' }
-                }
-            ]
+                    updates: { title: 'Updated List Title' },
+                },
+            ],
         })
     })
 
@@ -208,13 +210,18 @@ describe('Reconciliation', () => {
             },
         ]
 
-        test({ logEntries, expectedOperations: [{
-            collection: "list",
-            operation: "deleteObjects",
-            where: {
-                id: "list-one",
-            },
-        }] })
+        test({
+            logEntries,
+            expectedOperations: [
+                {
+                    collection: 'list',
+                    operation: 'deleteObjects',
+                    where: {
+                        id: 'list-one',
+                    },
+                },
+            ],
+        })
     })
 
     it('should work with only one delete', () => {
