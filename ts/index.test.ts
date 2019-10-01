@@ -1,6 +1,7 @@
 import expect from 'expect'
 import * as graphqlModule from 'graphql'
 import fromPairs from 'lodash/fromPairs'
+import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
 import { setupStorexTest } from '@worldbrain/storex-pattern-modules/lib/index.tests'
 import { setupTestGraphQLStorexClient } from '@worldbrain/storex-graphql-client/lib/index.tests'
 import { TypeORMStorageBackend } from '@worldbrain/storex-backend-typeorm'
@@ -15,11 +16,13 @@ import { SharedSyncLog } from './shared-sync-log'
 import { PromiseContentType } from './types.test'
 import { inspect } from 'util'
 import { RegistryCollections } from '@worldbrain/storex/lib/registry'
-import { StorageBackend } from '@worldbrain/storex'
+import StorageManager, { StorageBackend } from '@worldbrain/storex'
+import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
+import { registerModuleMapCollections } from '@worldbrain/storex-pattern-modules'
 
 export type TestDependencies = {
     sharedSyncLog: SharedSyncLog
-    clientStorageBackend?: StorageBackend
+    createClientStorageBackend?: () => StorageBackend
     userId?: number | string
     getNow?: () => number | '$now'
 }
@@ -60,17 +63,20 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
     async function setupClient(options: {
         serverBackend: { modules: { sharedSyncLog: SharedSyncLog } }
         clientName: string
-        clientStorageBackend?: StorageBackend
+        createClientStorageBackend?: () => StorageBackend
         getNow: () => number | '$now'
         pkGenerator: () => string
         collections?: RegistryCollections
     }) {
-        const { storageManager, modules } = await setupStorexTest<{
-            clientSyncLog: ClientSyncLogStorage
-        }>({
-            dbName: `client-${options.clientName}`,
-            backend: options.clientStorageBackend,
-            collections: options.collections || {
+        const backend = options.createClientStorageBackend
+            ? options.createClientStorageBackend()
+            : ((new DexieStorageBackend({
+                  dbName: 'test',
+                  idbImplementation: inMemory(),
+              }) as any) as StorageBackend)
+        const storageManager = new StorageManager({ backend })
+        storageManager.registry.registerCollections(
+            options.collections || {
                 user: {
                     version: new Date('2019-01-01'),
                     fields: {
@@ -85,12 +91,11 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     relationships: [{ childOf: 'user' }],
                 },
             },
-            modules: {
-                clientSyncLog: ({ storageManager }) =>
-                    new ClientSyncLogStorage({ storageManager }),
-            },
-        })
-        await storageManager.backend.migrate()
+        )
+        const modules = {
+            clientSyncLog: new ClientSyncLogStorage({ storageManager }),
+        }
+        registerModuleMapCollections(storageManager.registry, modules)
 
         const includeCollections = options.collections
             ? Object.keys(options.collections)
@@ -103,6 +108,9 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             storageRegistry: storageManager.registry,
             collections: includeCollections,
         })
+
+        await storageManager.finishInitialization()
+        await storageManager.backend.migrate()
 
         const syncLoggingMiddleware = new SyncLoggingMiddleware({
             storageManager,
@@ -145,7 +153,8 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
         for (const { name } of options.clients || []) {
             clients[name] = await setupClient({
                 serverBackend: backend,
-                clientStorageBackend: options.dependencies.clientStorageBackend,
+                createClientStorageBackend:
+                    options.dependencies.createClientStorageBackend,
                 clientName: name,
                 getNow: options.getNow,
                 pkGenerator,
@@ -298,16 +307,15 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     1,
                 ),
             ).toEqual([
-                {
+                (expect as any).objectContaining({
                     id: (expect as any).anything(),
                     createdOn: 2,
-                    sharedOn: null,
                     needsIntegration: false,
                     collection: 'user',
                     pk: 'id-1',
                     operation: 'create',
                     value: { displayName: 'Bob' },
-                },
+                }),
                 {
                     id: (expect as any).anything(),
                     createdOn: 5,
@@ -376,13 +384,11 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             'should correctly sync createObject operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const orig = (await clients.one.storageManager
+                const user = (await clients.one.storageManager
                     .collection('user')
                     .createObject({
                         displayName: 'Joe',
-                        emails: [{ address: 'joe@doe.com' }],
                     })).object
-                const { emails, ...user } = orig
 
                 await sync({ clientName: 'one' })
                 await sync({ clientName: 'two' })
@@ -392,11 +398,6 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                         .collection('user')
                         .findObject({ id: user.id }),
                 ).toEqual(user)
-                expect(
-                    await clients.two.storageManager
-                        .collection('email')
-                        .findObject({ id: emails[0].id }),
-                ).toEqual(emails[0])
             },
             { includeTimestampChecks: true },
         )
@@ -405,19 +406,14 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             'should correctly sync updateObject operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const orig = (await clients.one.storageManager
+                const user = (await clients.one.storageManager
                     .collection('user')
                     .createObject({
                         displayName: 'Joe',
-                        emails: [{ address: 'joe@doe.com' }],
                     })).object
                 await clients.one.storageManager
                     .collection('user')
-                    .updateOneObject(orig, { displayName: 'Joe Black' })
-                const { emails, ...user } = {
-                    ...orig,
-                    displayName: 'Joe Black',
-                } as any
+                    .updateOneObject(user, { displayName: 'Joe Black' })
 
                 await sync({ clientName: 'one' })
                 await sync({ clientName: 'two' })
@@ -426,12 +422,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     await clients.two.storageManager
                         .collection('user')
                         .findObject({ id: user.id }),
-                ).toEqual(user)
-                expect(
-                    await clients.two.storageManager
-                        .collection('email')
-                        .findObject({ id: emails[0].id }),
-                ).toEqual(emails[0])
+                ).toEqual({ ...user, displayName: 'Joe Black' })
             },
             { includeTimestampChecks: true },
         )
@@ -444,12 +435,11 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     .collection('user')
                     .createObject({
                         displayName: 'Joe',
-                        emails: [{ address: 'joe@doe.com' }],
                     })).object
                 await clients.one.storageManager
                     .collection('user')
                     .deleteOneObject(orig)
-                const { emails, ...user } = {
+                const { ...user } = {
                     ...orig,
                     displayName: 'Joe Black',
                 } as any
@@ -462,11 +452,6 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                         .collection('user')
                         .findObject({ id: user.id }),
                 ).toBeFalsy()
-                expect(
-                    await clients.two.storageManager
-                        .collection('email')
-                        .findObject({ id: emails[0].id }),
-                ).toEqual(emails[0])
             },
             { includeTimestampChecks: true },
         )
@@ -475,20 +460,20 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             'should correctly sync deleteObjects operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const orig = (await clients.one.storageManager
+                const user1 = (await clients.one.storageManager
                     .collection('user')
                     .createObject({
                         displayName: 'Joe',
-                        emails: [{ address: 'joe@doe.com' }],
+                    })).object
+                const user2 = (await clients.one.storageManager
+                    .collection('user')
+                    .createObject({
+                        displayName: 'Jane',
                     })).object
 
                 await clients.one.storageManager
                     .collection('user')
-                    .deleteObjects({ emails: { address: 'joe@dow.com' } })
-                const { emails, ...user } = {
-                    ...orig,
-                    displayName: 'Joe Black',
-                } as any
+                    .deleteObjects({ displayName: 'Joe' })
 
                 await sync({ clientName: 'one' })
                 await sync({ clientName: 'two' })
@@ -496,13 +481,8 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 expect(
                     await clients.two.storageManager
                         .collection('user')
-                        .findObject({ id: user.id }),
-                ).toBeFalsy()
-                expect(
-                    await clients.two.storageManager
-                        .collection('email')
-                        .findObject({ id: emails[0].id }),
-                ).toEqual(emails[0])
+                        .findObjects({}),
+                ).toEqual([user2])
             },
             { includeTimestampChecks: true },
         )
@@ -598,9 +578,8 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     .collection('user')
                     .createObject({
                         displayName: 'Joe',
-                        emails: [{ address: 'joe@doe.com' }],
                     })).object
-                const { emails, ...user } = orig
+                const { ...user } = orig
 
                 await sync({ clientName: 'one' })
                 await sync({ clientName: 'one' })
@@ -612,11 +591,6 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                         .collection('user')
                         .findObject({ id: user.id }),
                 ).toEqual(user)
-                expect(
-                    await clients.two.storageManager
-                        .collection('email')
-                        .findObject({ id: emails[0].id }),
-                ).toEqual(emails[0])
             },
             { includeTimestampChecks: true },
         )
@@ -629,9 +603,8 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     .collection('user')
                     .createObject({
                         displayName: 'Joe',
-                        emails: [{ address: 'joe@doe.com' }],
                     })).object
-                const { emails, ...user } = orig
+                const { ...user } = orig
 
                 await sync({ clientName: 'one' })
 
@@ -648,11 +621,6 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                         .collection('user')
                         .findObject({ id: user.id }),
                 ).toEqual({ ...user, ...userUpdate })
-                expect(
-                    await clients.two.storageManager
-                        .collection('email')
-                        .findObject({ id: emails[0].id }),
-                ).toEqual(emails[0])
             },
             { includeTimestampChecks: true },
         )
@@ -691,7 +659,7 @@ describe('Storex Sync integration with in-memory Dexie Storex backend', () => {
 
 describe('Storex Sync integration with in-memory TypeORM Storex backend', () => {
     async function setupTestDependencies(
-        backend: StorageBackend,
+        createClientStorageBackend: () => StorageBackend,
     ): Promise<TestDependencies> {
         const serverModules = (await setupStorexTest<{
             sharedSyncLog: SharedSyncLogStorage
@@ -708,21 +676,39 @@ describe('Storex Sync integration with in-memory TypeORM Storex backend', () => 
 
         return {
             sharedSyncLog: serverModules.sharedSyncLog,
+            createClientStorageBackend,
         }
     }
 
     integrationTests(
         async (body: (dependencies: TestDependencies) => Promise<void>) => {
-            const backend = new TypeORMStorageBackend({
-                connectionOptions: { type: 'sqlite', database: ':memory:' },
-            })
+            let clientStorageBackends: TypeORMStorageBackend[] = []
+            const createClientStorageBackend = (): StorageBackend => {
+                const backend = new TypeORMStorageBackend({
+                    connectionOptions: {
+                        type: 'sqlite',
+                        database: ':memory:',
+                        name: `connection-${clientStorageBackends.length}`,
+                    },
+                    // connectionOptions: { type: 'sqlite', database: ':memory:', logging: true },
+                    // connectionOptions: { type: 'sqlite', database: '/tmp/test.sqlite', logging: true },
+                })
+                clientStorageBackends.push(backend)
+                return backend as any
+            }
             try {
-                const dependencies = await setupTestDependencies(backend as any)
+                const dependencies = await setupTestDependencies(
+                    createClientStorageBackend,
+                )
                 await body(dependencies)
             } finally {
-                if (backend.connection) {
-                    await backend.connection.close()
-                }
+                await Promise.all(
+                    clientStorageBackends.map(async backend => {
+                        if (backend.connection) {
+                            await backend.connection.close()
+                        }
+                    }),
+                )
             }
         },
     )

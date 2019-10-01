@@ -72,7 +72,7 @@ export class ClientSyncLogStorage extends StorageModule {
                     collection: 'clientSyncLogEntry',
                     args: [
                         { needsIntegration: true },
-                        { sort: [['createdOn', 'asc']], limit: 1 },
+                        { order: [['createdOn', 'asc']], limit: 1 },
                     ],
                 },
                 findEntriesByObjectPk: {
@@ -80,7 +80,7 @@ export class ClientSyncLogStorage extends StorageModule {
                     collection: 'clientSyncLogEntry',
                     args: [
                         { collection: '$collection:string', pk: '$pk' },
-                        { sort: [['createdOn', 'asc']] },
+                        { order: [['createdOn', 'asc']] },
                     ],
                 },
             },

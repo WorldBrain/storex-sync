@@ -1,10 +1,11 @@
 import expect from 'expect'
-import StorageManager from '@worldbrain/storex'
+import StorageManager, { StorageBackend } from '@worldbrain/storex'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
 import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
 import { registerModuleCollections } from '@worldbrain/storex-pattern-modules'
 import { ClientSyncLogStorage } from './'
 import { ClientSyncLogEntry } from './types'
+import { TypeORMStorageBackend } from '@worldbrain/storex-backend-typeorm'
 
 const TEST_LOG_ENTRIES: ClientSyncLogEntry[] = [
     {
@@ -36,22 +37,45 @@ const TEST_LOG_ENTRIES: ClientSyncLogEntry[] = [
     },
 ]
 
-async function setupTest() {
-    const backend = new DexieStorageBackend({
-        idbImplementation: inMemory(),
-        dbName: 'unittest',
-    })
+interface TestDependencies {
+    createBackend(): StorageBackend
+    destroyBackend?(backend: StorageBackend): Promise<void>
+}
+interface TestSetup {
+    syncLogStorage: ClientSyncLogStorage
+}
+
+async function setupTest(backend: StorageBackend): Promise<TestSetup> {
     const storageManager = new StorageManager({ backend: backend as any })
     const syncLogStorage = new ClientSyncLogStorage({ storageManager })
     registerModuleCollections(storageManager.registry, syncLogStorage)
     await storageManager.finishInitialization()
+    await backend.migrate()
     return { syncLogStorage }
 }
 
-describe('Client sync log', () => {
-    it('should store and retrieve entries correctly', async () => {
-        const { syncLogStorage } = await setupTest()
+function makeTestFactory(dependencies: TestDependencies) {
+    return (description: string, test: (setup: TestSetup) => Promise<void>) => {
+        it(description, async () => {
+            const backend = dependencies.createBackend()
+            try {
+                const setup = await setupTest(backend)
+                await test(setup)
+            } finally {
+                if (dependencies.destroyBackend) {
+                    await dependencies.destroyBackend(backend)
+                }
+            }
+        })
+    }
+}
 
+function clientSyncLogTests(dependencies: TestDependencies) {
+    const it = makeTestFactory(dependencies)
+
+    it('should store and retrieve entries correctly', async ({
+        syncLogStorage,
+    }) => {
         await syncLogStorage.insertEntries([
             TEST_LOG_ENTRIES[0],
             TEST_LOG_ENTRIES[2],
@@ -66,9 +90,9 @@ describe('Client sync log', () => {
         ])
     })
 
-    it('should store and retrieve entries received out-of-order correctly', async () => {
-        const { syncLogStorage } = await setupTest()
-
+    it('should store and retrieve entries received out-of-order correctly', async ({
+        syncLogStorage,
+    }) => {
         await syncLogStorage.insertEntries([
             TEST_LOG_ENTRIES[0],
             TEST_LOG_ENTRIES[2],
@@ -82,9 +106,7 @@ describe('Client sync log', () => {
         ])
     })
 
-    it('should mark entries as synced', async () => {
-        const { syncLogStorage } = await setupTest()
-
+    it('should mark entries as synced', async ({ syncLogStorage }) => {
         await syncLogStorage.insertEntries([
             TEST_LOG_ENTRIES[0],
             TEST_LOG_ENTRIES[1],
@@ -99,9 +121,9 @@ describe('Client sync log', () => {
         ])
     })
 
-    it('should retrieve unshared entries in order of createdOn', async () => {
-        const { syncLogStorage } = await setupTest()
-
+    it('should retrieve unshared entries in order of createdOn', async ({
+        syncLogStorage,
+    }) => {
         await syncLogStorage.insertEntries([
             TEST_LOG_ENTRIES[0],
             TEST_LOG_ENTRIES[2],
@@ -115,8 +137,9 @@ describe('Client sync log', () => {
         ])
     })
 
-    it('should be able to insert entries received from shared log', async () => {
-        const { syncLogStorage } = await setupTest()
+    it('should be able to insert entries received from shared log', async ({
+        syncLogStorage,
+    }) => {
         const now = 56
         await syncLogStorage.insertReceivedEntries(
             TEST_LOG_ENTRIES.slice(0, 1).map(entry => ({
@@ -149,8 +172,9 @@ describe('Client sync log', () => {
         ])
     })
 
-    it('should be able to mark entries as integrated', async () => {
-        const { syncLogStorage } = await setupTest()
+    it('should be able to mark entries as integrated', async ({
+        syncLogStorage,
+    }) => {
         const entries: ClientSyncLogEntry[] = [
             {
                 createdOn: 2,
@@ -183,8 +207,9 @@ describe('Client sync log', () => {
     })
 
     describe('getNextEntriesToIntgrate()', () => {
-        it('should be able to get all relevant operations that happened to a single object', async () => {
-            const { syncLogStorage } = await setupTest()
+        it('should be able to get all relevant operations that happened to a single object', async ({
+            syncLogStorage,
+        }) => {
             const entries: ClientSyncLogEntry[] = [
                 {
                     createdOn: 2,
@@ -241,4 +266,31 @@ describe('Client sync log', () => {
             expect(thirdEntries).toEqual(null)
         })
     })
+}
+
+describe('Client sync log with in-memory Dexie IndexedDB backend', () => {
+    clientSyncLogTests({
+        createBackend: () => {
+            return (new DexieStorageBackend({
+                idbImplementation: inMemory(),
+                dbName: 'unittest',
+            }) as any) as StorageBackend
+        },
+    })
 })
+
+// describe('Client sync log with in-memory TypeORM SQLite backend', () => {
+//     clientSyncLogTests({
+//         createBackend: () => {
+//             return new TypeORMStorageBackend({
+//                 connectionOptions: { type: 'sqlite', database: ':memory:' },
+//             }) as any as StorageBackend
+//         },
+//         destroyBackend: async (backend: StorageBackend) => {
+//             const connection = (backend as any as TypeORMStorageBackend).connection!
+//             if (connection) {
+//                 await connection.close()
+//             }
+//         }
+//     })
+// })
