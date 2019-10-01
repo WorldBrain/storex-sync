@@ -5,6 +5,7 @@ import { ClientSyncLogStorage } from './client-sync-log'
 import { SharedSyncLog } from './shared-sync-log'
 import { ReconcilerFunction } from './reconciliation'
 import { SharedSyncLogEntryData } from './shared-sync-log/types'
+import { ClientSyncLogEntry } from './client-sync-log/types'
 
 export interface SyncSerializer {
     serializeSharedSyncLogEntryData: (
@@ -15,6 +16,13 @@ export interface SyncSerializer {
     ) => Promise<SharedSyncLogEntryData>
 }
 
+export type SyncPreSendProcessor = (params: {
+    entry: ClientSyncLogEntry
+}) => Promise<{ entry: ClientSyncLogEntry | null }>
+export type SyncPostReceiveProcessor = (params: {
+    entry: ClientSyncLogEntry
+}) => Promise<{ entry: ClientSyncLogEntry | null }>
+
 export async function shareLogEntries(args: {
     clientSyncLog: ClientSyncLogStorage
     sharedSyncLog: SharedSyncLog
@@ -22,14 +30,20 @@ export async function shareLogEntries(args: {
     deviceId: number | string
     now: number | '$now'
     serializer?: SyncSerializer
+    preSend?: SyncPreSendProcessor
 }) {
+    const preSend: SyncPreSendProcessor = args.preSend || (async args => args)
     const serializeEntryData = args.serializer
         ? args.serializer.serializeSharedSyncLogEntryData
         : async (data: SharedSyncLogEntryData) => JSON.stringify(data)
 
     const entries = await args.clientSyncLog.getUnsharedEntries()
+    const processedEntries = (await Promise.all(
+        entries.map(async entry => (await preSend({ entry })).entry),
+    )).filter(entry => !!entry) as ClientSyncLogEntry[]
+
     const sharedLogEntries = await Promise.all(
-        entries.map(async entry => ({
+        processedEntries.map(async entry => ({
             createdOn: entry.createdOn,
             data: await serializeEntryData({
                 operation: entry.operation,
@@ -105,6 +119,8 @@ export async function doSync(options: {
     userId: number | string
     deviceId: number | string
     serializer?: SyncSerializer
+    preSend?: SyncPreSendProcessor
+    postReceive?: SyncPostReceiveProcessor
 }) {
     await receiveLogEntries(options)
     await shareLogEntries(options)

@@ -10,7 +10,14 @@ import { SharedSyncLogStorage } from './shared-sync-log/storex'
 import { ClientSyncLogStorage } from './client-sync-log'
 import { CustomAutoPkMiddleware } from './custom-auto-pk'
 import { SyncLoggingMiddleware } from './logging-middleware'
-import { shareLogEntries, receiveLogEntries, doSync, SyncSerializer } from '.'
+import {
+    shareLogEntries,
+    receiveLogEntries,
+    doSync,
+    SyncSerializer,
+    SyncPreSendProcessor,
+    SyncPostReceiveProcessor,
+} from '.'
 import { reconcileSyncLog } from './reconciliation'
 import { SharedSyncLog } from './shared-sync-log'
 import { PromiseContentType } from './types.test'
@@ -19,6 +26,8 @@ import { RegistryCollections } from '@worldbrain/storex/lib/registry'
 import StorageManager, { StorageBackend } from '@worldbrain/storex'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
 import { registerModuleMapCollections } from '@worldbrain/storex-pattern-modules'
+import { SharedSyncLogEntry } from './shared-sync-log/types'
+import { ClientSyncLogEntry } from './client-sync-log/types'
 
 export type TestDependencies = {
     sharedSyncLog: SharedSyncLog
@@ -364,6 +373,8 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             const sync = async (options: {
                 clientName: string
                 serializer?: SyncSerializer
+                preSend?: SyncPreSendProcessor
+                postReceive?: SyncPostReceiveProcessor
             }) => {
                 const client = clients[options.clientName]
                 await doSync({
@@ -375,6 +386,8 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     userId,
                     deviceId: client.deviceId,
                     serializer: options.serializer,
+                    preSend: options.preSend,
+                    postReceive: options.postReceive,
                 })
             }
             return { clients, backend, sync, userId }
@@ -591,6 +604,96 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                         .collection('user')
                         .findObject({ id: user.id }),
                 ).toEqual(user)
+            },
+            { includeTimestampChecks: true },
+        )
+
+        it(
+            'should allow for filtering sent operations',
+            async (dependencies: TestDependencies) => {
+                const { clients, sync } = await setupSyncTest(dependencies)
+                const users = []
+                for (const displayName of ['Jane', 'Joe', 'Jack']) {
+                    users.push(
+                        (await clients.one.storageManager
+                            .collection('user')
+                            .createObject({
+                                displayName,
+                            })).object,
+                    )
+                }
+
+                await sync({
+                    clientName: 'one',
+                    preSend: async (params: { entry: ClientSyncLogEntry }) => {
+                        if (params.entry.operation !== 'create') {
+                            return params
+                        }
+
+                        return {
+                            entry:
+                                params.entry.value.displayName !== 'Joe'
+                                    ? params.entry
+                                    : null,
+                        }
+                    },
+                })
+                await sync({ clientName: 'two' })
+
+                expect(
+                    await clients.two.storageManager
+                        .collection('user')
+                        .findObjects({}),
+                ).toEqual([users[0], users[2]])
+            },
+            { includeTimestampChecks: true },
+        )
+
+        it(
+            'should allow for modifying sent operations',
+            async (dependencies: TestDependencies) => {
+                const { clients, sync } = await setupSyncTest(dependencies)
+                const users = []
+                for (const displayName of ['Jane', 'Joe', 'Jack']) {
+                    users.push(
+                        (await clients.one.storageManager
+                            .collection('user')
+                            .createObject({
+                                displayName,
+                            })).object,
+                    )
+                }
+
+                await sync({
+                    clientName: 'one',
+                    preSend: async (params: { entry: ClientSyncLogEntry }) => {
+                        if (params.entry.operation !== 'create') {
+                            return params
+                        }
+
+                        return {
+                            entry: {
+                                ...params.entry,
+                                value: {
+                                    ...params.entry.value,
+                                    displayName:
+                                        params.entry.value.displayName + '!!',
+                                },
+                            },
+                        }
+                    },
+                })
+                await sync({ clientName: 'two' })
+
+                expect(
+                    await clients.two.storageManager
+                        .collection('user')
+                        .findObjects({}),
+                ).toEqual([
+                    { ...users[0], displayName: 'Jane!!' },
+                    { ...users[1], displayName: 'Joe!!' },
+                    { ...users[2], displayName: 'Jack!!' },
+                ])
             },
             { includeTimestampChecks: true },
         )
