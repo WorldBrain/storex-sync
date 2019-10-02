@@ -7,7 +7,7 @@ import { MemorySignalTransportManager } from 'simple-signalling/lib/memory'
 import { FirebaseSignalTransport } from 'simple-signalling/lib/firebase'
 import { createSignallingFirebaseTestApp } from 'simple-signalling/lib/firebase.tests'
 import { signalSimplePeer } from 'simple-signalling/lib/simple-peer'
-import { FastSyncReceiver, FastSyncSender } from '.'
+import { FastSyncReceiver, FastSyncSender, FastSyncPreSendProcessor } from '.'
 import {
     createMemoryChannel,
     WebRTCFastSyncSenderChannel,
@@ -15,265 +15,340 @@ import {
 } from './channels'
 import { FastSyncSenderChannel, FastSyncReceiverChannel } from './types'
 import { SignalTransport } from 'simple-signalling/lib/types'
+import { FAST_SYNC_TEST_DATA } from './index.test.data'
 
-describe('Fast initial sync', () => {
-    interface SetupTestOptions {
-        createChannels: () => Promise<{
-            senderChannel: FastSyncSenderChannel
-            receiverChannel: FastSyncReceiverChannel
-        }>
-    }
+interface TestOptions {
+    createChannels: () => Promise<{
+        senderChannel: FastSyncSenderChannel
+        receiverChannel: FastSyncReceiverChannel
+    }>
+    preSendProcessor?: FastSyncPreSendProcessor
+}
+type TestRunner = (
+    test: (options: TestOptions) => Promise<void>,
+    options: { skip: () => void },
+) => Promise<void>
 
-    async function setupTest(options: SetupTestOptions) {
-        async function createDevice() {
-            const { storageManager } = await setupStorexTest({
-                collections: {
-                    test: {
-                        version: new Date(),
-                        fields: {
-                            key: { type: 'string' },
-                            label: { type: 'string' },
-                            createWhen: { type: 'datetime' },
-                        },
-                        indices: [{ field: 'key', pk: true }],
+async function setupTest(options: TestOptions) {
+    async function createDevice() {
+        const { storageManager } = await setupStorexTest({
+            collections: {
+                test: {
+                    version: new Date(),
+                    fields: {
+                        key: { type: 'string' },
+                        label: { type: 'string' },
+                        createWhen: { type: 'datetime' },
                     },
+                    indices: [{ field: 'key', pk: true }],
                 },
-                modules: {},
-            })
-
-            return { storageManager }
-        }
-
-        function createEventSpy() {
-            let events: any[][] = []
-            const listener = (event: string) => {
-                return (...args: any[]) => {
-                    events.push([event, args])
-                }
-            }
-            const listen = (events: EventEmitter, eventNames: string[]) => {
-                for (const event of eventNames) {
-                    events.on(event, listener(event))
-                }
-            }
-            const popEvents = () => {
-                const poppedEvents = events
-                events = []
-                return poppedEvents
-            }
-            return { events, listen, popEvents }
-        }
-
-        return {
-            createDevice,
-            createChannels: options.createChannels,
-            createEventSpy,
-        }
-    }
-
-    async function createWebRTCSyncChannels(options: {
-        transports: [SignalTransport, SignalTransport]
-    }) {
-        const { transports } = options
-        const { initialMessage } = await transports[0].allocateChannel()
-        const channels = [
-            await transports[0].openChannel({
-                initialMessage,
-                deviceId: 'first',
-            }),
-            await transports[1].openChannel({
-                initialMessage,
-                deviceId: 'second',
-            }),
-        ]
-        await Promise.all(channels.map(channel => channel.connect()))
-
-        const peers = [new Peer({ initiator: true, wrtc }), new Peer({ wrtc })]
-        await Promise.all([
-            signalSimplePeer({
-                signalChannel: channels[0],
-                simplePeer: peers[0],
-                reporter: (eventName, event) => {
-                    // console.log('peer 0', eventName, event)
-                },
-            }),
-            signalSimplePeer({
-                signalChannel: channels[1],
-                simplePeer: peers[1],
-                reporter: (eventName, event) => {
-                    // console.log('peer 1', eventName, event)
-                },
-            }),
-        ])
-
-        return {
-            senderChannel: new WebRTCFastSyncSenderChannel({ peer: peers[0] }),
-            receiverChannel: new WebRTCFastSyncReceiverChannel({
-                peer: peers[1],
-            }),
-        }
-    }
-
-    async function runMinimalTest(options: SetupTestOptions) {
-        const testSetup = await setupTest(options)
-
-        const device1 = await testSetup.createDevice()
-        const device2 = await testSetup.createDevice()
-        const { object: object1 } = await device1.storageManager
-            .collection('test')
-            .createObject({
-                key: 'one',
-                label: 'Foo',
-                createdWhen: new Date('2019-09-09 01:23:45'),
-            })
-        const { object: object2 } = await device1.storageManager
-            .collection('test')
-            .createObject({
-                key: 'two',
-                label: 'Bar',
-                createdWhen: new Date('2019-09-10 01:23:45'),
-            })
-
-        const channels = await testSetup.createChannels()
-        const senderFastSync = new FastSyncSender({
-            storageManager: device1.storageManager,
-            channel: channels.senderChannel,
-            collections: ['test'],
-        })
-        const receiverFastSync = new FastSyncReceiver({
-            storageManager: device2.storageManager,
-            channel: channels.receiverChannel,
+            },
+            modules: {},
         })
 
-        const senderEventSpy = testSetup.createEventSpy()
-        const receiverEventSpy = testSetup.createEventSpy()
+        return { storageManager }
+    }
 
-        senderEventSpy.listen(senderFastSync.events as EventEmitter, [
-            'prepared',
-            'progress',
-        ])
-        receiverEventSpy.listen(senderFastSync.events as EventEmitter, [
-            'prepared',
-            'progress',
-        ])
+    function createEventSpy() {
+        let events: any[][] = []
+        const listener = (event: string) => {
+            return (...args: any[]) => {
+                events.push([event, args])
+            }
+        }
+        const listen = (events: EventEmitter, eventNames: string[]) => {
+            for (const event of eventNames) {
+                events.on(event, listener(event))
+            }
+        }
+        const popEvents = () => {
+            const poppedEvents = events
+            events = []
+            return poppedEvents
+        }
+        return { events, listen, popEvents }
+    }
 
+    return {
+        createDevice,
+        createChannels: options.createChannels,
+        createEventSpy,
+    }
+}
+
+async function createWebRTCSyncChannels(options: {
+    transports: [SignalTransport, SignalTransport]
+}) {
+    const { transports } = options
+    const { initialMessage } = await transports[0].allocateChannel()
+    const channels = [
+        await transports[0].openChannel({
+            initialMessage,
+            deviceId: 'first',
+        }),
+        await transports[1].openChannel({
+            initialMessage,
+            deviceId: 'second',
+        }),
+    ]
+    await Promise.all(channels.map(channel => channel.connect()))
+
+    const peers = [new Peer({ initiator: true, wrtc }), new Peer({ wrtc })]
+    await Promise.all([
+        signalSimplePeer({
+            signalChannel: channels[0],
+            simplePeer: peers[0],
+            reporter: (eventName, event) => {
+                // console.log('peer 0', eventName, event)
+            },
+        }),
+        signalSimplePeer({
+            signalChannel: channels[1],
+            simplePeer: peers[1],
+            reporter: (eventName, event) => {
+                // console.log('peer 1', eventName, event)
+            },
+        }),
+    ])
+
+    return {
+        senderChannel: new WebRTCFastSyncSenderChannel({ peer: peers[0] }),
+        receiverChannel: new WebRTCFastSyncReceiverChannel({
+            peer: peers[1],
+        }),
+    }
+}
+
+async function setupMinimalTest(options: TestOptions) {
+    const testSetup = await setupTest(options)
+    const device1 = await testSetup.createDevice()
+    const device2 = await testSetup.createDevice()
+    const { object: object1 } = await device1.storageManager
+        .collection('test')
+        .createObject(FAST_SYNC_TEST_DATA.test1)
+    const { object: object2 } = await device1.storageManager
+        .collection('test')
+        .createObject(FAST_SYNC_TEST_DATA.test2)
+
+    const channels = await testSetup.createChannels()
+    const senderFastSync = new FastSyncSender({
+        storageManager: device1.storageManager,
+        channel: channels.senderChannel,
+        collections: ['test'],
+        preSendProcessor: options.preSendProcessor,
+    })
+    const receiverFastSync = new FastSyncReceiver({
+        storageManager: device2.storageManager,
+        channel: channels.receiverChannel,
+    })
+
+    const senderEventSpy = testSetup.createEventSpy()
+    const receiverEventSpy = testSetup.createEventSpy()
+
+    senderEventSpy.listen(senderFastSync.events as EventEmitter, [
+        'prepared',
+        'progress',
+    ])
+    receiverEventSpy.listen(senderFastSync.events as EventEmitter, [
+        'prepared',
+        'progress',
+    ])
+
+    const sync = async () => {
         const senderPromise = senderFastSync.execute()
         const receiverPromise = receiverFastSync.execute()
-
-        // await dummyChannel.waitForSend()
-        // dummyChannel.transmit()
 
         await receiverPromise
         await senderPromise
 
         await channels.senderChannel.destroy()
         await channels.receiverChannel.destroy()
-
-        const expectedSyncInfo = {
-            collectionCount: 1,
-            objectCount: 2,
-        }
-        const allExpectedEvents = [
-            [
-                'prepared',
-                [
-                    {
-                        syncInfo: {
-                            ...expectedSyncInfo,
-                        },
-                    },
-                ],
-            ],
-            [
-                'progress',
-                [
-                    {
-                        progress: {
-                            ...expectedSyncInfo,
-                            totalObjectsProcessed: 0,
-                        },
-                    },
-                ],
-            ],
-            [
-                'progress',
-                [
-                    {
-                        progress: {
-                            ...expectedSyncInfo,
-                            totalObjectsProcessed: 1,
-                        },
-                    },
-                ],
-            ],
-            [
-                'progress',
-                [
-                    {
-                        progress: {
-                            ...expectedSyncInfo,
-                            totalObjectsProcessed: 2,
-                        },
-                    },
-                ],
-            ],
-        ]
-        expect(senderEventSpy.popEvents()).toEqual(allExpectedEvents)
-        expect(receiverEventSpy.popEvents()).toEqual(allExpectedEvents)
-
-        expect(
-            await device2.storageManager.collection('test').findObjects({}),
-        ).toEqual([
-            { key: 'one', label: 'Foo', createdWhen: object1.createdWhen },
-            { key: 'two', label: 'Bar', createdWhen: object2.createdWhen },
-        ])
     }
 
-    it('should work with a very minimal example over an in-memory data channel', async () => {
-        await runMinimalTest({
-            createChannels: async () => createMemoryChannel(),
+    return {
+        ...testSetup,
+        senderFastSync,
+        receiverFastSync,
+        channels,
+        object1,
+        object2,
+        device1,
+        device2,
+        senderEventSpy,
+        receiverEventSpy,
+        sync,
+    }
+}
+
+function makeTestFactory(runner: TestRunner) {
+    return (
+        description: string,
+        test: (options: TestOptions) => Promise<void>,
+    ) => {
+        it(description, async function() {
+            await runner(test, { skip: () => this.skip() })
+        })
+    }
+}
+
+describe('Fast initial sync', () => {
+    function runTests(runner: TestRunner) {
+        const it = makeTestFactory(runner)
+
+        it('should work with a very minimal test', async (options: TestOptions) => {
+            const setup = await setupMinimalTest(options)
+            await setup.sync()
+
+            const expectedSyncInfo = {
+                collectionCount: 1,
+                objectCount: 2,
+            }
+            const allExpectedEvents = [
+                [
+                    'prepared',
+                    [
+                        {
+                            syncInfo: {
+                                ...expectedSyncInfo,
+                            },
+                        },
+                    ],
+                ],
+                [
+                    'progress',
+                    [
+                        {
+                            progress: {
+                                ...expectedSyncInfo,
+                                totalObjectsProcessed: 0,
+                            },
+                        },
+                    ],
+                ],
+                [
+                    'progress',
+                    [
+                        {
+                            progress: {
+                                ...expectedSyncInfo,
+                                totalObjectsProcessed: 1,
+                            },
+                        },
+                    ],
+                ],
+                [
+                    'progress',
+                    [
+                        {
+                            progress: {
+                                ...expectedSyncInfo,
+                                totalObjectsProcessed: 2,
+                            },
+                        },
+                    ],
+                ],
+            ]
+            expect(setup.senderEventSpy.popEvents()).toEqual(allExpectedEvents)
+            expect(setup.receiverEventSpy.popEvents()).toEqual(
+                allExpectedEvents,
+            )
+
+            expect(
+                await setup.device2.storageManager
+                    .collection('test')
+                    .findObjects({}),
+            ).toEqual([
+                {
+                    key: 'one',
+                    label: 'Foo',
+                    createdWhen: setup.object1.createdWhen,
+                },
+                {
+                    key: 'two',
+                    label: 'Bar',
+                    createdWhen: setup.object2.createdWhen,
+                },
+            ])
+        })
+
+        it('should be able to filter out data to send', async (options: TestOptions) => {
+            const setup = await setupMinimalTest({
+                ...options,
+                preSendProcessor: async params => {
+                    if (params.object.label === 'Foo') {
+                        return params
+                    } else {
+                        return { object: null }
+                    }
+                },
+            })
+            await setup.sync()
+
+            expect(
+                await setup.device2.storageManager
+                    .collection('test')
+                    .findObjects({}),
+            ).toEqual([
+                {
+                    key: 'one',
+                    label: 'Foo',
+                    createdWhen: setup.object1.createdWhen,
+                },
+            ])
+        })
+    }
+
+    describe('in-memory data channel', () => {
+        runTests(async test => {
+            await test({
+                createChannels: async () => createMemoryChannel(),
+            })
         })
     })
 
-    it('should work with a very minimal example over a WebRTC data channel with in-memory signalling', async () => {
-        await runMinimalTest({
-            createChannels: async () => {
-                const transportManager = new MemorySignalTransportManager()
-                const transports: [SignalTransport, SignalTransport] = [
-                    transportManager.createTransport(),
-                    transportManager.createTransport(),
-                ]
-                return createWebRTCSyncChannels({ transports })
-            },
-        })
-    })
-
-    it('should work with a very minimal example over a WebRTC data channel with Firebase signalling', async function() {
-        if (process.env.TEST_FIREBASE_SIGNALLING !== 'true') {
-            this.skip()
-        }
-
-        const {
-            app: firebaseApp,
-            collectionName,
-        } = await createSignallingFirebaseTestApp()
-        try {
-            await runMinimalTest({
+    describe('WebRTC data channel with in-memory signalling', async () => {
+        runTests(async test => {
+            await test({
                 createChannels: async () => {
-                    const createTransport = () =>
-                        new FirebaseSignalTransport({
-                            database: firebaseApp.database(),
-                            collectionName,
-                        })
+                    const transportManager = new MemorySignalTransportManager()
                     const transports: [SignalTransport, SignalTransport] = [
-                        createTransport(),
-                        createTransport(),
+                        transportManager.createTransport(),
+                        transportManager.createTransport(),
                     ]
                     return createWebRTCSyncChannels({ transports })
                 },
             })
-        } finally {
-            await firebaseApp.delete()
-        }
+        })
+    })
+
+    describe('WebRTC data channel with Firebase signalling', async function() {
+        runTests(async (test, options) => {
+            if (process.env.TEST_FIREBASE_SIGNALLING !== 'true') {
+                options.skip()
+            }
+
+            const {
+                app: firebaseApp,
+                collectionName,
+            } = await createSignallingFirebaseTestApp()
+            try {
+                await test({
+                    createChannels: async () => {
+                        const createTransport = () =>
+                            new FirebaseSignalTransport({
+                                database: firebaseApp.database(),
+                                collectionName,
+                            })
+                        const transports: [SignalTransport, SignalTransport] = [
+                            createTransport(),
+                            createTransport(),
+                        ]
+                        return createWebRTCSyncChannels({ transports })
+                    },
+                })
+            } finally {
+                await firebaseApp.delete()
+            }
+        })
     })
 })

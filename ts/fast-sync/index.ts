@@ -12,6 +12,15 @@ export interface FastSyncSenderOptions {
     storageManager: StorageManager
     channel: FastSyncSenderChannel
     collections: string[]
+    preSendProcessor?: FastSyncPreSendProcessor
+}
+
+export type FastSyncPreSendProcessor = (
+    params: FastSyncPreSendProcessorParams,
+) => Promise<{ object: any | null }>
+export interface FastSyncPreSendProcessorParams {
+    collection: string
+    object: any
 }
 
 export interface FastSyncEvents {
@@ -31,6 +40,26 @@ export class FastSyncSender {
 
     async execute() {
         const { channel } = this.options
+        const preproccesObjects = async (params: {
+            collection: string
+            objects: any[]
+        }) => {
+            const preSendProcessor = this.options.preSendProcessor
+            if (!preSendProcessor) {
+                return params.objects
+            }
+
+            const processedObjects = (await Promise.all(
+                params.objects.map(
+                    async object =>
+                        (await preSendProcessor({
+                            collection: params.collection,
+                            object,
+                        })).object,
+                ),
+            )).filter(object => !!object)
+            return processedObjects
+        }
 
         const syncInfo = await getSyncInfo(this.options.storageManager)
         this.events.emit('prepared', { syncInfo })
@@ -48,9 +77,16 @@ export class FastSyncSender {
                 this.options.storageManager,
                 collection,
             )) {
-                // console.log('sending batch')
-                // console.log(channel)
-                await channel.sendObjectBatch({ collection, objects })
+                const processedObjects = await preproccesObjects({
+                    collection,
+                    objects,
+                })
+                if (processedObjects.length) {
+                    await channel.sendObjectBatch({
+                        collection,
+                        objects: processedObjects,
+                    })
+                }
                 this.totalObjectsProcessed += objects.length
                 this.events.emit('progress', {
                     progress: {
