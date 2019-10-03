@@ -12,8 +12,8 @@ type Modifications = { [collection: string]: CollectionModifications }
 type CollectionModifications = { [pk: string]: ObjectModifications }
 interface ObjectModifications {
     shouldBeCreated: boolean
-    createdOn?: number | '$now'
     shouldBeDeleted: boolean
+    createdOn?: number | '$now'
     fields: { [field: string]: FieldModification }
 }
 type FieldModification = {
@@ -114,7 +114,10 @@ export function _processCreationEntry({
             fields,
         }
     } else {
-        if (objectModifications.shouldBeCreated) {
+        if (
+            objectModifications.shouldBeCreated &&
+            !objectModifications.shouldBeDeleted
+        ) {
             throw new Error(
                 `Detected double create in collection '${
                     logEntry.collection
@@ -135,6 +138,7 @@ export function _processCreationEntry({
             }
         }
         objectModifications.shouldBeCreated = true
+        objectModifications.shouldBeDeleted = false
         objectModifications.createdOn = logEntry.createdOn
     }
 }

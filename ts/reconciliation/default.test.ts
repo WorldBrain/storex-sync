@@ -25,6 +25,14 @@ function test({
                 url: { type: 'string' },
             },
         },
+        pageBookmark: {
+            version: new Date('2019-02-02'),
+            fields: {
+                url: { type: 'string' },
+                time: { type: 'timestamp' },
+            },
+            indices: [{ field: 'url', pk: true }],
+        },
     })
 
     const reconciled = reconcileSyncLog(logEntries, { storageRegistry })
@@ -423,6 +431,81 @@ describe('Reconciliation', () => {
         ]
 
         test({ logEntries, expectedOperations: [] })
+    })
+
+    it('should correctly recreate an object after deletion', () => {
+        const logEntries: ClientSyncLogEntry[] = [
+            {
+                operation: 'create',
+                createdOn: 2,
+                sharedOn: 52525252,
+                needsIntegration: true,
+                collection: 'pageBookmark',
+                pk: 'bookmark-one',
+                value: { url: 'bookmark-one', time: 2 },
+            },
+            {
+                operation: 'delete',
+                createdOn: 3,
+                sharedOn: 52525252,
+                needsIntegration: true,
+                collection: 'pageBookmark',
+                pk: 'bookmark-one',
+            },
+            {
+                operation: 'create',
+                createdOn: 2,
+                sharedOn: 52525252,
+                needsIntegration: true,
+                collection: 'pageBookmark',
+                pk: 'bookmark-one',
+                value: { url: 'bookmark-one', time: 4 },
+            },
+        ]
+
+        test({
+            logEntries,
+            expectedOperations: [
+                {
+                    operation: 'createObject',
+                    collection: 'pageBookmark',
+                    args: { url: 'bookmark-one', time: 4 },
+                },
+            ],
+        })
+    })
+
+    it('should correctly recreate an object after deletion without creation', () => {
+        const logEntries: ClientSyncLogEntry[] = [
+            {
+                operation: 'delete',
+                createdOn: 3,
+                sharedOn: 52525252,
+                needsIntegration: true,
+                collection: 'pageBookmark',
+                pk: 'bookmark-one',
+            },
+            {
+                operation: 'create',
+                createdOn: 2,
+                sharedOn: 52525252,
+                needsIntegration: true,
+                collection: 'pageBookmark',
+                pk: 'bookmark-one',
+                value: { url: 'bookmark-one', time: 4 },
+            },
+        ]
+
+        test({
+            logEntries,
+            expectedOperations: [
+                {
+                    operation: 'createObject',
+                    collection: 'pageBookmark',
+                    args: { url: 'bookmark-one', time: 4 },
+                },
+            ],
+        })
     })
 
     it('should complain about double creates', () => {
