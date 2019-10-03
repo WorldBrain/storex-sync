@@ -1,17 +1,18 @@
 import expect from 'expect'
-import StorageManager, { CollectionFields } from '@worldbrain/storex'
+import StorageManager, {
+    CollectionFields,
+    IndexDefinition,
+} from '@worldbrain/storex'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
 import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
 import { registerModuleCollections } from '@worldbrain/storex-pattern-modules'
 import { ClientSyncLogStorage } from '../client-sync-log'
 import { SyncLoggingMiddleware } from '.'
 
-async function setupTest({
-    now,
-    userFields,
-}: {
+async function setupTest(options: {
     now: () => number
     userFields?: CollectionFields
+    userIndices?: IndexDefinition[]
 }) {
     const backend = new DexieStorageBackend({
         idbImplementation: inMemory(),
@@ -21,9 +22,10 @@ async function setupTest({
     storageManager.registry.registerCollections({
         user: {
             version: new Date('2019-02-19'),
-            fields: userFields || {
+            fields: options.userFields || {
                 displayName: { type: 'string' },
             },
+            indices: options.userIndices,
         },
     })
     const clientSyncLog = new ClientSyncLogStorage({ storageManager })
@@ -34,7 +36,7 @@ async function setupTest({
         storageManager,
         includeCollections: ['user'],
     })
-    loggingMiddleware._getNow = now
+    loggingMiddleware._getNow = options.now
     storageManager.setMiddleware([loggingMiddleware])
     return { storageManager, clientSyncLog, loggingMiddleware }
 }

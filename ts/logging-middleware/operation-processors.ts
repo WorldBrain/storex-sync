@@ -271,7 +271,7 @@ async function _processDeleteObjects({
     }
 
     const logEntries: ClientSyncLogEntry[] = await _deleteOperationQueryToLogEntry(
-        { next, getNow, collection, where },
+        { next, getNow, collection, where, storageRegistry },
     )
 
     await executeAndLog(
@@ -290,18 +290,24 @@ async function _deleteOperationQueryToLogEntry({
     getNow,
     collection,
     where,
+    storageRegistry,
 }: {
     next: any
     getNow: GetNow
     collection: string
     where: any
+    storageRegistry: StorageRegistry
 }): Promise<ClientSyncLogDeletionEntry[]> {
     const affectedObjects = await next.process({
         operation: ['findObjects', collection, where],
     })
 
     return affectedObjects.map((object: any) =>
-        _deleteOperationToLogEntry(getNow, collection, object.id),
+        _deleteOperationToLogEntry(
+            getNow,
+            collection,
+            getObjectPk(object, collection, storageRegistry),
+        ),
     )
 }
 
@@ -363,6 +369,7 @@ async function _processExecuteBatch({
                 getNow,
                 collection: step.collection,
                 where: step.where,
+                storageRegistry,
             })
             logEntries = logEntries.concat(logs)
         }
