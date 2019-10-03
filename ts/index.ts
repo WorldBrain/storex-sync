@@ -21,7 +21,8 @@ export interface SyncSerializer {
     ) => Promise<SharedSyncLogEntryData>
 }
 
-export type SyncEvents = TypedEmitter<{
+export type SyncEvents = TypedEmitter<SyncEventMap>
+export interface SyncEventMap {
     unsharedClientEntries: (event: { entries: ClientSyncLogEntry[] }) => void
     sendingSharedEntries: (event: {
         entries: Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[]
@@ -29,7 +30,14 @@ export type SyncEvents = TypedEmitter<{
     receivedSharedEntries: (event: {}) => void
     reconcilingEntries: (event: {}) => void
     reconciledEntries: (event: {}) => void
-}>
+}
+export const SYNC_EVENTS: { [Key in keyof SyncEventMap]: {} } = {
+    unsharedClientEntries: {},
+    sendingSharedEntries: {},
+    receivedSharedEntries: {},
+    reconcilingEntries: {},
+    reconciledEntries: {},
+}
 
 export type SyncPreSendProcessor = (params: {
     entry: ClientSyncLogEntry
