@@ -1,10 +1,15 @@
+import { Omit } from 'lodash'
+import TypedEmitter from 'typed-emitter'
 import { jsonDateParser } from 'json-date-parser'
 import pick from 'lodash/pick'
 import StorageManager, { OperationBatch } from '@worldbrain/storex'
 import { ClientSyncLogStorage } from './client-sync-log'
 import { SharedSyncLog } from './shared-sync-log'
 import { ReconcilerFunction } from './reconciliation'
-import { SharedSyncLogEntryData } from './shared-sync-log/types'
+import {
+    SharedSyncLogEntryData,
+    SharedSyncLogEntry,
+} from './shared-sync-log/types'
 import { ClientSyncLogEntry } from './client-sync-log/types'
 
 export interface SyncSerializer {
@@ -15,6 +20,16 @@ export interface SyncSerializer {
         serialized: string,
     ) => Promise<SharedSyncLogEntryData>
 }
+
+export type SyncEvents = TypedEmitter<{
+    unsharedClientEntries: (event: { entries: ClientSyncLogEntry[] }) => void
+    sendingSharedEntries: (event: {
+        entries: Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[]
+    }) => void
+    receivedSharedEntries: (event: {}) => void
+    reconcilingEntries: (event: {}) => void
+    reconciledEntries: (event: {}) => void
+}>
 
 export type SyncPreSendProcessor = (params: {
     entry: ClientSyncLogEntry
@@ -31,6 +46,7 @@ export async function shareLogEntries(args: {
     now: number | '$now'
     serializer?: SyncSerializer
     preSend?: SyncPreSendProcessor
+    syncEvents?: SyncEvents
 }) {
     const preSend: SyncPreSendProcessor = args.preSend || (async args => args)
     const serializeEntryData = args.serializer
@@ -38,6 +54,10 @@ export async function shareLogEntries(args: {
         : async (data: SharedSyncLogEntryData) => JSON.stringify(data)
 
     const entries = await args.clientSyncLog.getUnsharedEntries()
+    if (args.syncEvents) {
+        args.syncEvents.emit('unsharedClientEntries', { entries })
+    }
+
     const processedEntries = (await Promise.all(
         entries.map(async entry => (await preSend({ entry })).entry),
     )).filter(entry => !!entry) as ClientSyncLogEntry[]
@@ -54,6 +74,11 @@ export async function shareLogEntries(args: {
             }),
         })),
     )
+    if (args.syncEvents) {
+        args.syncEvents.emit('sendingSharedEntries', {
+            entries: sharedLogEntries,
+        })
+    }
     await args.sharedSyncLog.writeEntries(
         sharedLogEntries,
         pick(args, ['userId', 'deviceId', 'now']),
@@ -71,6 +96,7 @@ export async function receiveLogEntries(args: {
     deviceId: number | string
     now: number | '$now'
     serializer?: SyncSerializer
+    syncEvents?: SyncEvents
 }) {
     const deserializeEntryData = args.serializer
         ? args.serializer.deserializeSharedSyncLogEntryData
@@ -80,6 +106,11 @@ export async function receiveLogEntries(args: {
         userId: args.userId,
         deviceId: args.deviceId,
     })
+    if (args.syncEvents) {
+        args.syncEvents.emit('receivedSharedEntries', {
+            entries: logUpdate.entries,
+        })
+    }
     await args.clientSyncLog.insertReceivedEntries(
         await Promise.all(
             logUpdate.entries.map(async entry => {
@@ -121,6 +152,7 @@ export async function doSync(options: {
     serializer?: SyncSerializer
     preSend?: SyncPreSendProcessor
     postReceive?: SyncPostReceiveProcessor
+    syncEvents?: SyncEvents
 }) {
     await receiveLogEntries(options)
     await shareLogEntries(options)
@@ -131,9 +163,21 @@ export async function doSync(options: {
             break
         }
 
+        if (options.syncEvents) {
+            options.syncEvents.emit('reconcilingEntries', { entries })
+        }
+
         const reconciliation = await options.reconciler(entries, {
             storageRegistry: options.storageManager.registry,
         })
+
+        if (options.syncEvents) {
+            options.syncEvents.emit('reconciledEntries', {
+                entries,
+                reconciliation,
+            })
+        }
+
         await writeReconcilation({
             storageManager: options.storageManager,
             reconciliation,
