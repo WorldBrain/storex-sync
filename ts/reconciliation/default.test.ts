@@ -465,7 +465,7 @@ describe('Reconciliation', () => {
             },
         }
 
-        it('with all steps needing integration', () => {
+        it('with all entries needing integration', () => {
             test({
                 logEntries: [
                     { ...logEntries.creation, needsIntegration: true },
@@ -556,11 +556,39 @@ describe('Reconciliation', () => {
             },
         }
 
+        it('with all entries needing integration', () => {
+            test({
+                logEntries: [
+                    { ...logEntries.deletion, needsIntegration: true },
+                    { ...logEntries.recreation, needsIntegration: true },
+                    { ...logEntries.redeletion, needsIntegration: true },
+                ],
+                expectedOperations: [
+                    {
+                        operation: 'deleteObjects',
+                        collection: 'pageBookmark',
+                        where: { url: 'bookmark-one' },
+                    },
+                ],
+            })
+        })
+
+        it.only('with only recreation and redelete needing integration', () => {
+            test({
+                logEntries: [
+                    { ...logEntries.deletion, needsIntegration: false },
+                    { ...logEntries.recreation, needsIntegration: true },
+                    { ...logEntries.redeletion, needsIntegration: true },
+                ],
+                expectedOperations: [],
+            })
+        })
+
         it('with only redelete needing integration', () => {
             test({
                 logEntries: [
-                    { ...logEntries.deletion },
-                    { ...logEntries.recreation },
+                    { ...logEntries.deletion, needsIntegration: false },
+                    { ...logEntries.recreation, needsIntegration: false },
                     { ...logEntries.redeletion, needsIntegration: true },
                 ],
                 expectedOperations: [
