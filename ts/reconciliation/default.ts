@@ -1,3 +1,4 @@
+import sortBy from 'lodash/sortBy'
 import { StorageRegistry, OperationBatch } from '@worldbrain/storex'
 import {
     ClientSyncLogEntry,
@@ -11,14 +12,15 @@ import { ReconcilerFunction } from './types'
 type Modifications = { [collection: string]: CollectionModifications }
 type CollectionModifications = { [pk: string]: ObjectModifications }
 interface ObjectModifications {
-    shouldBeCreated: boolean
+    actualState: 'absent' | 'present'
+    desiredState: 'absent' | 'present'
     shouldBeDeleted: boolean
     createdOn?: number | '$now'
     fields: { [field: string]: FieldModification }
 }
 type FieldModification = {
     createdOn: number | '$now'
-    syncedOn: number | null
+    // syncedOn: number | null
     value: any
 }
 
@@ -36,12 +38,13 @@ export const reconcileSyncLog: ReconcilerFunction = (
     options: { storageRegistry: StorageRegistry },
 ): OperationBatch => {
     const modificationsByObject: Modifications = {}
-    for (const logEntry of logEntries) {
+    for (const logEntry of sortBy(logEntries, 'createdOn')) {
         const collectionModifications = (modificationsByObject[
             logEntry.collection
         ] = modificationsByObject[logEntry.collection] || {})
         const pkAsJson = JSON.stringify(logEntry.pk)
         const objectModifications = collectionModifications[pkAsJson]
+        // console.log(`before ${logEntry.operation}:`, collectionModifications[pkAsJson])
         if (logEntry.operation === 'modify') {
             _processModificationEntry({
                 objectModifications,
@@ -64,6 +67,7 @@ export const reconcileSyncLog: ReconcilerFunction = (
                 pkAsJson,
             })
         }
+        // console.log(`after ${logEntry.operation}:`, collectionModifications[pkAsJson])
     }
 
     const operations: OperationBatch = []
@@ -108,15 +112,16 @@ export function _processCreationEntry({
             }
         }
         collectionModifications[pkAsJson] = {
-            shouldBeCreated: true,
-            createdOn: logEntry.createdOn,
+            actualState: logEntry.needsIntegration ? 'absent' : 'present',
+            desiredState: 'present',
             shouldBeDeleted: false,
+            createdOn: logEntry.createdOn,
             fields,
         }
     } else {
         if (
-            objectModifications.shouldBeCreated &&
-            !objectModifications.shouldBeDeleted
+            objectModifications.desiredState === 'present' &&
+            objectModifications.actualState === 'absent'
         ) {
             throw new Error(
                 `Detected double create in collection '${
@@ -131,14 +136,16 @@ export function _processCreationEntry({
                 fields[key] = {
                     value,
                     createdOn: logEntry.createdOn,
-                    syncedOn: logEntry.sharedOn,
+                    // syncedOn: logEntry.sharedOn,
                 }
             } else if (logEntry.createdOn > fields[key].createdOn) {
                 _throwModificationBeforeCreation(logEntry)
             }
         }
-        objectModifications.shouldBeCreated = true
-        objectModifications.shouldBeDeleted = false
+        objectModifications.desiredState = 'present'
+        if (logEntry.needsIntegration) {
+            objectModifications.actualState = 'absent'
+        }
         objectModifications.createdOn = logEntry.createdOn
     }
 }
@@ -154,18 +161,34 @@ export function _processDeletionEntry({
     collectionModifications: CollectionModifications
     pkAsJson: any
 }) {
-    const updates = {
-        // isDeleted: !!logEntry.sharedOn,
-        shouldBeDeleted: true,
-        fields: {},
-    }
-    if (!objectModifications) {
-        collectionModifications[pkAsJson] = {
-            shouldBeCreated: false,
-            ...updates,
+    const wouldBeCreated = objectModifications
+        ? objectModifications.actualState === 'absent' &&
+          objectModifications.desiredState === 'present'
+        : false
+
+    if (objectModifications) {
+        if (wouldBeCreated) {
+            collectionModifications[pkAsJson] = {
+                fields: {},
+                actualState: 'absent',
+                desiredState: 'absent',
+                shouldBeDeleted: false,
+            }
+        } else {
+            collectionModifications[pkAsJson] = {
+                fields: {},
+                actualState: 'present',
+                desiredState: 'absent',
+                shouldBeDeleted: logEntry.needsIntegration,
+            }
         }
     } else {
-        Object.assign(objectModifications, updates)
+        collectionModifications[pkAsJson] = {
+            fields: {},
+            actualState: logEntry.needsIntegration ? 'present' : 'absent',
+            desiredState: 'absent',
+            shouldBeDeleted: true,
+        }
     }
 }
 
@@ -187,14 +210,16 @@ export function _processModificationEntry({
     }
     if (!objectModifications) {
         collectionModifications[pkAsJson] = {
-            shouldBeCreated: false,
+            actualState: 'present',
+            desiredState: 'present',
             shouldBeDeleted: false,
             fields: { [logEntry.field]: updates },
         }
         return
     }
     if (
-        objectModifications.shouldBeCreated &&
+        objectModifications.actualState === 'absent' &&
+        objectModifications.desiredState === 'present' &&
         objectModifications.createdOn &&
         objectModifications.createdOn > logEntry.createdOn
     ) {
@@ -221,14 +246,30 @@ export function _processModifications({
     storageRegistry: StorageRegistry
 }): OperationBatch {
     const pkFields = setObjectPk({}, pk, collection, storageRegistry)
+
+    const operations: OperationBatch = []
+    // console.log({
+    //     shouldBeDeleted: objectModifications.shouldBeDeleted,
+
+    // })
+    if (objectModifications.shouldBeDeleted) {
+        operations.push({
+            operation: 'deleteObjects',
+            collection,
+            where: pkFields,
+        })
+        if (objectModifications.desiredState === 'absent') {
+            if (objectModifications.actualState === 'present') {
+                return operations
+            } else {
+                return []
+            }
+        }
+    }
+
     if (
-        objectModifications.shouldBeDeleted &&
-        !objectModifications.shouldBeCreated
-    ) {
-        return [{ operation: 'deleteObjects', collection, where: pkFields }]
-    } else if (
-        objectModifications.shouldBeCreated &&
-        !objectModifications.shouldBeDeleted
+        objectModifications.actualState === 'absent' &&
+        objectModifications.desiredState === 'present'
     ) {
         const object = {}
         for (const [key, fieldModification] of Object.entries(
@@ -236,18 +277,15 @@ export function _processModifications({
         )) {
             object[key] = fieldModification.value
         }
-        return [
-            {
-                operation: 'createObject',
-                collection,
-                args: { ...pkFields, ...object },
-            },
-        ]
+        operations.push({
+            operation: 'createObject',
+            collection,
+            args: { ...pkFields, ...object },
+        })
     } else if (
-        !objectModifications.shouldBeCreated &&
-        !objectModifications.shouldBeDeleted
+        objectModifications.actualState === 'present' &&
+        objectModifications.desiredState === 'present'
     ) {
-        const operations: OperationBatch = []
         for (const [fieldName, fieldModification] of Object.entries(
             objectModifications.fields,
         )) {
@@ -261,5 +299,5 @@ export function _processModifications({
         return operations
     }
 
-    return []
+    return operations
 }

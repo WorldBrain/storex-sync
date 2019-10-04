@@ -191,6 +191,14 @@ describe('Reconciliation', () => {
     it('should ignore writes to an already deleted object', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
+                operation: 'delete',
+                createdOn: 1,
+                sharedOn: 3,
+                needsIntegration: true,
+                collection: 'list',
+                pk: 'list-one',
+            },
+            {
                 operation: 'modify',
                 createdOn: 2,
                 sharedOn: 52525252,
@@ -203,14 +211,6 @@ describe('Reconciliation', () => {
             {
                 operation: 'delete',
                 createdOn: 4,
-                sharedOn: 3,
-                needsIntegration: true,
-                collection: 'list',
-                pk: 'list-one',
-            },
-            {
-                operation: 'delete',
-                createdOn: 1,
                 sharedOn: 3,
                 needsIntegration: true,
                 collection: 'list',
@@ -260,7 +260,7 @@ describe('Reconciliation', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
                 operation: 'delete',
-                createdOn: 4,
+                createdOn: 1,
                 sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
@@ -268,7 +268,7 @@ describe('Reconciliation', () => {
             },
             {
                 operation: 'delete',
-                createdOn: 1,
+                createdOn: 4,
                 sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'list',
@@ -433,20 +433,152 @@ describe('Reconciliation', () => {
         test({ logEntries, expectedOperations: [] })
     })
 
-    it('should correctly recreate an object after deletion', () => {
-        const logEntries: ClientSyncLogEntry[] = [
-            {
+    describe('should correctly handle create, delete, recreate', () => {
+        const logEntries: {
+            [key in 'creation' | 'deletion' | 'recreation']: ClientSyncLogEntry
+        } = {
+            creation: {
                 operation: 'create',
                 createdOn: 2,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: false,
                 collection: 'pageBookmark',
                 pk: 'bookmark-one',
                 value: { url: 'bookmark-one', time: 2 },
             },
-            {
+            deletion: {
                 operation: 'delete',
                 createdOn: 3,
+                sharedOn: 52525252,
+                needsIntegration: false,
+                collection: 'pageBookmark',
+                pk: 'bookmark-one',
+            },
+            recreation: {
+                operation: 'create',
+                createdOn: 4,
+                sharedOn: 52525252,
+                needsIntegration: false,
+                collection: 'pageBookmark',
+                pk: 'bookmark-one',
+                value: { url: 'bookmark-one', time: 4 },
+            },
+        }
+
+        it('with all steps needing integration', () => {
+            test({
+                logEntries: [
+                    { ...logEntries.creation, needsIntegration: true },
+                    { ...logEntries.deletion, needsIntegration: true },
+                    { ...logEntries.recreation, needsIntegration: true },
+                ],
+                expectedOperations: [
+                    {
+                        operation: 'createObject',
+                        collection: 'pageBookmark',
+                        args: { url: 'bookmark-one', time: 4 },
+                    },
+                ],
+            })
+        })
+
+        it('with only deletion and recreation needing integration', () => {
+            test({
+                logEntries: [
+                    { ...logEntries.creation, needsIntegration: false },
+                    { ...logEntries.deletion, needsIntegration: true },
+                    { ...logEntries.recreation, needsIntegration: true },
+                ],
+                expectedOperations: [
+                    {
+                        operation: 'deleteObjects',
+                        collection: 'pageBookmark',
+                        where: { url: 'bookmark-one' },
+                    },
+                    {
+                        operation: 'createObject',
+                        collection: 'pageBookmark',
+                        args: { url: 'bookmark-one', time: 4 },
+                    },
+                ],
+            })
+        })
+
+        it('with only recreation needing integration', () => {
+            test({
+                logEntries: [
+                    { ...logEntries.creation, needsIntegration: false },
+                    { ...logEntries.deletion, needsIntegration: false },
+                    { ...logEntries.recreation, needsIntegration: true },
+                ],
+                expectedOperations: [
+                    {
+                        operation: 'createObject',
+                        collection: 'pageBookmark',
+                        args: { url: 'bookmark-one', time: 4 },
+                    },
+                ],
+            })
+        })
+    })
+
+    describe('should correctly handle delete, create, redelete', () => {
+        const logEntries: {
+            [key in
+                | 'deletion'
+                | 'recreation'
+                | 'redeletion']: ClientSyncLogEntry
+        } = {
+            deletion: {
+                operation: 'delete',
+                createdOn: 3,
+                sharedOn: 52525252,
+                needsIntegration: false,
+                collection: 'pageBookmark',
+                pk: 'bookmark-one',
+            },
+            recreation: {
+                operation: 'create',
+                createdOn: 2,
+                sharedOn: 52525252,
+                needsIntegration: false,
+                collection: 'pageBookmark',
+                pk: 'bookmark-one',
+                value: { url: 'bookmark-one', time: 4 },
+            },
+            redeletion: {
+                operation: 'delete',
+                createdOn: 5,
+                sharedOn: 52525252,
+                needsIntegration: false,
+                collection: 'pageBookmark',
+                pk: 'bookmark-one',
+            },
+        }
+
+        it('with only redelete needing integration', () => {
+            test({
+                logEntries: [
+                    { ...logEntries.deletion },
+                    { ...logEntries.recreation },
+                    { ...logEntries.redeletion, needsIntegration: true },
+                ],
+                expectedOperations: [
+                    {
+                        operation: 'deleteObjects',
+                        collection: 'pageBookmark',
+                        where: { url: 'bookmark-one' },
+                    },
+                ],
+            })
+        })
+    })
+
+    it('should correctly recreate an object after deletion without creation', () => {
+        const logEntries: ClientSyncLogEntry[] = [
+            {
+                operation: 'delete',
+                createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'pageBookmark',
@@ -454,7 +586,7 @@ describe('Reconciliation', () => {
             },
             {
                 operation: 'create',
-                createdOn: 2,
+                createdOn: 3,
                 sharedOn: 52525252,
                 needsIntegration: true,
                 collection: 'pageBookmark',
@@ -467,38 +599,10 @@ describe('Reconciliation', () => {
             logEntries,
             expectedOperations: [
                 {
-                    operation: 'createObject',
+                    operation: 'deleteObjects',
                     collection: 'pageBookmark',
-                    args: { url: 'bookmark-one', time: 4 },
+                    where: { url: 'bookmark-one' },
                 },
-            ],
-        })
-    })
-
-    it('should correctly recreate an object after deletion without creation', () => {
-        const logEntries: ClientSyncLogEntry[] = [
-            {
-                operation: 'delete',
-                createdOn: 3,
-                sharedOn: 52525252,
-                needsIntegration: true,
-                collection: 'pageBookmark',
-                pk: 'bookmark-one',
-            },
-            {
-                operation: 'create',
-                createdOn: 2,
-                sharedOn: 52525252,
-                needsIntegration: true,
-                collection: 'pageBookmark',
-                pk: 'bookmark-one',
-                value: { url: 'bookmark-one', time: 4 },
-            },
-        ]
-
-        test({
-            logEntries,
-            expectedOperations: [
                 {
                     operation: 'createObject',
                     collection: 'pageBookmark',
