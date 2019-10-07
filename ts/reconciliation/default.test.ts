@@ -6,9 +6,11 @@ import { reconcileSyncLog } from './default'
 function test({
     logEntries,
     expectedOperations,
+    debug,
 }: {
     logEntries: ClientSyncLogEntry[]
     expectedOperations?: OperationBatch
+    debug?: boolean
 }) {
     const storageRegistry = new StorageRegistry()
     storageRegistry.registerCollections({
@@ -35,7 +37,7 @@ function test({
         },
     })
 
-    const reconciled = reconcileSyncLog(logEntries, { storageRegistry })
+    const reconciled = reconcileSyncLog(logEntries, { storageRegistry, debug })
     if (expectedOperations) {
         expect(reconciled).toEqual(expectedOperations)
     }
@@ -531,7 +533,7 @@ describe('Reconciliation', () => {
         } = {
             deletion: {
                 operation: 'delete',
-                createdOn: 3,
+                createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: false,
                 collection: 'pageBookmark',
@@ -539,7 +541,7 @@ describe('Reconciliation', () => {
             },
             recreation: {
                 operation: 'create',
-                createdOn: 2,
+                createdOn: 4,
                 sharedOn: 52525252,
                 needsIntegration: false,
                 collection: 'pageBookmark',
@@ -548,7 +550,7 @@ describe('Reconciliation', () => {
             },
             redeletion: {
                 operation: 'delete',
-                createdOn: 5,
+                createdOn: 6,
                 sharedOn: 52525252,
                 needsIntegration: false,
                 collection: 'pageBookmark',
@@ -573,7 +575,7 @@ describe('Reconciliation', () => {
             })
         })
 
-        it.only('with only recreation and redelete needing integration', () => {
+        it('with only recreation and redelete needing integration', () => {
             test({
                 logEntries: [
                     { ...logEntries.deletion, needsIntegration: false },
