@@ -14,7 +14,7 @@ function test({
 }) {
     const storageRegistry = new StorageRegistry()
     storageRegistry.registerCollections({
-        list: {
+        customList: {
             version: new Date('2019-02-02'),
             fields: {
                 title: { type: 'string' },
@@ -27,14 +27,14 @@ function test({
                 url: { type: 'string' },
             },
         },
-        pageBookmark: {
-            version: new Date('2019-02-02'),
-            fields: {
-                url: { type: 'string' },
-                time: { type: 'timestamp' },
-            },
-            indices: [{ field: 'url', pk: true }],
-        },
+        // customList: {
+        //     version: new Date('2019-02-02'),
+        //     fields: {
+        //         url: { type: 'string' },
+        //         time: { type: 'timestamp' },
+        //     },
+        //     indices: [{ field: 'url', pk: true }],
+        // },
     })
 
     const reconciled = reconcileSyncLog(logEntries, { storageRegistry, debug })
@@ -51,7 +51,7 @@ describe('Reconciliation', () => {
                 createdOn: 2,
                 sharedOn: 525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-id',
                 field: 'title',
                 operation: 'modify',
@@ -64,7 +64,7 @@ describe('Reconciliation', () => {
             expectedOperations: [
                 {
                     operation: 'updateObjects',
-                    collection: 'list',
+                    collection: 'customList',
                     where: { id: 'list-id' },
                     updates: { title: 'Updated List Title' },
                 },
@@ -79,7 +79,7 @@ describe('Reconciliation', () => {
                 createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
                 value: 'second',
@@ -89,7 +89,7 @@ describe('Reconciliation', () => {
                 createdOn: 1,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
                 value: 'first',
@@ -101,7 +101,7 @@ describe('Reconciliation', () => {
             expectedOperations: [
                 {
                     operation: 'updateObjects',
-                    collection: 'list',
+                    collection: 'customList',
                     where: { id: 'list-one' },
                     updates: { title: 'second' },
                 },
@@ -116,7 +116,7 @@ describe('Reconciliation', () => {
                 createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
                 value: 'second',
@@ -126,7 +126,7 @@ describe('Reconciliation', () => {
                 createdOn: 3,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
                 value: 'third',
@@ -136,7 +136,7 @@ describe('Reconciliation', () => {
                 createdOn: 1,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
                 value: 'first',
@@ -148,7 +148,7 @@ describe('Reconciliation', () => {
             expectedOperations: [
                 {
                     operation: 'updateObjects',
-                    collection: 'list',
+                    collection: 'customList',
                     where: { id: 'list-one' },
                     updates: { title: 'third' },
                 },
@@ -163,7 +163,7 @@ describe('Reconciliation', () => {
                 createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
                 value: 'second',
@@ -173,7 +173,7 @@ describe('Reconciliation', () => {
                 createdOn: 1,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
             },
         ]
@@ -183,7 +183,7 @@ describe('Reconciliation', () => {
             expectedOperations: [
                 {
                     operation: 'deleteObjects',
-                    collection: 'list',
+                    collection: 'customList',
                     where: { id: 'list-one' },
                 },
             ],
@@ -197,7 +197,7 @@ describe('Reconciliation', () => {
                 createdOn: 1,
                 sharedOn: 3,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
             },
             {
@@ -205,7 +205,7 @@ describe('Reconciliation', () => {
                 createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
                 value: 'second',
@@ -215,7 +215,7 @@ describe('Reconciliation', () => {
                 createdOn: 4,
                 sharedOn: 3,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
             },
         ]
@@ -224,7 +224,7 @@ describe('Reconciliation', () => {
             logEntries,
             expectedOperations: [
                 {
-                    collection: 'list',
+                    collection: 'customList',
                     operation: 'deleteObjects',
                     where: {
                         id: 'list-one',
@@ -241,7 +241,7 @@ describe('Reconciliation', () => {
                 createdOn: 1,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
             },
         ]
@@ -251,7 +251,7 @@ describe('Reconciliation', () => {
             expectedOperations: [
                 {
                     operation: 'deleteObjects',
-                    collection: 'list',
+                    collection: 'customList',
                     where: { id: 'list-one' },
                 },
             ],
@@ -265,7 +265,7 @@ describe('Reconciliation', () => {
                 createdOn: 1,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
             },
             {
@@ -273,7 +273,7 @@ describe('Reconciliation', () => {
                 createdOn: 4,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
             },
         ]
@@ -283,7 +283,7 @@ describe('Reconciliation', () => {
             expectedOperations: [
                 {
                     operation: 'deleteObjects',
-                    collection: 'list',
+                    collection: 'customList',
                     where: { id: 'list-one' },
                 },
             ],
@@ -321,7 +321,7 @@ describe('Reconciliation', () => {
     //             createdOn: 1,
     //             sharedOn: 52525252,
     //             needsIntegration: true,
-    //             collection: 'list',
+    //             collection: 'customList',
     //             pk: 'list-one',
     //             field: 'title',
     //             value: 'second',
@@ -331,7 +331,7 @@ describe('Reconciliation', () => {
     //             createdOn: 2,
     //             sharedOn: 3,
     //             needsIntegration: true,
-    //             collection: 'list',
+    //             collection: 'customList',
     //             pk: 'list-one',
     //             field: 'title',
     //             value: 'second',
@@ -348,7 +348,7 @@ describe('Reconciliation', () => {
                 createdOn: 1,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 value: { title: 'first' },
             },
@@ -359,7 +359,7 @@ describe('Reconciliation', () => {
             expectedOperations: [
                 {
                     operation: 'createObject',
-                    collection: 'list',
+                    collection: 'customList',
                     args: { id: 'list-one', title: 'first' },
                 },
             ],
@@ -373,7 +373,7 @@ describe('Reconciliation', () => {
                 createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
                 value: 'second',
@@ -383,7 +383,7 @@ describe('Reconciliation', () => {
                 createdOn: 1,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 value: { title: 'first', prio: 5 },
             },
@@ -394,7 +394,7 @@ describe('Reconciliation', () => {
             expectedOperations: [
                 {
                     operation: 'createObject',
-                    collection: 'list',
+                    collection: 'customList',
                     args: { id: 'list-one', title: 'second', prio: 5 },
                 },
             ],
@@ -408,7 +408,7 @@ describe('Reconciliation', () => {
                 createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
                 value: 'second',
@@ -418,7 +418,7 @@ describe('Reconciliation', () => {
                 createdOn: 1,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 value: { pk: 'list-one', title: 'first', prio: 5 },
             },
@@ -427,7 +427,7 @@ describe('Reconciliation', () => {
                 createdOn: 3,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
             },
         ]
@@ -444,26 +444,26 @@ describe('Reconciliation', () => {
                 createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: false,
-                collection: 'pageBookmark',
-                pk: 'bookmark-one',
-                value: { url: 'bookmark-one', time: 2 },
+                collection: 'customList',
+                pk: 'list-one',
+                value: { id: 'list-one', name: 'List one' },
             },
             deletion: {
                 operation: 'delete',
                 createdOn: 3,
                 sharedOn: 52525252,
                 needsIntegration: false,
-                collection: 'pageBookmark',
-                pk: 'bookmark-one',
+                collection: 'customList',
+                pk: 'list-one',
             },
             recreation: {
                 operation: 'create',
                 createdOn: 4,
                 sharedOn: 52525252,
                 needsIntegration: false,
-                collection: 'pageBookmark',
-                pk: 'bookmark-one',
-                value: { url: 'bookmark-one', time: 4 },
+                collection: 'customList',
+                pk: 'list-one',
+                value: { name: 'List one recreated' },
             },
         }
 
@@ -477,8 +477,8 @@ describe('Reconciliation', () => {
                 expectedOperations: [
                     {
                         operation: 'createObject',
-                        collection: 'pageBookmark',
-                        args: { url: 'bookmark-one', time: 4 },
+                        collection: 'customList',
+                        args: { id: 'list-one', name: 'List one recreated' },
                     },
                 ],
             })
@@ -494,13 +494,13 @@ describe('Reconciliation', () => {
                 expectedOperations: [
                     {
                         operation: 'deleteObjects',
-                        collection: 'pageBookmark',
-                        where: { url: 'bookmark-one' },
+                        collection: 'customList',
+                        where: { id: 'list-one' },
                     },
                     {
                         operation: 'createObject',
-                        collection: 'pageBookmark',
-                        args: { url: 'bookmark-one', time: 4 },
+                        collection: 'customList',
+                        args: { id: 'list-one', name: 'List one recreated' },
                     },
                 ],
             })
@@ -516,8 +516,8 @@ describe('Reconciliation', () => {
                 expectedOperations: [
                     {
                         operation: 'createObject',
-                        collection: 'pageBookmark',
-                        args: { url: 'bookmark-one', time: 4 },
+                        collection: 'customList',
+                        args: { id: 'list-one', name: 'List one recreated' },
                     },
                 ],
             })
@@ -536,25 +536,25 @@ describe('Reconciliation', () => {
                 createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: false,
-                collection: 'pageBookmark',
-                pk: 'bookmark-one',
+                collection: 'customList',
+                pk: 'list-one',
             },
             recreation: {
                 operation: 'create',
                 createdOn: 4,
                 sharedOn: 52525252,
                 needsIntegration: false,
-                collection: 'pageBookmark',
-                pk: 'bookmark-one',
-                value: { url: 'bookmark-one', time: 4 },
+                collection: 'customList',
+                pk: 'list-one',
+                value: { name: 'List one recreated' },
             },
             redeletion: {
                 operation: 'delete',
                 createdOn: 6,
                 sharedOn: 52525252,
                 needsIntegration: false,
-                collection: 'pageBookmark',
-                pk: 'bookmark-one',
+                collection: 'customList',
+                pk: 'list-one',
             },
         }
 
@@ -568,8 +568,8 @@ describe('Reconciliation', () => {
                 expectedOperations: [
                     {
                         operation: 'deleteObjects',
-                        collection: 'pageBookmark',
-                        where: { url: 'bookmark-one' },
+                        collection: 'customList',
+                        where: { id: 'list-one' },
                     },
                 ],
             })
@@ -596,8 +596,8 @@ describe('Reconciliation', () => {
                 expectedOperations: [
                     {
                         operation: 'deleteObjects',
-                        collection: 'pageBookmark',
-                        where: { url: 'bookmark-one' },
+                        collection: 'customList',
+                        where: { id: 'list-one' },
                     },
                 ],
             })
@@ -611,17 +611,17 @@ describe('Reconciliation', () => {
                 createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'pageBookmark',
-                pk: 'bookmark-one',
+                collection: 'customList',
+                pk: 'list-one',
             },
             {
                 operation: 'create',
                 createdOn: 3,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'pageBookmark',
-                pk: 'bookmark-one',
-                value: { url: 'bookmark-one', time: 4 },
+                collection: 'customList',
+                pk: 'list-one',
+                value: { name: 'List one' },
             },
         ]
 
@@ -630,13 +630,13 @@ describe('Reconciliation', () => {
             expectedOperations: [
                 {
                     operation: 'deleteObjects',
-                    collection: 'pageBookmark',
-                    where: { url: 'bookmark-one' },
+                    collection: 'customList',
+                    where: { id: 'list-one' },
                 },
                 {
                     operation: 'createObject',
-                    collection: 'pageBookmark',
-                    args: { url: 'bookmark-one', time: 4 },
+                    collection: 'customList',
+                    args: { id: 'list-one', name: 'List one' },
                 },
             ],
         })
@@ -649,7 +649,7 @@ describe('Reconciliation', () => {
                 createdOn: 1,
                 sharedOn: 1,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 value: { pk: 'list-one', title: 'first', prio: 5 },
             },
@@ -658,14 +658,14 @@ describe('Reconciliation', () => {
                 createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 value: { pk: 'list-one', title: 'first', prio: 5 },
             },
         ]
 
         expect(() => test({ logEntries })).toThrow(
-            `Detected double create in collection 'list', pk '"list-one"'`,
+            `Detected double create in collection 'customList', pk '"list-one"'`,
         )
     })
 
@@ -676,7 +676,7 @@ describe('Reconciliation', () => {
                 createdOn: 1,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
                 value: 'second',
@@ -686,14 +686,14 @@ describe('Reconciliation', () => {
                 createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 value: { pk: 'list-one', title: 'first', prio: 5 },
             },
         ]
 
         expect(() => test({ logEntries })).toThrow(
-            `Detected modification to collection 'list', pk '"list-one"' before it was created (likely pk collision)`,
+            `Detected modification to collection 'customList', pk '"list-one"' before it was created (likely pk collision)`,
         )
     })
 
@@ -704,7 +704,7 @@ describe('Reconciliation', () => {
                 createdOn: 2,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 value: { pk: 'list-one', title: 'first', prio: 5 },
             },
@@ -713,7 +713,7 @@ describe('Reconciliation', () => {
                 createdOn: 1,
                 sharedOn: 52525252,
                 needsIntegration: true,
-                collection: 'list',
+                collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
                 value: 'second',
@@ -721,7 +721,7 @@ describe('Reconciliation', () => {
         ]
 
         expect(() => test({ logEntries })).toThrow(
-            `Detected modification to collection 'list', pk '"list-one"' before it was created (likely pk collision)`,
+            `Detected modification to collection 'customList', pk '"list-one"' before it was created (likely pk collision)`,
         )
     })
 })
