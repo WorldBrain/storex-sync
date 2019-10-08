@@ -23,13 +23,22 @@ export interface SyncSerializer {
 
 export type SyncEvents = TypedEmitter<SyncEventMap>
 export interface SyncEventMap {
-    unsharedClientEntries: (event: { entries: ClientSyncLogEntry[] }) => void
-    sendingSharedEntries: (event: {
-        entries: Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[]
+    unsharedClientEntries: (event: {
+        entries: ClientSyncLogEntry[], deviceId: number | string
     }) => void
-    receivedSharedEntries: (event: {}) => void
-    reconcilingEntries: (event: {}) => void
-    reconciledEntries: (event: {}) => void
+    sendingSharedEntries: (event: {
+        entries: Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[],
+        deviceId: number | string
+    }) => void
+    receivedSharedEntries: (event: {
+        entries: SharedSyncLogEntry[], deviceId: number | string
+    }) => void
+    reconcilingEntries: (event: {
+        entries: ClientSyncLogEntry[], deviceId: number | string
+    }) => void
+    reconciledEntries: (event: {
+        entries: ClientSyncLogEntry[], deviceId: number | string
+    }) => void
 }
 export const SYNC_EVENTS: { [Key in keyof SyncEventMap]: {} } = {
     unsharedClientEntries: {},
@@ -63,7 +72,7 @@ export async function shareLogEntries(args: {
 
     const entries = await args.clientSyncLog.getUnsharedEntries()
     if (args.syncEvents) {
-        args.syncEvents.emit('unsharedClientEntries', { entries })
+        args.syncEvents.emit('unsharedClientEntries', { entries, deviceId: args.deviceId })
     }
 
     const processedEntries = (await Promise.all(
@@ -85,6 +94,7 @@ export async function shareLogEntries(args: {
     if (args.syncEvents) {
         args.syncEvents.emit('sendingSharedEntries', {
             entries: sharedLogEntries,
+            deviceId: args.deviceId,
         })
     }
     await args.sharedSyncLog.writeEntries(
@@ -117,6 +127,7 @@ export async function receiveLogEntries(args: {
     if (args.syncEvents) {
         args.syncEvents.emit('receivedSharedEntries', {
             entries: logUpdate.entries,
+            deviceId: args.deviceId,
         })
     }
     await args.clientSyncLog.insertReceivedEntries(
@@ -172,7 +183,10 @@ export async function doSync(options: {
         }
 
         if (options.syncEvents) {
-            options.syncEvents.emit('reconcilingEntries', { entries })
+            options.syncEvents.emit('reconcilingEntries', {
+                entries,
+                deviceId: options.deviceId,
+            })
         }
 
         const reconciliation = await options.reconciler(entries, {
@@ -183,6 +197,7 @@ export async function doSync(options: {
             options.syncEvents.emit('reconciledEntries', {
                 entries,
                 reconciliation,
+                deviceId: options.deviceId,
             })
         }
 
