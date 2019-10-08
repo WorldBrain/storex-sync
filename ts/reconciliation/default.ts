@@ -1,3 +1,4 @@
+import omit from 'lodash/omit'
 import sortBy from 'lodash/sortBy'
 import { StorageRegistry, OperationBatch } from '@worldbrain/storex'
 import {
@@ -242,7 +243,7 @@ export function _processModificationEntry({
 }) {
     const updates = {
         createdOn: logEntry.createdOn,
-        syncedOn: logEntry.sharedOn,
+        // syncedOn: logEntry.sharedOn,
         value: logEntry.value,
     }
     if (!objectModifications) {
@@ -266,6 +267,13 @@ export function _processModificationEntry({
         objectModifications[logEntry.field] = updates
     } else if (logEntry.createdOn > fieldModifications.createdOn) {
         Object.assign(fieldModifications, updates)
+    }
+
+    if (
+        objectModifications.actualState === 'present' &&
+        objectModifications.action === 'ignore'
+    ) {
+        objectModifications.action = 'update'
     }
 }
 
@@ -317,7 +325,7 @@ export function _processModifications({
         })
     } else if (objectModifications.action === 'update') {
         for (const [fieldName, fieldModification] of Object.entries(
-            objectModifications.fields,
+            omit(objectModifications.fields, Object.keys(pkFields)),
         )) {
             operations.push({
                 operation: 'updateObjects',
