@@ -27,9 +27,9 @@ type FieldModification = {
 function _throwModificationBeforeCreation(logEntry: ClientSyncLogEntry) {
     throw new Error(
         `Detected modification to collection '${logEntry.collection}', ` +
-            `pk '${JSON.stringify(
-                logEntry.pk,
-            )}' before it was created (likely pk collision)`,
+        `pk '${JSON.stringify(
+            logEntry.pk,
+        )}' before it was created (likely pk collision)`,
     )
 }
 
@@ -146,7 +146,7 @@ export function _processCreationEntry({
         if (objectModifications.action === 'create') {
             throw new Error(
                 `Detected double create in collection '${
-                    logEntry.collection
+                logEntry.collection
                 }', pk '${JSON.stringify(logEntry.pk)}'`,
             )
         }
@@ -325,8 +325,12 @@ export function _processModifications({
         })
     } else if (objectModifications.action === 'update') {
         for (const [fieldName, fieldModification] of Object.entries(
-            omit(objectModifications.fields, Object.keys(pkFields)),
+            objectModifications.fields
         )) {
+            if (Object.keys(pkFields).includes(fieldName)) {
+                continue
+            }
+
             operations.push({
                 operation: 'updateObjects',
                 collection,

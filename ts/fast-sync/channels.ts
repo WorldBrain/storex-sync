@@ -78,7 +78,7 @@ export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
 }
 
 export class WebRTCFastSyncSenderChannel implements FastSyncSenderChannel {
-    constructor(private options: { peer: SimplePeer.Instance }) {}
+    constructor(private options: { peer: SimplePeer.Instance }) { }
 
     async sendSyncInfo(info: FastSyncInfo) {
         const syncPackage: WebRTCSyncPackage = { type: 'sync-info', info }
@@ -124,10 +124,10 @@ export function createMemoryChannel() {
     let sendBatchPromise = resolvablePromise<FastSyncBatch | null>()
 
     // resolves when data has been received, and replaced right after
-    let recvBatchPromise = resolvablePromise<void>()
+    let recvBatchPromise = resolvablePromise()
 
     let sendSyncInfoPromise = resolvablePromise<FastSyncInfo>()
-    let recvSyncInfoPromise = resolvablePromise<void>()
+    let recvSyncInfoPromise = resolvablePromise()
 
     const senderChannel: FastSyncSenderChannel = {
         sendSyncInfo: async (syncInfo: FastSyncInfo) => {
@@ -146,10 +146,10 @@ export function createMemoryChannel() {
             // console.log('senderChannel.finish()')
             sendBatchPromise.resolve(null)
         },
-        destroy: async () => {},
+        destroy: async () => { },
     }
     const receiverChannel: FastSyncReceiverChannel = {
-        streamObjectBatches: async function*(): AsyncIterableIterator<{
+        streamObjectBatches: async function* (): AsyncIterableIterator<{
             collection: string
             objects: any[]
         }> {
@@ -162,20 +162,20 @@ export function createMemoryChannel() {
                 }
                 sendBatchPromise = resolvablePromise<FastSyncBatch | null>()
                 yield batch
-                recvBatchPromise.resolve()
-                recvBatchPromise = resolvablePromise<void>()
+                recvBatchPromise.resolve(null)
+                recvBatchPromise = resolvablePromise()
                 // console.log('stream: end iter')
             }
             // console.log('stream: end')
         },
-        receiveSyncInfo: async function() {
+        receiveSyncInfo: async function () {
             const info = await sendSyncInfoPromise.promise
             sendSyncInfoPromise = resolvablePromise<FastSyncInfo>()
-            recvSyncInfoPromise.resolve()
-            recvSyncInfoPromise = resolvablePromise<void>()
+            recvSyncInfoPromise.resolve(null)
+            recvSyncInfoPromise = resolvablePromise()
             return info
         },
-        destroy: async () => {},
+        destroy: async () => { },
     }
 
     return {
