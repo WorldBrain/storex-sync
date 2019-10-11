@@ -38,6 +38,7 @@ export interface SyncEventMap {
     }) => void
     reconciledEntries: (event: {
         entries: ClientSyncLogEntry[], deviceId: number | string
+        reconciliation: any[]
     }) => void
 }
 export const SYNC_EVENTS: { [Key in keyof SyncEventMap]: {} } = {
@@ -153,7 +154,7 @@ export async function writeReconcilation(args: {
 }) {
     await args.storageManager.backend.operation(
         'executeBatch',
-        args.reconciliation.map(step => ({
+        args.reconciliation.map((step: any) => ({
             ...step,
             placeholder: '',
         })),
