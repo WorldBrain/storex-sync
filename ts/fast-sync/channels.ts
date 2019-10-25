@@ -13,6 +13,7 @@ type WebRTCSyncPackage =
     | { type: 'confirm' }
     | { type: 'sync-info'; info: FastSyncInfo }
     | { type: 'finish' }
+    | { type: 'user-package' }
 
 export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
     private dataReceived = resolvablePromise<string>()
@@ -25,6 +26,10 @@ export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
             this.dataReceived.resolve(data.toString())
         }
         this.options.peer.on('data', this.dataHandler)
+    }
+
+    async receiveUserPackage(): Promise<any> {
+
     }
 
     async *streamObjectBatches(): AsyncIterableIterator<{
@@ -80,19 +85,20 @@ export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
 export class WebRTCFastSyncSenderChannel implements FastSyncSenderChannel {
     constructor(private options: { peer: SimplePeer.Instance }) { }
 
+    async sendUserPackage(jsonSerializable: any): Promise<void> {
+
+    }
+
     async sendSyncInfo(info: FastSyncInfo) {
-        const syncPackage: WebRTCSyncPackage = { type: 'sync-info', info }
-        await this._sendPackage(syncPackage)
+        await this._sendPackage({ type: 'sync-info', info })
     }
 
     async sendObjectBatch(batch: FastSyncBatch) {
-        const syncPackage: WebRTCSyncPackage = { type: 'batch', batch }
-        await this._sendPackage(syncPackage)
+        await this._sendPackage({ type: 'batch', batch })
     }
 
     async finish() {
-        const syncPackage: WebRTCSyncPackage = { type: 'finish' }
-        await this._sendPackage(syncPackage)
+        await this._sendPackage({ type: 'finish' })
     }
 
     async destroy() {
@@ -130,6 +136,9 @@ export function createMemoryChannel() {
     let recvSyncInfoPromise = resolvablePromise()
 
     const senderChannel: FastSyncSenderChannel = {
+        async sendUserPackage(jsonSerializable: any): Promise<void> {
+
+        },
         sendSyncInfo: async (syncInfo: FastSyncInfo) => {
             // transmitPromise = resolvablePromise()
             // sendPromise.resolve()
@@ -149,6 +158,9 @@ export function createMemoryChannel() {
         destroy: async () => { },
     }
     const receiverChannel: FastSyncReceiverChannel = {
+        async receiveUserPackage(): Promise<any> {
+
+        },
         streamObjectBatches: async function* (): AsyncIterableIterator<{
             collection: string
             objects: any[]
