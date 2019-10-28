@@ -8,14 +8,15 @@ import {
 } from './types'
 import { ResolvablePromise, resolvablePromise } from './utils'
 
-type WebRTCSyncPackage =
+type WebRTCSyncPackage<UserPackageType = any> =
     | { type: 'batch'; batch: any }
     | { type: 'confirm' }
     | { type: 'sync-info'; info: FastSyncInfo }
     | { type: 'finish' }
-    | { type: 'user-package' }
+    | { type: 'user-package'; package: UserPackageType }
 
-export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
+export class WebRTCFastSyncReceiverChannel<UserPackageType>
+    implements FastSyncReceiverChannel {
     private dataReceived = resolvablePromise<string>()
     private dataHandler: (data: any) => void
 
@@ -28,8 +29,15 @@ export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
         this.options.peer.on('data', this.dataHandler)
     }
 
-    async receiveUserPackage(): Promise<any> {
-
+    async receiveUserPackage(): Promise<UserPackageType> {
+        const userPackage = await this._receivePackage()
+        if (userPackage.type === 'user-package') {
+            return userPackage.package
+        } else {
+            throw new Error(
+                `Expected user package in fast sync WebRTC channel, but got package type ${userPackage.type}`,
+            )
+        }
     }
 
     async *streamObjectBatches(): AsyncIterableIterator<{
@@ -83,10 +91,13 @@ export class WebRTCFastSyncReceiverChannel implements FastSyncReceiverChannel {
 }
 
 export class WebRTCFastSyncSenderChannel implements FastSyncSenderChannel {
-    constructor(private options: { peer: SimplePeer.Instance }) { }
+    constructor(private options: { peer: SimplePeer.Instance }) {}
 
     async sendUserPackage(jsonSerializable: any): Promise<void> {
-
+        await this._sendPackage({
+            type: 'user-package',
+            package: jsonSerializable,
+        })
     }
 
     async sendSyncInfo(info: FastSyncInfo) {
@@ -123,71 +134,82 @@ export class WebRTCFastSyncSenderChannel implements FastSyncSenderChannel {
 }
 
 export function createMemoryChannel() {
-    // let transmitPromise! : ResolvablePromise<void>
-    // let sendPromise = resolvablePromise<void>()
+    let sendPackagePromise = resolvablePromise<WebRTCSyncPackage>()
+    let receivePackagePromise = resolvablePromise()
 
-    // resolves when data has been sent, and replaced before yielding data to receivcer
-    let sendBatchPromise = resolvablePromise<FastSyncBatch | null>()
-
-    // resolves when data has been received, and replaced right after
-    let recvBatchPromise = resolvablePromise()
-
-    let sendSyncInfoPromise = resolvablePromise<FastSyncInfo>()
-    let recvSyncInfoPromise = resolvablePromise()
+    const sendPackage = async (syncPackage: WebRTCSyncPackage) => {
+        sendPackagePromise.resolve(syncPackage)
+        await receivePackagePromise.promise
+    }
+    const receivePackage = async (): Promise<WebRTCSyncPackage> => {
+        const syncPackage = await sendPackagePromise.promise
+        sendPackagePromise = resolvablePromise<WebRTCSyncPackage>()
+        receivePackagePromise.resolve(null)
+        receivePackagePromise = resolvablePromise()
+        return syncPackage
+    }
 
     const senderChannel: FastSyncSenderChannel = {
         async sendUserPackage(jsonSerializable: any): Promise<void> {
-
+            await sendPackage({
+                type: 'user-package',
+                package: jsonSerializable,
+            })
         },
-        sendSyncInfo: async (syncInfo: FastSyncInfo) => {
-            // transmitPromise = resolvablePromise()
-            // sendPromise.resolve()
-            // await transmitPromise.promise
-            // sendPromise = resolvablePromise<void>()
-            sendSyncInfoPromise.resolve(syncInfo)
-            await recvSyncInfoPromise.promise
+        sendSyncInfo: async (info: FastSyncInfo) => {
+            await sendPackage({ type: 'sync-info', info })
         },
         sendObjectBatch: async (batch: FastSyncBatch) => {
-            sendBatchPromise.resolve(batch)
-            await recvBatchPromise.promise
+            await sendPackage({ type: 'batch', batch })
         },
         finish: async () => {
             // console.log('senderChannel.finish()')
-            sendBatchPromise.resolve(null)
+            await sendPackage({ type: 'finish' })
         },
-        destroy: async () => { },
+        destroy: async () => {},
     }
     const receiverChannel: FastSyncReceiverChannel = {
         async receiveUserPackage(): Promise<any> {
-
+            const userPackage = await receivePackage()
+            if (userPackage.type === 'user-package') {
+                return userPackage.package
+            } else {
+                throw new Error(
+                    `Expected user package in fast sync in-memory channel, but got package type ${userPackage.type}`,
+                )
+            }
         },
-        streamObjectBatches: async function* (): AsyncIterableIterator<{
+        streamObjectBatches: async function*(): AsyncIterableIterator<{
             collection: string
             objects: any[]
         }> {
             // console.log('stream: start')
             while (true) {
                 // console.log('stream: start iter')
-                const batch = await sendBatchPromise.promise
-                if (!batch) {
+                const syncPackage = await receivePackage()
+                if (syncPackage.type === 'finish') {
                     break
                 }
-                sendBatchPromise = resolvablePromise<FastSyncBatch | null>()
-                yield batch
-                recvBatchPromise.resolve(null)
-                recvBatchPromise = resolvablePromise()
+                if (syncPackage.type !== 'batch') {
+                    throw new Error(
+                        `Expected batch package in fast sync in-memory channel, but got package type ${syncPackage.type}`,
+                    )
+                }
+                yield syncPackage.batch
                 // console.log('stream: end iter')
             }
             // console.log('stream: end')
         },
-        receiveSyncInfo: async function () {
-            const info = await sendSyncInfoPromise.promise
-            sendSyncInfoPromise = resolvablePromise<FastSyncInfo>()
-            recvSyncInfoPromise.resolve(null)
-            recvSyncInfoPromise = resolvablePromise()
-            return info
+        receiveSyncInfo: async function() {
+            const syncPackage = await receivePackage()
+            if (syncPackage.type !== 'sync-info') {
+                throw new Error(
+                    `Expected sync info package in fast sync in-memory channel, but got package type ${syncPackage.type}`,
+                )
+            }
+            return syncPackage.info
         },
-        destroy: async () => { },
+        destroy: async () => {},
     }
 
     return {

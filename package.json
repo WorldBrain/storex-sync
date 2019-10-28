@@ -28,6 +28,7 @@
     ],
     "author": "Vincent den Boer",
     "dependencies": {
+        "eventemitter2": "^5.0.1",
         "immutability-helper": "^3.0.0",
         "json-date-parser": "^1.0.1",
         "lodash": "^4.17.10",
@@ -64,20 +65,22 @@
         "prettier": "^1.18.2",
         "pretty-quick": "^1.11.1",
         "simple-peer": "^9.4.0",
-        "simple-signalling": "^0.2.0",
+        "simple-signalling": "^0.3.0",
         "sinon": "^4.1.2",
         "supertest": "^4.0.2",
         "tmp": "^0.1.0",
         "ts-node": "^7.0.1",
         "typed-emitter": "^0.1.0",
-        "typescript": "^3.0.1",
+        "typedoc": "^0.15.0",
+        "typescript": "^3.6.0",
         "wrtc": "^0.4.1"
     },
     "peerDependencies": {
         "@worldbrain/storex": "^0.3.6",
         "@worldbrain/storex-graphql-schema": "^0.1.0",
         "@worldbrain/storex-pattern-modules": "^0.3.0",
-        "simple-peer": "^9.4.0"
+        "simple-peer": "^9.4.0",
+        "simple-signalling": "^0.3.0"
     },
     "resolutions": {
         "**/graphql": "^14.0.0"

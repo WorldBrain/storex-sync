@@ -197,6 +197,17 @@ describe('Fast initial sync', () => {
 
         it('should work with a very minimal test', async (options: TestOptions) => {
             const setup = await setupMinimalTest(options)
+
+            const receivedMessagePromise = setup.channels.receiverChannel.receiveUserPackage()
+            await setup.channels.senderChannel.sendUserPackage({
+                type: 'secret-key',
+                key: '5555',
+            })
+            expect(await receivedMessagePromise).toEqual({
+                type: 'secret-key',
+                key: '5555',
+            })
+
             await setup.sync()
 
             const expectedSyncInfo = {
