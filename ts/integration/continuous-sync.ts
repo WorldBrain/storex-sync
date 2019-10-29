@@ -1,4 +1,3 @@
-import { Browser } from 'webextension-polyfill-ts'
 import StorageManager from '@worldbrain/storex'
 import { SharedSyncLog } from '@worldbrain/storex-sync/lib/shared-sync-log'
 import { reconcileSyncLog } from '@worldbrain/storex-sync/lib/reconciliation'
@@ -9,25 +8,14 @@ import {
 } from '@worldbrain/storex-sync'
 import { ClientSyncLogStorage } from '@worldbrain/storex-sync/lib/client-sync-log'
 import { RecurringTask } from '../utils/recurring-task'
-
-export interface ContinuousSyncSettingsStore {
-    retrieveSetting(
-        key: ContinuousSyncSetting
-    ): Promise<ContinuousSyncSettingValue>
-    storeSetting(
-        key: ContinuousSyncSetting,
-        value: ContinuousSyncSettingValue,
-    ): Promise<void>
-}
-export type ContinuousSyncSetting = 'continuousSyncEnabled' | 'deviceId'
-export type ContinuousSyncSettingValue = boolean | number | string | null
+import { SyncSettingsStore } from './settings'
 
 export interface ContinuousSyncDependencies {
     auth: { getUserId(): Promise<number | string | null> }
     storageManager: StorageManager
     clientSyncLog: ClientSyncLogStorage
     getSharedSyncLog: () => Promise<SharedSyncLog>
-    settingStore: ContinuousSyncSettingsStore
+    settingStore: SyncSettingsStore
     frequencyInMs?: number
     toggleSyncLogging: (enabled: boolean) => void
 }
@@ -35,7 +23,6 @@ export class ContinuousSync {
     public recurringIncrementalSyncTask?: RecurringTask
     public deviceId?: number | string
     public enabled = false
-    public useEncryption = true
 
     constructor(
         private dependencies: ContinuousSyncDependencies,
