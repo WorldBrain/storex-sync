@@ -61,9 +61,7 @@ export class InitialSync {
         protected dependencies: InitialSyncDependencies,
     ) { }
 
-    async requestInitialSync(options?: {
-        excludePassiveData?: boolean
-    }): Promise<{ initialMessage: string }> {
+    async requestInitialSync(): Promise<{ initialMessage: string }> {
         const role = 'sender'
         const {
             signalTransport,
@@ -74,7 +72,6 @@ export class InitialSync {
             signalTransport,
             initialMessage,
             deviceId: 'first',
-            ...(options || {}),
         })
 
         return { initialMessage }
