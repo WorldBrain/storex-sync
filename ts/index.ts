@@ -183,13 +183,6 @@ export async function doSync(options: {
             break
         }
 
-        if (options.syncEvents) {
-            options.syncEvents.emit('reconcilingEntries', {
-                entries,
-                deviceId: options.deviceId,
-            })
-        }
-
         const reconciliation = await options.reconciler(entries, {
             storageRegistry: options.storageManager.registry,
         })

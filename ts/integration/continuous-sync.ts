@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events';
 import StorageManager from '@worldbrain/storex'
 import { SharedSyncLog } from '@worldbrain/storex-sync/lib/shared-sync-log'
 import { reconcileSyncLog } from '@worldbrain/storex-sync/lib/reconciliation'
@@ -5,6 +6,7 @@ import {
     doSync,
     SyncPreSendProcessor,
     SyncSerializer,
+    SyncEvents
 } from '@worldbrain/storex-sync'
 import { ClientSyncLogStorage } from '@worldbrain/storex-sync/lib/client-sync-log'
 import { RecurringTask } from '../utils/recurring-task'
@@ -48,7 +50,7 @@ export class ContinuousSync {
     setupRecurringTask() {
         if (this.dependencies.frequencyInMs) {
             this.recurringIncrementalSyncTask = new RecurringTask(
-                () => this.maybeDoIncrementalSync(),
+                (options?: { debug: boolean }) => this.maybeDoIncrementalSync(options),
                 {
                     intervalInMs: this.dependencies.frequencyInMs,
                     onError: () => { },
@@ -58,6 +60,11 @@ export class ContinuousSync {
     }
 
     async initDevice() {
+        const userId = await this.dependencies.auth.getUserId()
+        if (!userId) {
+            throw new Error(`Cannot generate Sync device ID without being logged in`)
+        }
+
         const existingDeviceId = await this.dependencies.settingStore.retrieveSetting('deviceId')
         if (existingDeviceId) {
             return
@@ -65,7 +72,7 @@ export class ContinuousSync {
 
         const sharedSyncLog = await this.dependencies.getSharedSyncLog()
         const newDeviceId = await sharedSyncLog.createDeviceId({
-            userId: await this.dependencies.auth.getUserId(),
+            userId,
             sharedUntil: 1,
         })
         await this.dependencies.settingStore.storeSetting('deviceId', newDeviceId)
@@ -83,28 +90,41 @@ export class ContinuousSync {
         this.setupRecurringTask()
     }
 
-    async forceIncrementalSync() {
+    async forceIncrementalSync(options?: { debug?: boolean }) {
         if (this.enabled) {
             if (this.recurringIncrementalSyncTask) {
                 await this.recurringIncrementalSyncTask.forceRun()
             } else {
-                this.doIncrementalSync()
+                await this.doIncrementalSync(options)
             }
         }
     }
 
-    async maybeDoIncrementalSync() {
+    async maybeDoIncrementalSync(options?: { debug?: boolean }) {
         if (this.enabled) {
-            await this.doIncrementalSync()
+            await this.doIncrementalSync(options)
         }
     }
 
-    private async doIncrementalSync() {
+    private async doIncrementalSync(options?: { debug?: boolean }) {
         const { auth } = this.dependencies
         const userId = await auth.getUserId()
         if (!userId) {
             throw new Error(`Cannot Sync without authenticated user`)
         }
+        if (!this.deviceId) {
+            throw new Error(`Cannot Sync without device ID`)
+        }
+
+        let syncEvents: SyncEvents | undefined
+        if (options && options.debug) {
+            syncEvents = new EventEmitter() as SyncEvents
+            syncEvents.emit = ((name: string, event: any) => {
+                console.log(`SYNC EVENT '${name}':`, event)
+                return true
+            }) as any
+        }
+
         await doSync({
             clientSyncLog: this.dependencies.clientSyncLog,
             sharedSyncLog: await this.dependencies.getSharedSyncLog(),
@@ -115,6 +135,7 @@ export class ContinuousSync {
             deviceId: this.deviceId,
             serializer: this.getSerializer() || undefined,
             preSend: this.getPreSendProcessor() || undefined,
+            syncEvents,
         })
     }
 
