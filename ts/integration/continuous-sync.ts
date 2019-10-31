@@ -1,14 +1,9 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'events'
 import StorageManager from '@worldbrain/storex'
-import { SharedSyncLog } from '@worldbrain/storex-sync/lib/shared-sync-log'
-import { reconcileSyncLog } from '@worldbrain/storex-sync/lib/reconciliation'
-import {
-    doSync,
-    SyncPreSendProcessor,
-    SyncSerializer,
-    SyncEvents
-} from '@worldbrain/storex-sync'
-import { ClientSyncLogStorage } from '@worldbrain/storex-sync/lib/client-sync-log'
+import { SharedSyncLog } from '../shared-sync-log'
+import { reconcileSyncLog } from '../reconciliation'
+import { doSync, SyncPreSendProcessor, SyncSerializer, SyncEvents } from '../'
+import { ClientSyncLogStorage } from '../client-sync-log'
 import { RecurringTask } from '../utils/recurring-task'
 import { SyncSettingsStore } from './settings'
 
@@ -19,25 +14,27 @@ export interface ContinuousSyncDependencies {
     getSharedSyncLog: () => Promise<SharedSyncLog>
     settingStore: SyncSettingsStore
     frequencyInMs?: number
-    toggleSyncLogging: (enabled: boolean) => void
+    toggleSyncLogging: ((enabled: true, deviceId: string | number) => void) &
+        ((enabled: false) => void)
 }
 export class ContinuousSync {
     public recurringIncrementalSyncTask?: RecurringTask
     public deviceId?: number | string
     public enabled = false
 
-    constructor(
-        private dependencies: ContinuousSyncDependencies,
-    ) {
-    }
+    constructor(private dependencies: ContinuousSyncDependencies) {}
 
     async setup() {
-        const enabled = await this.dependencies.settingStore.retrieveSetting('continuousSyncEnabled')
+        const enabled = await this.dependencies.settingStore.retrieveSetting(
+            'continuousSyncEnabled',
+        )
         if (!enabled) {
             return
         }
 
-        this.deviceId = (await this.dependencies.settingStore.retrieveSetting('deviceId')) as string | number
+        this.deviceId = (await this.dependencies.settingStore.retrieveSetting(
+            'deviceId',
+        )) as string | number
         this.setupContinuousSync()
     }
 
@@ -50,10 +47,11 @@ export class ContinuousSync {
     setupRecurringTask() {
         if (this.dependencies.frequencyInMs) {
             this.recurringIncrementalSyncTask = new RecurringTask(
-                (options?: { debug: boolean }) => this.maybeDoIncrementalSync(options),
+                (options?: { debug: boolean }) =>
+                    this.maybeDoIncrementalSync(options),
                 {
                     intervalInMs: this.dependencies.frequencyInMs,
-                    onError: () => { },
+                    onError: () => {},
                 },
             )
         }
@@ -62,10 +60,14 @@ export class ContinuousSync {
     async initDevice() {
         const userId = await this.dependencies.auth.getUserId()
         if (!userId) {
-            throw new Error(`Cannot generate Sync device ID without being logged in`)
+            throw new Error(
+                `Cannot generate Sync device ID without being logged in`,
+            )
         }
 
-        const existingDeviceId = await this.dependencies.settingStore.retrieveSetting('deviceId')
+        const existingDeviceId = await this.dependencies.settingStore.retrieveSetting(
+            'deviceId',
+        )
         if (existingDeviceId) {
             return
         }
@@ -75,17 +77,27 @@ export class ContinuousSync {
             userId,
             sharedUntil: 1,
         })
-        await this.dependencies.settingStore.storeSetting('deviceId', newDeviceId)
+        await this.dependencies.settingStore.storeSetting(
+            'deviceId',
+            newDeviceId,
+        )
         this.deviceId = newDeviceId
     }
 
     async enableContinuousSync() {
-        await this.dependencies.settingStore.storeSetting('continuousSyncEnabled', true)
+        await this.dependencies.settingStore.storeSetting(
+            'continuousSyncEnabled',
+            true,
+        )
         await this.setupContinuousSync()
     }
 
     async setupContinuousSync() {
-        this.dependencies.toggleSyncLogging(true)
+        if (!this.deviceId) {
+            throw new Error(`Cannot set up continuous Sync without device id`)
+        }
+
+        this.dependencies.toggleSyncLogging(true, this.deviceId)
         this.enabled = true
         this.setupRecurringTask()
     }
@@ -139,11 +151,7 @@ export class ContinuousSync {
         })
     }
 
-    getPreSendProcessor(): SyncPreSendProcessor | void {
+    getPreSendProcessor(): SyncPreSendProcessor | void {}
 
-    }
-
-    getSerializer(): SyncSerializer | void {
-
-    }
+    getSerializer(): SyncSerializer | void {}
 }
