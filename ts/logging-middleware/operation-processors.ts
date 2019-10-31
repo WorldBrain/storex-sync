@@ -16,6 +16,7 @@ export interface Next {
 export type GetNow = () => number | '$now' | '$now'
 export interface OperationProcessorArgs {
     next: Next
+    deviceId: string | number
     operation: any[]
     executeAndLog: ExecuteAndLog
     getNow: GetNow
@@ -36,20 +37,15 @@ export const DEFAULT_OPERATION_PROCESSORS: OperationProcessorMap = {
 /**
  * Creates
  */
-async function _processCreateObject({
-    next,
-    operation,
-    executeAndLog,
-    getNow,
-    includeCollections,
-    storageRegistry,
-}: OperationProcessorArgs) {
+async function _processCreateObject(args: OperationProcessorArgs) {
+    const { operation } = args
+
     const [collection, value] = operation.slice(1)
-    if (!includeCollections.has(collection)) {
-        return next.process({ operation })
+    if (!args.includeCollections.has(collection)) {
+        return args.next.process({ operation })
     }
 
-    const result = await executeAndLog(
+    const result = await args.executeAndLog(
         {
             placeholder: 'object',
             operation: 'createObject',
@@ -58,10 +54,9 @@ async function _processCreateObject({
         },
         [
             _logEntryForCreateObject({
+                ...args,
                 collection,
                 value,
-                getNow,
-                storageRegistry,
             }) as ClientSyncLogEntry,
         ],
     )
@@ -69,20 +64,19 @@ async function _processCreateObject({
     return { object }
 }
 
-function _logEntryForCreateObject({
-    collection,
-    value,
-    getNow,
-    storageRegistry,
-}: {
+function _logEntryForCreateObject(args: {
     collection: string
+    deviceId: number | string
     value: any
     getNow: GetNow
     storageRegistry: StorageRegistry
 }): ClientSyncLogEntry {
+    const { value, collection, storageRegistry } = args
+
     return {
-        collection,
-        createdOn: getNow(),
+        collection: args.collection,
+        createdOn: args.getNow(),
+        deviceId: args.deviceId,
         needsIntegration: false,
         sharedOn: null,
         operation: 'create',
@@ -94,25 +88,20 @@ function _logEntryForCreateObject({
 /**
  * Updates
  */
-async function _processUpdateObject({
-    next,
-    operation,
-    executeAndLog,
-    getNow,
-    includeCollections,
-    storageRegistry,
-}: OperationProcessorArgs) {
+async function _processUpdateObject(args: OperationProcessorArgs) {
+    const { operation } = args
+
     const [collection, where, updates] = operation.slice(1)
-    if (!includeCollections.has(collection)) {
-        return next.process({ operation })
+    if (!args.includeCollections.has(collection)) {
+        return args.next.process({ operation })
     }
 
-    const pk = getObjectPk(where, collection, storageRegistry)
+    const pk = getObjectPk(where, collection, args.storageRegistry)
     const logEntries: ClientSyncLogEntry[] = []
     for (const [fieldName, newValue] of Object.entries(updates)) {
         logEntries.push(
             _updateOperationToLogEntry({
-                getNow,
+                ...args,
                 collection,
                 pk,
                 fieldName,
@@ -120,7 +109,7 @@ async function _processUpdateObject({
             }),
         )
     }
-    await executeAndLog(
+    await args.executeAndLog(
         {
             placeholder: 'object',
             operation: 'updateObjects',
@@ -132,24 +121,19 @@ async function _processUpdateObject({
     )
 }
 
-async function _processUpdateObjects({
-    next,
-    operation,
-    executeAndLog,
-    getNow,
-    includeCollections,
-    storageRegistry,
-}: OperationProcessorArgs) {
+async function _processUpdateObjects(args: OperationProcessorArgs) {
+    const { operation } = args
+
     const [collection, where, updates] = operation.slice(1)
-    if (!includeCollections.has(collection)) {
-        return next.process({ operation })
+    if (!args.includeCollections.has(collection)) {
+        return args.next.process({ operation })
     }
 
     const logEntries: ClientSyncLogModificationEntry[] = await _updateOperationQueryToLogEntry(
-        { next, collection, where, updates, getNow, storageRegistry },
+        { collection, where, updates, ...args },
     )
 
-    await executeAndLog(
+    await args.executeAndLog(
         {
             placeholder: 'update',
             operation: 'updateObjects',
@@ -161,33 +145,28 @@ async function _processUpdateObjects({
     )
 }
 
-async function _updateOperationQueryToLogEntry({
-    next,
-    collection,
-    where,
-    updates,
-    getNow,
-    storageRegistry,
-}: {
+async function _updateOperationQueryToLogEntry(args: {
     next: Next
     collection: string
+    deviceId: string | number
     where: any
     updates: any
     getNow: GetNow
     storageRegistry: StorageRegistry
 }): Promise<ClientSyncLogModificationEntry[]> {
+    const { next, collection } = args
+
     const affectedObjects = await next.process({
-        operation: ['findObjects', collection, where],
+        operation: ['findObjects', collection, args.where],
     })
 
     const logEntries: ClientSyncLogModificationEntry[] = []
     for (const object of affectedObjects) {
-        const pk = getObjectPk(object, collection, storageRegistry)
-        for (const [fieldName, newValue] of Object.entries(updates)) {
+        const pk = getObjectPk(object, collection, args.storageRegistry)
+        for (const [fieldName, newValue] of Object.entries(args.updates)) {
             logEntries.push(
                 _updateOperationToLogEntry({
-                    getNow,
-                    collection,
+                    ...args,
                     pk,
                     fieldName,
                     newValue,
@@ -199,28 +178,24 @@ async function _updateOperationQueryToLogEntry({
     return logEntries
 }
 
-function _updateOperationToLogEntry({
-    getNow,
-    collection,
-    pk,
-    fieldName,
-    newValue,
-}: {
+function _updateOperationToLogEntry(args: {
     getNow: GetNow
+    deviceId: number | string
     collection: string
     pk: any
     fieldName: any
     newValue: any
 }): ClientSyncLogModificationEntry {
     return {
-        createdOn: getNow(),
+        createdOn: args.getNow(),
         sharedOn: null,
+        deviceId: args.deviceId,
         needsIntegration: false,
-        collection,
+        collection: args.collection,
         operation: 'modify',
-        pk: pk,
-        field: fieldName,
-        value: newValue,
+        pk: args.pk,
+        field: args.fieldName,
+        value: args.newValue,
     } as ClientSyncLogModificationEntry
 }
 
@@ -229,6 +204,7 @@ function _updateOperationToLogEntry({
  */
 async function _processDeleteObject({
     next,
+    deviceId,
     operation,
     executeAndLog,
     getNow,
@@ -243,7 +219,7 @@ async function _processDeleteObject({
     const pk = getObjectPk(where, collection, storageRegistry)
 
     const logEntries: ClientSyncLogEntry[] = [
-        _deleteOperationToLogEntry(getNow, collection, pk),
+        _deleteOperationToLogEntry({ getNow, deviceId, collection, pk }),
     ]
 
     await executeAndLog(
@@ -259,6 +235,7 @@ async function _processDeleteObject({
 
 async function _processDeleteObjects({
     next,
+    deviceId,
     operation,
     executeAndLog,
     getNow,
@@ -271,7 +248,7 @@ async function _processDeleteObjects({
     }
 
     const logEntries: ClientSyncLogEntry[] = await _deleteOperationQueryToLogEntry(
-        { next, getNow, collection, where, storageRegistry },
+        { next, deviceId, getNow, collection, where, storageRegistry },
     )
 
     await executeAndLog(
@@ -285,44 +262,43 @@ async function _processDeleteObjects({
     )
 }
 
-async function _deleteOperationQueryToLogEntry({
-    next,
-    getNow,
-    collection,
-    where,
-    storageRegistry,
-}: {
-    next: any
+async function _deleteOperationQueryToLogEntry(args: {
+    next: Next
+    deviceId: string | number
     getNow: GetNow
     collection: string
     where: any
     storageRegistry: StorageRegistry
 }): Promise<ClientSyncLogDeletionEntry[]> {
-    const affectedObjects = await next.process({
-        operation: ['findObjects', collection, where],
+    const { collection } = args
+
+    const affectedObjects = await args.next.process({
+        operation: ['findObjects', collection, args.where],
     })
 
     return affectedObjects.map((object: any) =>
-        _deleteOperationToLogEntry(
-            getNow,
+        _deleteOperationToLogEntry({
+            ...args,
             collection,
-            getObjectPk(object, collection, storageRegistry),
-        ),
+            pk: getObjectPk(object, collection, args.storageRegistry),
+        }),
     )
 }
 
-function _deleteOperationToLogEntry(
-    getNow: any,
-    collection: string,
-    pk: any,
-): ClientSyncLogDeletionEntry {
+function _deleteOperationToLogEntry(args: {
+    getNow: any
+    collection: string
+    pk: any
+    deviceId: string | number
+}): ClientSyncLogDeletionEntry {
     return {
-        createdOn: getNow(),
+        createdOn: args.getNow(),
         sharedOn: null,
+        deviceId: args.deviceId,
         needsIntegration: false,
-        collection,
+        collection: args.collection,
         operation: 'delete',
-        pk: pk,
+        pk: args.pk,
     }
 }
 
@@ -331,6 +307,7 @@ function _deleteOperationToLogEntry(
  */
 async function _processExecuteBatch({
     next,
+    deviceId,
     operation,
     executeAndLog,
     getNow,
@@ -348,6 +325,7 @@ async function _processExecuteBatch({
             logEntries.push(
                 _logEntryForCreateObject({
                     collection: step.collection,
+                    deviceId,
                     value: step.args,
                     getNow,
                     storageRegistry,
@@ -356,6 +334,7 @@ async function _processExecuteBatch({
         } else if (step.operation === 'updateObjects') {
             const logs = await _updateOperationQueryToLogEntry({
                 next,
+                deviceId,
                 collection: step.collection,
                 where: step.where,
                 updates: step.updates,
@@ -366,6 +345,7 @@ async function _processExecuteBatch({
         } else if (step.operation === 'deleteObjects') {
             const logs = await _deleteOperationQueryToLogEntry({
                 next,
+                deviceId,
                 getNow,
                 collection: step.collection,
                 where: step.where,

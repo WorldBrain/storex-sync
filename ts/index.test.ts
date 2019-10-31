@@ -131,7 +131,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
         storageManager.setMiddleware([pkMiddleware, syncLoggingMiddleware])
 
         const deviceId: number | string = null as any
-        return { storageManager, modules, deviceId, objects: {} }
+        return {
+            storageManager,
+            syncLoggingMiddleware,
+            modules,
+            deviceId,
+            objects: {},
+        }
     }
 
     async function setupTest(options: {
@@ -175,6 +181,8 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 userId,
                 sharedUntil: null,
             })
+            clients[name].syncLoggingMiddleware.deviceId =
+                clients[name].deviceId
         }
 
         return { backend, clients, userId }
@@ -318,6 +326,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             ).toEqual([
                 (expect as any).objectContaining({
                     id: (expect as any).anything(),
+                    deviceId: 1,
                     createdOn: 2,
                     needsIntegration: false,
                     collection: 'user',
@@ -327,6 +336,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 }),
                 {
                     id: (expect as any).anything(),
+                    deviceId: 2,
                     createdOn: 5,
                     sharedOn: 60,
                     needsIntegration: true,
@@ -337,6 +347,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 },
                 {
                     id: (expect as any).anything(),
+                    deviceId: 2,
                     createdOn: 7,
                     sharedOn: 60,
                     needsIntegration: true,

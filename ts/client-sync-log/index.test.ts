@@ -9,6 +9,7 @@ import { TypeORMStorageBackend } from '@worldbrain/storex-backend-typeorm'
 
 const TEST_LOG_ENTRIES: ClientSyncLogEntry[] = [
     {
+        deviceId: 'device-one',
         createdOn: 2,
         sharedOn: null,
         needsIntegration: false,
@@ -18,6 +19,7 @@ const TEST_LOG_ENTRIES: ClientSyncLogEntry[] = [
         value: { displayName: 'Joe' },
     },
     {
+        deviceId: 'device-one',
         createdOn: 3,
         sharedOn: null,
         needsIntegration: false,
@@ -27,6 +29,7 @@ const TEST_LOG_ENTRIES: ClientSyncLogEntry[] = [
         value: { displayName: 'Joe' },
     },
     {
+        deviceId: 'device-one',
         createdOn: 4,
         sharedOn: null,
         needsIntegration: false,
@@ -161,6 +164,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
             {
                 id: 1,
                 createdOn: 2,
+                deviceId: 'u1d1',
                 sharedOn: now,
                 needsIntegration: true,
                 collection: 'user',
@@ -177,6 +181,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
     }) => {
         const entries: ClientSyncLogEntry[] = [
             {
+                deviceId: 'device-one',
                 createdOn: 2,
                 sharedOn: 10,
                 needsIntegration: true,
@@ -186,6 +191,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
                 value: { displayName: 'Joe' },
             },
             {
+                deviceId: 'device-one',
                 createdOn: 2,
                 sharedOn: 10,
                 needsIntegration: true,
@@ -212,6 +218,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
         }) => {
             const entries: ClientSyncLogEntry[] = [
                 {
+                    deviceId: 'device-one',
                     createdOn: 2,
                     sharedOn: 10,
                     needsIntegration: true,
@@ -221,6 +228,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
                     value: { displayName: 'Joe' },
                 },
                 {
+                    deviceId: 'device-one',
                     createdOn: 2,
                     sharedOn: 10,
                     needsIntegration: true,
@@ -230,6 +238,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
                     value: { displayName: 'Joe' },
                 },
                 {
+                    deviceId: 'device-one',
                     createdOn: 3,
                     sharedOn: 10,
                     needsIntegration: true,
@@ -240,6 +249,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
                     value: 'Jack',
                 },
                 {
+                    deviceId: 'device-one',
                     createdOn: 4,
                     sharedOn: 10,
                     needsIntegration: true,

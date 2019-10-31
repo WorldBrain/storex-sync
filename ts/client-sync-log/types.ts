@@ -4,6 +4,7 @@ interface ClientSyncLogEntryBase {
     id?: any
     createdOn: number | '$now'
     sharedOn: number | null
+    deviceId: number | string
     needsIntegration: boolean
     collection: string
     pk: any

@@ -63,6 +63,7 @@ const ACTION_ENTRIES: {
     [key in Event]: ClientSyncLogEntry
 } = {
     creation: {
+        deviceId: 'device-one',
         operation: 'create',
         createdOn: 1,
         sharedOn: 52525252,
@@ -73,6 +74,7 @@ const ACTION_ENTRIES: {
     },
     modification: {
         id: 1,
+        deviceId: 'device-one',
         createdOn: 2,
         sharedOn: 525252,
         needsIntegration: true,
@@ -83,6 +85,7 @@ const ACTION_ENTRIES: {
         value: 'List (updated)',
     },
     deletion: {
+        deviceId: 'device-one',
         operation: 'delete',
         createdOn: 1,
         sharedOn: 52525252,
@@ -91,6 +94,7 @@ const ACTION_ENTRIES: {
         pk: 'list-one',
     },
     recreation: {
+        deviceId: 'device-one',
         operation: 'create',
         createdOn: 1,
         sharedOn: 52525252,
@@ -100,6 +104,7 @@ const ACTION_ENTRIES: {
         value: { title: 'List one recreated' },
     },
     redeletion: {
+        deviceId: 'device-one',
         operation: 'delete',
         createdOn: 1,
         sharedOn: 52525252,
@@ -445,6 +450,7 @@ describe('Reconciliation', () => {
     it('should choose the newest write when finding two entries for the same object field', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
+                deviceId: 'device-one',
                 operation: 'modify',
                 createdOn: 2,
                 sharedOn: 52525252,
@@ -455,6 +461,7 @@ describe('Reconciliation', () => {
                 value: 'second',
             },
             {
+                deviceId: 'device-one',
                 operation: 'modify',
                 createdOn: 1,
                 sharedOn: 52525252,
@@ -482,6 +489,7 @@ describe('Reconciliation', () => {
     it('should ignore writes to an object that needs deletion', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
+                deviceId: 'device-one',
                 operation: 'modify',
                 createdOn: 2,
                 sharedOn: 52525252,
@@ -492,6 +500,7 @@ describe('Reconciliation', () => {
                 value: 'second',
             },
             {
+                deviceId: 'device-one',
                 operation: 'delete',
                 createdOn: 1,
                 sharedOn: 52525252,
@@ -516,6 +525,7 @@ describe('Reconciliation', () => {
     it('should ignore writes to an already deleted object', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
+                deviceId: 'device-one',
                 operation: 'delete',
                 createdOn: 1,
                 sharedOn: 3,
@@ -524,6 +534,7 @@ describe('Reconciliation', () => {
                 pk: 'list-one',
             },
             {
+                deviceId: 'device-one',
                 operation: 'modify',
                 createdOn: 2,
                 sharedOn: 52525252,
@@ -534,6 +545,7 @@ describe('Reconciliation', () => {
                 value: 'second',
             },
             {
+                deviceId: 'device-one',
                 operation: 'delete',
                 createdOn: 4,
                 sharedOn: 3,
@@ -560,6 +572,7 @@ describe('Reconciliation', () => {
     it('should work with only one delete', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
+                deviceId: 'device-one',
                 operation: 'delete',
                 createdOn: 1,
                 sharedOn: 52525252,
@@ -584,6 +597,7 @@ describe('Reconciliation', () => {
     it('should ignore double deletes', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
+                deviceId: 'device-one',
                 operation: 'delete',
                 createdOn: 1,
                 sharedOn: 52525252,
@@ -592,6 +606,7 @@ describe('Reconciliation', () => {
                 pk: 'list-one',
             },
             {
+                deviceId: 'device-one',
                 operation: 'delete',
                 createdOn: 4,
                 sharedOn: 52525252,
@@ -616,6 +631,7 @@ describe('Reconciliation', () => {
     it('should work with deletes having compound keys', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
+                deviceId: 'device-one',
                 operation: 'delete',
                 createdOn: 4,
                 sharedOn: 52525252,
@@ -675,6 +691,7 @@ describe('Reconciliation', () => {
     it('should consolidate object creation with object deletion', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
+                deviceId: 'device-one',
                 operation: 'modify',
                 createdOn: 2,
                 sharedOn: 52525252,
@@ -685,6 +702,7 @@ describe('Reconciliation', () => {
                 value: 'second',
             },
             {
+                deviceId: 'device-one',
                 operation: 'create',
                 createdOn: 1,
                 sharedOn: 52525252,
@@ -694,6 +712,7 @@ describe('Reconciliation', () => {
                 value: { pk: 'list-one', title: 'first', prio: 5 },
             },
             {
+                deviceId: 'device-one',
                 operation: 'delete',
                 createdOn: 3,
                 sharedOn: 52525252,
@@ -866,6 +885,7 @@ describe('Reconciliation', () => {
     it('should correctly recreate an object after deletion without creation', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
+                deviceId: 'device-one',
                 operation: 'delete',
                 createdOn: 2,
                 sharedOn: 52525252,
@@ -874,6 +894,7 @@ describe('Reconciliation', () => {
                 pk: 'list-one',
             },
             {
+                deviceId: 'device-one',
                 operation: 'create',
                 createdOn: 3,
                 sharedOn: 52525252,
@@ -904,6 +925,7 @@ describe('Reconciliation', () => {
     it('should complain about double creates', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
+                deviceId: 'device-one',
                 operation: 'create',
                 createdOn: 1,
                 sharedOn: 1,
@@ -913,6 +935,7 @@ describe('Reconciliation', () => {
                 value: { pk: 'list-one', title: 'first', prio: 5 },
             },
             {
+                deviceId: 'device-one',
                 operation: 'create',
                 createdOn: 2,
                 sharedOn: 52525252,
@@ -931,6 +954,7 @@ describe('Reconciliation', () => {
     it('should complain about modifications made to an object before creation', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
+                deviceId: 'device-one',
                 operation: 'modify',
                 createdOn: 1,
                 sharedOn: 52525252,
@@ -941,6 +965,7 @@ describe('Reconciliation', () => {
                 value: 'second',
             },
             {
+                deviceId: 'device-one',
                 operation: 'create',
                 createdOn: 2,
                 sharedOn: 52525252,
@@ -959,6 +984,7 @@ describe('Reconciliation', () => {
     it('should complain about modifications made to an object before creation even if received in the right order', () => {
         const logEntries: ClientSyncLogEntry[] = [
             {
+                deviceId: 'device-one',
                 operation: 'create',
                 createdOn: 2,
                 sharedOn: 52525252,
@@ -968,6 +994,7 @@ describe('Reconciliation', () => {
                 value: { pk: 'list-one', title: 'first', prio: 5 },
             },
             {
+                deviceId: 'device-one',
                 operation: 'modify',
                 createdOn: 1,
                 sharedOn: 52525252,

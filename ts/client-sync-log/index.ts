@@ -15,6 +15,7 @@ export class ClientSyncLogStorage extends StorageModule {
                     fields: {
                         createdOn: { type: 'timestamp' },
                         sharedOn: { type: 'timestamp', optional: true }, // when was this sent or received?
+                        deviceId: { type: 'json' }, // what device did this operation happen on?
                         needsIntegration: { type: 'boolean', optional: true },
                         collection: { type: 'string' },
                         pk: { type: 'json' },
@@ -107,6 +108,7 @@ export class ClientSyncLogStorage extends StorageModule {
                             typeof options.now === 'string'
                                 ? Date.now()
                                 : options.now,
+                        deviceId: sharedEntry.deviceId,
                         needsIntegration: true,
                         collection: data.collection,
                         pk: data.pk,

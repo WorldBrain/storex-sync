@@ -9,6 +9,7 @@ import {
 
 export class SyncLoggingMiddleware implements StorageMiddleware {
     public enabled = true
+    public deviceId: string | number | null = null
 
     private clientSyncLog: ClientSyncLogStorage
     private storageManager: StorageManager
@@ -32,7 +33,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         next: { process: (options: { operation: any[] }) => any }
         operation: any[]
     }) {
-        if (!this.enabled) {
+        if (!this.enabled || !this.deviceId) {
             return next.process({ operation })
         }
 
@@ -62,6 +63,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
                 next,
                 operation,
                 executeAndLog,
+                deviceId: this.deviceId,
                 getNow: () => this._getNow(),
                 includeCollections: this.includeCollections,
                 storageRegistry: this.storageManager.registry,

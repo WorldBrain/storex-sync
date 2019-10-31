@@ -36,6 +36,7 @@ async function setupTest(options: {
         storageManager,
         includeCollections: ['user'],
     })
+    loggingMiddleware.deviceId = 'device-one'
     loggingMiddleware._getNow = options.now
     storageManager.setMiddleware([loggingMiddleware])
     return { storageManager, clientSyncLog, loggingMiddleware }
@@ -52,6 +53,7 @@ describe('Sync logging middleware', () => {
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -77,6 +79,7 @@ describe('Sync logging middleware', () => {
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -87,6 +90,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -120,6 +124,7 @@ describe('Sync logging middleware', () => {
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -130,6 +135,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -141,6 +147,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 5,
                 sharedOn: null,
                 needsIntegration: false,
@@ -177,6 +184,7 @@ describe('Sync logging middleware', () => {
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -187,6 +195,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -197,6 +206,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 5,
                 sharedOn: null,
                 needsIntegration: false,
@@ -207,6 +217,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 6,
                 sharedOn: null,
                 needsIntegration: false,
@@ -218,6 +229,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 7,
                 sharedOn: null,
                 needsIntegration: false,
@@ -257,6 +269,7 @@ describe('Sync logging middleware', () => {
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -267,6 +280,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -277,6 +291,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 5,
                 sharedOn: null,
                 needsIntegration: false,
@@ -287,6 +302,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 6,
                 sharedOn: null,
                 needsIntegration: false,
@@ -298,6 +314,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 7,
                 sharedOn: null,
                 needsIntegration: false,
@@ -309,6 +326,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 8,
                 sharedOn: null,
                 needsIntegration: false,
@@ -320,6 +338,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 9,
                 sharedOn: null,
                 needsIntegration: false,
@@ -354,6 +373,7 @@ describe('Sync logging middleware', () => {
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -364,6 +384,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -387,6 +408,7 @@ describe('Sync logging middleware', () => {
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -397,6 +419,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -421,6 +444,7 @@ describe('Sync logging middleware', () => {
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -431,6 +455,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -461,6 +486,7 @@ describe('Sync logging middleware', () => {
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -471,6 +497,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -481,6 +508,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 5,
                 sharedOn: null,
                 needsIntegration: false,
@@ -491,6 +519,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 6,
                 sharedOn: null,
                 needsIntegration: false,
@@ -521,6 +550,7 @@ describe('Sync logging middleware', () => {
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -531,6 +561,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -541,6 +572,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 5,
                 sharedOn: null,
                 needsIntegration: false,
@@ -551,6 +583,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 6,
                 sharedOn: null,
                 needsIntegration: false,
@@ -560,6 +593,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 7,
                 sharedOn: null,
                 needsIntegration: false,
@@ -591,6 +625,7 @@ describe('Sync logging middleware', () => {
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
                 needsIntegration: false,
@@ -601,6 +636,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
@@ -611,6 +647,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 5,
                 sharedOn: null,
                 needsIntegration: false,
@@ -621,6 +658,7 @@ describe('Sync logging middleware', () => {
             },
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 6,
                 sharedOn: null,
                 needsIntegration: false,
@@ -650,6 +688,7 @@ describe('Sync logging middleware', () => {
         expect(await clientSyncLog.getEntriesCreatedAfter(4)).toEqual([
             {
                 id: (expect as any).anything(),
+                deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
                 needsIntegration: false,
