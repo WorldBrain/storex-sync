@@ -16,6 +16,7 @@ import {
 import { FastSyncSenderChannel, FastSyncReceiverChannel } from './types'
 import { SignalTransport } from 'simple-signalling/lib/types'
 import { FAST_SYNC_TEST_DATA } from './index.test.data'
+import { resolvablePromise } from './utils'
 
 interface TestOptions {
     createChannels: () => Promise<{
@@ -295,6 +296,74 @@ describe('Fast initial sync', () => {
             })
             await setup.sync()
 
+            expect(
+                await setup.device2.storageManager
+                    .collection('test')
+                    .findObjects({}),
+            ).toEqual([
+                {
+                    key: 'one',
+                    label: 'Foo',
+                    createdWhen: setup.object1.createdWhen,
+                },
+            ])
+        })
+
+        it('should be able to pause sending', async (options: TestOptions) => {
+            const setup = await setupMinimalTest(options)
+            const firstObjectSent = resolvablePromise<void>()
+            setup.senderFastSync.events.on('progress', ({ progress }) => {
+                if (progress.totalObjectsProcessed === 1) {
+                    setup.senderFastSync.pause()
+                    firstObjectSent.resolve()
+                }
+            })
+            const syncPromise = setup.sync()
+
+            await firstObjectSent
+            await new Promise(resolve => setTimeout(resolve, 200))
+            expect(
+                await setup.device2.storageManager
+                    .collection('test')
+                    .findObjects({}),
+            ).toEqual([
+                {
+                    key: 'one',
+                    label: 'Foo',
+                    createdWhen: setup.object1.createdWhen,
+                },
+            ])
+
+            setup.senderFastSync.resume()
+            await syncPromise
+            expect(
+                await setup.device2.storageManager
+                    .collection('test')
+                    .findObjects({}),
+            ).toEqual([
+                {
+                    key: 'one',
+                    label: 'Foo',
+                    createdWhen: setup.object1.createdWhen,
+                },
+                {
+                    key: 'two',
+                    label: 'Bar',
+                    createdWhen: setup.object2.createdWhen,
+                },
+            ])
+        })
+
+        it('should be able to cancel sending', async (options: TestOptions) => {
+            const setup = await setupMinimalTest(options)
+            setup.senderFastSync.events.on('progress', ({ progress }) => {
+                if (progress.totalObjectsProcessed === 1) {
+                    setup.senderFastSync.cancel()
+                }
+            })
+            const syncPromise = setup.sync()
+
+            await syncPromise
             expect(
                 await setup.device2.storageManager
                     .collection('test')

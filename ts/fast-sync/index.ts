@@ -7,6 +7,7 @@ import {
     FastSyncInfo,
     FastSyncProgress,
 } from './types'
+import Interruptable from './interruptable'
 
 export interface FastSyncSenderOptions {
     storageManager: StorageManager
@@ -33,6 +34,7 @@ export class FastSyncSender {
         FastSyncEvents
     > = new EventEmitter() as TypedEmitter<FastSyncEvents>
     private totalObjectsProcessed: number
+    private interruptable: Interruptable | null = null
 
     constructor(private options: FastSyncSenderOptions) {
         this.totalObjectsProcessed = 0
@@ -71,32 +73,59 @@ export class FastSyncSender {
                 totalObjectsProcessed: this.totalObjectsProcessed,
             },
         })
-        // console.log('sending batches')
-        for (const collection of this.options.collections) {
-            for await (const objects of streamObjectBatches(
-                this.options.storageManager,
-                collection,
-            )) {
-                const processedObjects = await preproccesObjects({
-                    collection,
-                    objects,
-                })
-                if (processedObjects.length) {
-                    await channel.sendObjectBatch({
+
+        this.interruptable = new Interruptable()
+        try {
+            for (const collection of this.options.collections) {
+                await this.interruptable.forOfLoop(
+                    streamObjectBatches(
+                        this.options.storageManager,
                         collection,
-                        objects: processedObjects,
-                    })
-                }
-                this.totalObjectsProcessed += objects.length
-                this.events.emit('progress', {
-                    progress: {
-                        ...syncInfo,
-                        totalObjectsProcessed: this.totalObjectsProcessed,
+                    ),
+                    async objects => {
+                        const processedObjects = await preproccesObjects({
+                            collection,
+                            objects,
+                        })
+                        if (processedObjects.length) {
+                            await channel.sendObjectBatch({
+                                collection,
+                                objects: processedObjects,
+                            })
+                        }
+                        this.totalObjectsProcessed += objects.length
+                        this.events.emit('progress', {
+                            progress: {
+                                ...syncInfo,
+                                totalObjectsProcessed: this
+                                    .totalObjectsProcessed,
+                            },
+                        })
                     },
-                })
+                )
             }
+        } finally {
+            this.interruptable = null
+            await channel.finish()
         }
-        await channel.finish()
+    }
+
+    async pause() {
+        if (this.interruptable) {
+            await this.interruptable.pause()
+        }
+    }
+
+    async resume() {
+        if (this.interruptable) {
+            await this.interruptable.resume()
+        }
+    }
+
+    async cancel() {
+        if (this.interruptable) {
+            await this.interruptable.cancel()
+        }
     }
 }
 
@@ -139,6 +168,12 @@ export class FastSyncReceiver {
             // console.log('recv: end iter')
         }
     }
+
+    async pause() {}
+
+    async resume() {}
+
+    async cancel() {}
 }
 
 async function getSyncInfo(
