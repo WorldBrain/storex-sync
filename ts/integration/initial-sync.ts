@@ -10,33 +10,33 @@ import {
     FastSyncReceiver,
     FastSyncEvents,
     FastSyncPreSendProcessor,
-} from '@worldbrain/storex-sync/lib/fast-sync'
+} from '../fast-sync'
 import {
     WebRTCFastSyncSenderChannel,
     WebRTCFastSyncReceiverChannel,
-} from '@worldbrain/storex-sync/lib/fast-sync/channels'
+} from '../fast-sync/channels'
 import TypedEmitter from 'typed-emitter'
 import StorageManager from '@worldbrain/storex'
 import {
     FastSyncSenderChannel,
     FastSyncReceiverChannel,
-} from '@worldbrain/storex-sync/lib/fast-sync/types'
+} from '../fast-sync/types'
 
 export type InitialSyncInfo = {
     signalChannel: SignalChannel
     events: TypedEmitter<InitialSyncEvents>
     finishPromise: Promise<void>
 } & (
-        | {
-            role: 'sender'
-            senderFastSyncChannel: FastSyncSenderChannel
-            senderFastSync: FastSyncSender
-        }
-        | {
-            role: 'receiver'
-            receiverFastSyncChannel: FastSyncReceiverChannel
-            receiverFastSync: FastSyncReceiver
-        })
+    | {
+          role: 'sender'
+          senderFastSyncChannel: FastSyncSenderChannel
+          senderFastSync: FastSyncSender
+      }
+    | {
+          role: 'receiver'
+          receiverFastSyncChannel: FastSyncReceiverChannel
+          receiverFastSync: FastSyncReceiver
+      })
 
 export type InitialSyncEvents = FastSyncEvents &
     SimplePeerSignallingEvents & {
@@ -57,9 +57,7 @@ export class InitialSync {
     public wrtc: any // Possibility for tests to inject wrtc library
     private initialSyncInfo?: InitialSyncInfo
 
-    constructor(
-        protected dependencies: InitialSyncDependencies,
-    ) { }
+    constructor(protected dependencies: InitialSyncDependencies) {}
 
     async requestInitialSync(): Promise<{ initialMessage: string }> {
         const role = 'sender'
@@ -171,15 +169,15 @@ export class InitialSync {
                 return {
                     role: 'sender',
                     ...common,
-                    senderFastSync,
-                    senderFastSyncChannel,
+                    senderFastSync: senderFastSync!,
+                    senderFastSyncChannel: senderFastSyncChannel!,
                 }
             } else {
                 return {
                     role: 'receiver',
                     ...common,
-                    receiverFastSync,
-                    receiverFastSyncChannel,
+                    receiverFastSync: receiverFastSync!,
+                    receiverFastSyncChannel: receiverFastSyncChannel!,
                 }
             }
         }
@@ -205,10 +203,7 @@ export class InitialSync {
         return buildInfo()
     }
 
-    protected getPreSendProcessor(): FastSyncPreSendProcessor | void {
+    protected getPreSendProcessor(): FastSyncPreSendProcessor | void {}
 
-    }
-
-    protected async preSync(options: InitialSyncInfo) {
-    }
+    protected async preSync(options: InitialSyncInfo) {}
 }

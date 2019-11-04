@@ -1,5 +1,11 @@
+import expect from 'expect'
 import { RecurringTask } from './recurring-task'
-import { sleepPromise } from './promises'
+
+function sleepPromise(miliseconds: number) {
+    return new Promise<void>(resolve => {
+        setTimeout(resolve, miliseconds)
+    })
+}
 
 function createTestTask(f?: () => Promise<void>) {
     const runs: number[] = []
@@ -77,7 +83,7 @@ describe('Recurring task', () => {
                 { f: expect.any(Function), miliseconds: setup.intervalInMs },
             ])
             expect(
-                setup.recurringTask.aproximateNextRun -
+                setup.recurringTask.aproximateNextRun! -
                     (setup.nowBefore + setup.intervalInMs),
             ).toBeLessThan(50)
             expect(setup.errors).toEqual([])
@@ -101,7 +107,7 @@ describe('Recurring task', () => {
         await runTest({ intervalInMs: 300 }, async setup => {
             await sleepPromise(setup.intervalInMs + 10)
             expect(
-                setup.recurringTask.aproximateNextRun -
+                setup.recurringTask.aproximateNextRun! -
                     (setup.nowBefore + setup.intervalInMs * 2),
             ).toBeLessThan(50)
             setup.recurringTask.stop()
@@ -121,7 +127,7 @@ describe('Recurring task', () => {
             async setup => {
                 await sleepPromise(setup.intervalInMs + 10)
                 expect(
-                    setup.recurringTask.aproximateNextRun -
+                    setup.recurringTask.aproximateNextRun! -
                         (setup.nowBefore + setup.intervalInMs * 2),
                 ).toBeLessThan(50)
                 setup.recurringTask.stop()
@@ -137,7 +143,7 @@ describe('Recurring task', () => {
             async setup => {
                 await sleepPromise(350)
                 expect(
-                    setup.recurringTask.aproximateNextRun -
+                    setup.recurringTask.aproximateNextRun! -
                         (setup.nowBefore + setup.intervalInMs),
                 ).toBeLessThan(50)
                 setup.recurringTask.stop()
@@ -166,7 +172,7 @@ describe('Recurring task', () => {
         await runTest({ intervalInMs: 300 }, async setup => {
             await setup.recurringTask.forceRun()
             expect(
-                setup.recurringTask.aproximateNextRun -
+                setup.recurringTask.aproximateNextRun! -
                     (setup.nowBefore + setup.intervalInMs),
             ).toBeLessThan(50)
             setup.recurringTask.stop()
@@ -187,11 +193,11 @@ describe('Recurring task', () => {
                 },
             },
             async setup => {
-                await expect(setup.recurringTask.forceRun()).rejects.toThrow(
-                    'Boooh!',
-                )
+                await (expect(
+                    setup.recurringTask.forceRun(),
+                ) as any).rejects.toThrow('Boooh!')
                 expect(
-                    setup.recurringTask.aproximateNextRun -
+                    setup.recurringTask.aproximateNextRun! -
                         (setup.nowBefore + setup.intervalInMs),
                 ).toBeLessThan(50)
                 setup.recurringTask.stop()
