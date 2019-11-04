@@ -710,6 +710,96 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
         )
 
         it(
+            'should allow for filtering received operations',
+            async (dependencies: TestDependencies) => {
+                const { clients, sync } = await setupSyncTest(dependencies)
+                const users = []
+                for (const displayName of ['Jane', 'Joe', 'Jack']) {
+                    users.push(
+                        (await clients.one.storageManager
+                            .collection('user')
+                            .createObject({
+                                displayName,
+                            })).object,
+                    )
+                }
+
+                await sync({
+                    clientName: 'one',
+                    postReceive: async (params: { entry: SharedSyncLogEntry<'deserialized-data'> }) => {
+                        if (params.entry.data.operation !== 'create') {
+                            return params
+                        }
+
+                        return {
+                            entry:
+                                params.entry.data.value.displayName !== 'Joe'
+                                    ? params.entry
+                                    : null,
+                        }
+                    },
+                })
+                await sync({ clientName: 'two' })
+
+                expect(
+                    await clients.two.storageManager
+                        .collection('user')
+                        .findObjects({}),
+                ).toEqual([users[0], users[2]])
+            },
+            { includeTimestampChecks: true },
+            )
+
+        it(
+            'should allow for modifying received operations',
+            async (dependencies: TestDependencies) => {
+                const { clients, sync } = await setupSyncTest(dependencies)
+                const users = []
+                for (const displayName of ['Jane', 'Joe', 'Jack']) {
+                    users.push(
+                        (await clients.one.storageManager
+                            .collection('user')
+                            .createObject({
+                                displayName,
+                            })).object,
+                    )
+                }
+
+                await sync({
+                    clientName: 'one',
+                    postReceive: async (params: { entry: SharedSyncLogEntry<'deserialized-data'>}) => {
+                        if (params.entry.data.operation !== 'create') {
+                            return params
+                        }
+
+                        return {
+                            entry: {
+                                ...params.entry,
+                                value: {
+                                    ...params.entry.data.value,
+                                    displayName:
+                                        params.entry.data.value.displayName + '!!',
+                                },
+                            },
+                        }
+                    },
+                })
+                await sync({ clientName: 'two' })
+
+                expect(
+                    await clients.two.storageManager
+                        .collection('user')
+                        .findObjects({}),
+                ).toEqual([
+                    { ...users[0], displayName: 'Jane!!' },
+                    { ...users[1], displayName: 'Joe!!' },
+                    { ...users[2], displayName: 'Jack!!' },
+                ])
+            },
+            { includeTimestampChecks: true },
+        )
+
+        it(
             'should correctly sync createObject and updateObject operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
