@@ -724,9 +724,10 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     )
                 }
 
+                await sync({ clientName: 'one' })
                 await sync({
-                    clientName: 'one',
-                    postReceive: async (params: { entry: SharedSyncLogEntry<'deserialized-data'> }) => {
+                    clientName: 'two',
+                    postReceive: async params => {
                         if (params.entry.data.operation !== 'create') {
                             return params
                         }
@@ -739,7 +740,6 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                         }
                     },
                 })
-                await sync({ clientName: 'two' })
 
                 expect(
                     await clients.two.storageManager
@@ -748,7 +748,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 ).toEqual([users[0], users[2]])
             },
             { includeTimestampChecks: true },
-            )
+        )
 
         it(
             'should allow for modifying received operations',
@@ -765,9 +765,10 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     )
                 }
 
+                await sync({ clientName: 'one' })
                 await sync({
-                    clientName: 'one',
-                    postReceive: async (params: { entry: SharedSyncLogEntry<'deserialized-data'>}) => {
+                    clientName: 'two',
+                    postReceive: async params => {
                         if (params.entry.data.operation !== 'create') {
                             return params
                         }
@@ -775,16 +776,19 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                         return {
                             entry: {
                                 ...params.entry,
-                                value: {
-                                    ...params.entry.data.value,
-                                    displayName:
-                                        params.entry.data.value.displayName + '!!',
+                                data: {
+                                    ...params.entry.data,
+                                    value: {
+                                        ...params.entry.data.value,
+                                        displayName:
+                                            params.entry.data.value
+                                                .displayName + '!!',
+                                    },
                                 },
                             },
                         }
                     },
                 })
-                await sync({ clientName: 'two' })
 
                 expect(
                     await clients.two.storageManager
