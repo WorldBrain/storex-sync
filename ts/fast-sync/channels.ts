@@ -1,3 +1,5 @@
+import { EventEmitter } from 'events'
+import TypedEmitter from 'typed-emitter'
 import { jsonDateParser } from 'json-date-parser'
 import * as SimplePeer from 'simple-peer'
 import {
@@ -5,18 +7,23 @@ import {
     FastSyncSenderChannel,
     FastSyncReceiverChannel,
     FastSyncInfo,
+    FastSyncReceiverChannelEvents,
 } from './types'
 import { ResolvablePromise, resolvablePromise } from './utils'
 
 type WebRTCSyncPackage<UserPackageType = any> =
     | { type: 'batch'; batch: any }
     | { type: 'confirm' }
+    | { type: 'state-change'; state: 'paused' | 'running' }
     | { type: 'sync-info'; info: FastSyncInfo }
     | { type: 'finish' }
     | { type: 'user-package'; package: UserPackageType }
 
 export class WebRTCFastSyncReceiverChannel<UserPackageType>
     implements FastSyncReceiverChannel {
+    public events = new EventEmitter() as TypedEmitter<
+        FastSyncReceiverChannelEvents
+    >
     private dataReceived = resolvablePromise<string>()
     private dataHandler: (data: any) => void
 
@@ -48,12 +55,21 @@ export class WebRTCFastSyncReceiverChannel<UserPackageType>
             while (true) {
                 const syncPackage: WebRTCSyncPackage = await this._receivePackage()
                 if (syncPackage.type === 'finish') {
-                    // console.log('received finish package')
                     break
+                }
+                if (syncPackage.type === 'state-change') {
+                    this.events.emit(
+                        syncPackage.state === 'running' ? 'resumed' : 'paused',
+                    )
+                    continue
                 }
 
                 if (syncPackage.type === 'batch') {
                     yield syncPackage.batch
+                } else {
+                    throw new Error(
+                        `Expected batch package in fast sync WebRTC channel, but got package type ${syncPackage.type}`,
+                    )
                 }
             }
         } finally {
@@ -108,6 +124,10 @@ export class WebRTCFastSyncSenderChannel implements FastSyncSenderChannel {
         await this._sendPackage({ type: 'batch', batch })
     }
 
+    async sendStateChange(state: 'paused' | 'running'): Promise<void> {
+        await this._sendPackage({ type: 'state-change', state })
+    }
+
     async finish() {
         await this._sendPackage({ type: 'finish' })
     }
@@ -138,6 +158,7 @@ export function createMemoryChannel() {
     let receivePackagePromise = resolvablePromise()
 
     const sendPackage = async (syncPackage: WebRTCSyncPackage) => {
+        // console.log('sendPackage', syncPackage)
         sendPackagePromise.resolve(syncPackage)
         await receivePackagePromise.promise
     }
@@ -148,6 +169,9 @@ export function createMemoryChannel() {
         receivePackagePromise = resolvablePromise()
         return syncPackage
     }
+    const events = new EventEmitter() as TypedEmitter<
+        FastSyncReceiverChannelEvents
+    >
 
     const senderChannel: FastSyncSenderChannel = {
         async sendUserPackage(jsonSerializable: any): Promise<void> {
@@ -156,11 +180,14 @@ export function createMemoryChannel() {
                 package: jsonSerializable,
             })
         },
-        sendSyncInfo: async (info: FastSyncInfo) => {
+        async sendSyncInfo(info: FastSyncInfo) {
             await sendPackage({ type: 'sync-info', info })
         },
-        sendObjectBatch: async (batch: FastSyncBatch) => {
+        async sendObjectBatch(batch: FastSyncBatch) {
             await sendPackage({ type: 'batch', batch })
+        },
+        async sendStateChange(state: 'paused' | 'running'): Promise<void> {
+            await sendPackage({ type: 'state-change', state })
         },
         finish: async () => {
             // console.log('senderChannel.finish()')
@@ -169,6 +196,7 @@ export function createMemoryChannel() {
         destroy: async () => {},
     }
     const receiverChannel: FastSyncReceiverChannel = {
+        events,
         async receiveUserPackage(): Promise<any> {
             const userPackage = await receivePackage()
             if (userPackage.type === 'user-package') {
@@ -189,6 +217,12 @@ export function createMemoryChannel() {
                 const syncPackage = await receivePackage()
                 if (syncPackage.type === 'finish') {
                     break
+                }
+                if (syncPackage.type === 'state-change') {
+                    events.emit(
+                        syncPackage.state === 'running' ? 'resumed' : 'paused',
+                    )
+                    continue
                 }
                 if (syncPackage.type !== 'batch') {
                     throw new Error(

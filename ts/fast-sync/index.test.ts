@@ -51,23 +51,20 @@ async function setupTest(options: TestOptions) {
     }
 
     function createEventSpy() {
-        let events: any[][] = []
-        const listener = (event: string) => {
-            return (...args: any[]) => {
-                events.push([event, args])
-            }
-        }
-        const listen = (events: EventEmitter, eventNames: string[]) => {
-            for (const event of eventNames) {
-                events.on(event, listener(event))
-            }
+        let emittedEvents: Array<{ eventName: string; [key: string]: any }> = []
+        const listen = (events: EventEmitter) => {
+            const emit = events.emit.bind(events)
+            events.emit = ((eventName: string, event: any) => {
+                emittedEvents.push({ eventName, ...event })
+                emit(eventName, event)
+            }) as any
         }
         const popEvents = () => {
-            const poppedEvents = events
-            events = []
+            const poppedEvents = emittedEvents
+            emittedEvents = []
             return poppedEvents
         }
-        return { events, listen, popEvents }
+        return { events: emittedEvents, listen, popEvents }
     }
 
     return {
@@ -146,14 +143,8 @@ async function setupMinimalTest(options: TestOptions) {
     const senderEventSpy = testSetup.createEventSpy()
     const receiverEventSpy = testSetup.createEventSpy()
 
-    senderEventSpy.listen(senderFastSync.events as EventEmitter, [
-        'prepared',
-        'progress',
-    ])
-    receiverEventSpy.listen(senderFastSync.events as EventEmitter, [
-        'prepared',
-        'progress',
-    ])
+    senderEventSpy.listen(senderFastSync.events as EventEmitter)
+    receiverEventSpy.listen(receiverFastSync.events as EventEmitter)
 
     const sync = async () => {
         const senderPromise = senderFastSync.execute()
@@ -216,49 +207,33 @@ describe('Fast initial sync', () => {
                 objectCount: 2,
             }
             const allExpectedEvents = [
-                [
-                    'prepared',
-                    [
-                        {
-                            syncInfo: {
-                                ...expectedSyncInfo,
-                            },
-                        },
-                    ],
-                ],
-                [
-                    'progress',
-                    [
-                        {
-                            progress: {
-                                ...expectedSyncInfo,
-                                totalObjectsProcessed: 0,
-                            },
-                        },
-                    ],
-                ],
-                [
-                    'progress',
-                    [
-                        {
-                            progress: {
-                                ...expectedSyncInfo,
-                                totalObjectsProcessed: 1,
-                            },
-                        },
-                    ],
-                ],
-                [
-                    'progress',
-                    [
-                        {
-                            progress: {
-                                ...expectedSyncInfo,
-                                totalObjectsProcessed: 2,
-                            },
-                        },
-                    ],
-                ],
+                {
+                    eventName: 'prepared',
+                    syncInfo: {
+                        ...expectedSyncInfo,
+                    },
+                },
+                {
+                    eventName: 'progress',
+                    progress: {
+                        ...expectedSyncInfo,
+                        totalObjectsProcessed: 0,
+                    },
+                },
+                {
+                    eventName: 'progress',
+                    progress: {
+                        ...expectedSyncInfo,
+                        totalObjectsProcessed: 1,
+                    },
+                },
+                {
+                    eventName: 'progress',
+                    progress: {
+                        ...expectedSyncInfo,
+                        totalObjectsProcessed: 2,
+                    },
+                },
             ]
             expect(setup.senderEventSpy.popEvents()).toEqual(allExpectedEvents)
             expect(setup.receiverEventSpy.popEvents()).toEqual(
@@ -311,6 +286,7 @@ describe('Fast initial sync', () => {
 
         it('should be able to pause sending', async (options: TestOptions) => {
             const setup = await setupMinimalTest(options)
+
             const firstObjectSent = resolvablePromise<void>()
             setup.senderFastSync.events.on('progress', ({ progress }) => {
                 if (progress.totalObjectsProcessed === 1) {
@@ -320,8 +296,22 @@ describe('Fast initial sync', () => {
             })
             const syncPromise = setup.sync()
 
-            await firstObjectSent
+            await firstObjectSent.promise
+            expect(setup.senderEventSpy.popEvents()).toEqual([
+                (expect as any).objectContaining({ eventName: 'prepared' }),
+                (expect as any).objectContaining({ eventName: 'progress' }),
+                (expect as any).objectContaining({ eventName: 'progress' }),
+                (expect as any).objectContaining({ eventName: 'paused' }),
+            ])
+            expect(setup.senderFastSync.state).toBe('paused')
             await new Promise(resolve => setTimeout(resolve, 200))
+            expect(setup.receiverFastSync.state).toBe('paused')
+            expect(setup.receiverEventSpy.popEvents()).toEqual([
+                (expect as any).objectContaining({ eventName: 'prepared' }),
+                (expect as any).objectContaining({ eventName: 'progress' }),
+                (expect as any).objectContaining({ eventName: 'progress' }),
+                (expect as any).objectContaining({ eventName: 'paused' }),
+            ])
             expect(
                 await setup.device2.storageManager
                     .collection('test')
