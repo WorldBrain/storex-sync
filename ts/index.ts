@@ -24,20 +24,24 @@ export interface SyncSerializer {
 export type SyncEvents = TypedEmitter<SyncEventMap>
 export interface SyncEventMap {
     unsharedClientEntries: (event: {
-        entries: ClientSyncLogEntry[], deviceId: number | string
+        entries: ClientSyncLogEntry[]
+        deviceId: number | string
     }) => void
     sendingSharedEntries: (event: {
-        entries: Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[],
+        entries: Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[]
         deviceId: number | string
     }) => void
     receivedSharedEntries: (event: {
-        entries: SharedSyncLogEntry[], deviceId: number | string
+        entries: SharedSyncLogEntry[]
+        deviceId: number | string
     }) => void
     reconcilingEntries: (event: {
-        entries: ClientSyncLogEntry[], deviceId: number | string
+        entries: ClientSyncLogEntry[]
+        deviceId: number | string
     }) => void
     reconciledEntries: (event: {
-        entries: ClientSyncLogEntry[], deviceId: number | string
+        entries: ClientSyncLogEntry[]
+        deviceId: number | string
         reconciliation: any[]
     }) => void
 }
@@ -53,8 +57,9 @@ export type SyncPreSendProcessor = (params: {
     entry: ClientSyncLogEntry
 }) => Promise<{ entry: ClientSyncLogEntry | null }>
 export type SyncPostReceiveProcessor = (params: {
-    entry: ClientSyncLogEntry
-}) => Promise<{ entry: ClientSyncLogEntry | null }>
+    entry: SharedSyncLogEntry<'deserialized-data'>
+}) => Promise<{ entry: SharedSyncLogEntry<'deserialized-data'> | null }>
+
 export interface SyncOptions {
     clientSyncLog: ClientSyncLogStorage
     sharedSyncLog: SharedSyncLog
@@ -75,7 +80,10 @@ export async function shareLogEntries(args: SyncOptions) {
 
     const entries = await args.clientSyncLog.getUnsharedEntries()
     if (args.syncEvents) {
-        args.syncEvents.emit('unsharedClientEntries', { entries, deviceId: args.deviceId })
+        args.syncEvents.emit('unsharedClientEntries', {
+            entries,
+            deviceId: args.deviceId,
+        })
     }
 
     const processedEntries = (await Promise.all(
