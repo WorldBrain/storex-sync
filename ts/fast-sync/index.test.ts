@@ -12,6 +12,7 @@ import {
     createMemoryChannel,
     WebRTCFastSyncSenderChannel,
     WebRTCFastSyncReceiverChannel,
+    MemoryFastSyncReceiverChannel,
 } from './channels'
 import { FastSyncSenderChannel, FastSyncReceiverChannel } from './types'
 import { SignalTransport } from 'simple-signalling/lib/types'
@@ -365,6 +366,27 @@ describe('Fast initial sync', () => {
                     createdWhen: setup.object1.createdWhen,
                 },
             ])
+        })
+
+        it('must detect on the receiver side the connection has stalled', async options => {
+            const setup = await setupMinimalTest(options)
+            setup.channels.receiverChannel.timeoutInMiliseconds = 100
+            setup.channels.senderChannel.preSend = async () => {
+                return new Promise(resolve => setTimeout(resolve, 500))
+            }
+            const syncPromise = setup.sync()
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            try {
+                expect(setup.receiverEventSpy.popEvents()).toEqual([
+                    (expect as any).objectContaining({ eventName: 'stalled' }),
+                    (expect as any).objectContaining({ eventName: 'prepared' }),
+                    (expect as any).objectContaining({ eventName: 'progress' }),
+                    (expect as any).objectContaining({ eventName: 'stalled' }),
+                ])
+            } finally {
+                await setup.senderFastSync.cancel()
+                await syncPromise
+            }
         })
     }
 

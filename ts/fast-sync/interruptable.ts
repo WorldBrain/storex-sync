@@ -46,6 +46,10 @@ export default class Interruptable {
         iterable: Iterable<T> | AsyncIterable<T>,
         body: (item: T) => Promise<void>,
     ) {
+        if (this.cancelled) {
+            return
+        }
+
         if (iterable[Symbol.asyncIterator]) {
             for await (const item of iterable) {
                 if (await this._shouldCancelAfterWaitingForPause()) {
@@ -53,6 +57,10 @@ export default class Interruptable {
                 }
 
                 await body(item)
+
+                if (await this._shouldCancelAfterWaitingForPause()) {
+                    break
+                }
             }
         } else {
             for (const item of iterable) {

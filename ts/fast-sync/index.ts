@@ -27,6 +27,7 @@ export interface FastSyncPreSendProcessorParams {
 export interface FastSyncEvents {
     prepared: (event: { syncInfo: FastSyncInfo }) => void
     progress: (event: { progress: FastSyncProgress }) => void
+    stalled: () => void
     paused: () => void
     resumed: () => void
 }
@@ -35,7 +36,6 @@ export class FastSyncSender {
     public events: TypedEmitter<
         FastSyncEvents
     > = new EventEmitter() as TypedEmitter<FastSyncEvents>
-    public timeoutInMiliseconds = 10 * 1000
 
     private totalObjectsProcessed: number
     private interruptable: Interruptable | null = null
@@ -78,57 +78,65 @@ export class FastSyncSender {
             return processedObjects
         }
 
+        const interruptable = (this.interruptable = new Interruptable())
         this._state = 'running'
         try {
             const syncInfo = await getSyncInfo(this.options.storageManager)
             this.events.emit('prepared', { syncInfo })
             await channel.sendSyncInfo(syncInfo)
 
-            this.events.emit('progress', {
-                progress: {
-                    ...syncInfo,
-                    totalObjectsProcessed: this.totalObjectsProcessed,
-                },
-            })
-
-            this.interruptable = new Interruptable()
             try {
-                for (const collection of this.options.collections) {
-                    await this.interruptable.forOfLoop(
-                        streamObjectBatches(
-                            this.options.storageManager,
-                            collection,
-                        ),
-                        async objects => {
-                            const processedObjects = await preproccesObjects({
-                                collection,
-                                objects,
-                            })
-                            if (processedObjects.length) {
-                                await channel.sendObjectBatch({
-                                    collection,
-                                    objects: processedObjects,
-                                })
-                            }
-                            this.totalObjectsProcessed += objects.length
-                            this.events.emit('progress', {
-                                progress: {
-                                    ...syncInfo,
-                                    totalObjectsProcessed: this
-                                        .totalObjectsProcessed,
-                                },
-                            })
+                await interruptable.execute(async () => {
+                    this.events.emit('progress', {
+                        progress: {
+                            ...syncInfo,
+                            totalObjectsProcessed: this.totalObjectsProcessed,
                         },
-                    )
-                }
+                    })
+                })
+
+                await interruptable.forOfLoop(
+                    this.options.collections,
+                    async collection => {
+                        await interruptable.forOfLoop(
+                            streamObjectBatches(
+                                this.options.storageManager,
+                                collection,
+                            ),
+                            async objects => {
+                                const processedObjects = await preproccesObjects(
+                                    {
+                                        collection,
+                                        objects,
+                                    },
+                                )
+                                if (processedObjects.length) {
+                                    await channel.sendObjectBatch({
+                                        collection,
+                                        objects: processedObjects,
+                                    })
+                                }
+                                this.totalObjectsProcessed += objects.length
+                                this.events.emit('progress', {
+                                    progress: {
+                                        ...syncInfo,
+                                        totalObjectsProcessed: this
+                                            .totalObjectsProcessed,
+                                    },
+                                })
+                            },
+                        )
+                    },
+                )
                 this._state = 'done'
             } finally {
-                this.interruptable = null
                 await channel.finish()
             }
         } catch (e) {
             this._state = 'error'
             throw e
+        } finally {
+            this.interruptable = null
         }
     }
 
@@ -181,6 +189,9 @@ export class FastSyncReceiver {
             this._state = state === 'paused' ? 'paused' : 'running'
             this.events.emit(state)
         }
+        this.options.channel.events.on('stalled', () =>
+            this.events.emit('stalled'),
+        )
         this.options.channel.events.on('paused', stateChangeHandler('paused'))
         this.options.channel.events.on('resumed', stateChangeHandler('resumed'))
         try {

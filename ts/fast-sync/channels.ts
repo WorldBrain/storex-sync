@@ -8,19 +8,16 @@ import {
     FastSyncReceiverChannel,
     FastSyncInfo,
     FastSyncReceiverChannelEvents,
+    FastSyncSenderChannelEvents,
+    SyncPackage,
 } from './types'
 import { ResolvablePromise, resolvablePromise } from './utils'
 
-type SyncPackage<UserPackageType = any> =
-    | { type: 'batch'; batch: any }
-    | { type: 'confirm' }
-    | { type: 'state-change'; state: 'paused' | 'running' }
-    | { type: 'sync-info'; info: FastSyncInfo }
-    | { type: 'finish' }
-    | { type: 'user-package'; package: UserPackageType }
-
 abstract class FastSyncReceiverChannelBase<UserPackageType>
     implements FastSyncReceiverChannel {
+    timeoutInMiliseconds = 10 * 1000
+    postReceive?: (syncPackage: SyncPackage) => Promise<void>
+
     events = new EventEmitter() as TypedEmitter<FastSyncReceiverChannelEvents>
 
     abstract destroy(): Promise<void>
@@ -28,7 +25,7 @@ abstract class FastSyncReceiverChannelBase<UserPackageType>
     protected abstract _cleanup(): Promise<void>
 
     async receiveUserPackage(): Promise<UserPackageType> {
-        const userPackage = await this._receivePackage()
+        const userPackage = await this._receivePackageSafely()
         if (userPackage.type === 'user-package') {
             return userPackage.package
         } else {
@@ -44,7 +41,7 @@ abstract class FastSyncReceiverChannelBase<UserPackageType>
     }> {
         try {
             while (true) {
-                const syncPackage: SyncPackage = await this._receivePackage()
+                const syncPackage: SyncPackage = await this._receivePackageSafely()
                 if (syncPackage.type === 'finish') {
                     break
                 }
@@ -69,7 +66,7 @@ abstract class FastSyncReceiverChannelBase<UserPackageType>
     }
 
     async receiveSyncInfo() {
-        const syncPackage: SyncPackage = await this._receivePackage()
+        const syncPackage: SyncPackage = await this._receivePackageSafely()
         if (syncPackage.type !== 'sync-info') {
             throw new Error(
                 `Received package with unexpected type while waiting for initial Sync info: ${syncPackage.type}`,
@@ -77,33 +74,65 @@ abstract class FastSyncReceiverChannelBase<UserPackageType>
         }
         return syncPackage.info
     }
+
+    private async _receivePackageSafely() {
+        const stalledTimeout = setTimeout(() => {
+            this.events.emit('stalled')
+        }, this.timeoutInMiliseconds)
+
+        const syncPackage = await this._receivePackage()
+        clearTimeout(stalledTimeout)
+
+        if (this.postReceive) {
+            await this.postReceive(syncPackage)
+        }
+
+        return syncPackage
+    }
 }
 
 abstract class FastSyncSenderChannelBase implements FastSyncSenderChannel {
+    timeoutInMiliseconds = 10 * 1000
+    preSend?: (syncPackage: SyncPackage) => Promise<void>
+
+    events = new EventEmitter() as TypedEmitter<FastSyncSenderChannelEvents>
+
     abstract destroy(): Promise<void>
     protected abstract _sendPackage(syncPackage: SyncPackage): Promise<void>
 
     async sendUserPackage(jsonSerializable: any): Promise<void> {
-        await this._sendPackage({
+        await this._sendPackageSafely({
             type: 'user-package',
             package: jsonSerializable,
         })
     }
 
     async sendSyncInfo(info: FastSyncInfo) {
-        await this._sendPackage({ type: 'sync-info', info })
+        await this._sendPackageSafely({ type: 'sync-info', info })
     }
 
     async sendObjectBatch(batch: FastSyncBatch) {
-        await this._sendPackage({ type: 'batch', batch })
+        await this._sendPackageSafely({ type: 'batch', batch })
     }
 
     async sendStateChange(state: 'paused' | 'running'): Promise<void> {
-        await this._sendPackage({ type: 'state-change', state })
+        await this._sendPackageSafely({ type: 'state-change', state })
     }
 
     async finish() {
-        await this._sendPackage({ type: 'finish' })
+        await this._sendPackageSafely({ type: 'finish' })
+    }
+
+    private async _sendPackageSafely(syncPackage: SyncPackage) {
+        if (this.preSend) {
+            await this.preSend(syncPackage)
+        }
+
+        const stalledTimeout = setTimeout(() => {
+            this.events.emit('stalled')
+        }, this.timeoutInMiliseconds)
+        await this._sendPackage(syncPackage)
+        clearTimeout(stalledTimeout)
     }
 }
 
@@ -177,7 +206,7 @@ interface MemoryFastSyncChannelDependencies {
     sendPackage(syncPackage: SyncPackage): Promise<void>
     receivePackage(): Promise<SyncPackage>
 }
-class MemoryFastSyncReceiverChannel<
+export class MemoryFastSyncReceiverChannel<
     UserPackageType = any
 > extends FastSyncReceiverChannelBase<UserPackageType> {
     constructor(private dependencies: MemoryFastSyncChannelDependencies) {
@@ -186,14 +215,14 @@ class MemoryFastSyncReceiverChannel<
 
     async destroy() {}
 
-    _receivePackage() {
+    async _receivePackage() {
         return this.dependencies.receivePackage()
     }
 
     async _cleanup() {}
 }
 
-class MemoryFastSyncSenderChannel extends FastSyncSenderChannelBase {
+export class MemoryFastSyncSenderChannel extends FastSyncSenderChannelBase {
     constructor(private dependencies: MemoryFastSyncChannelDependencies) {
         super()
     }
