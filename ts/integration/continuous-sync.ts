@@ -2,7 +2,13 @@ import { EventEmitter } from 'events'
 import StorageManager from '@worldbrain/storex'
 import { SharedSyncLog } from '../shared-sync-log'
 import { reconcileSyncLog } from '../reconciliation'
-import { doSync, SyncPreSendProcessor, SyncSerializer, SyncEvents } from '../'
+import {
+    doSync,
+    SyncPreSendProcessor,
+    SyncSerializer,
+    SyncEvents,
+    SyncPostReceiveProcessor,
+} from '../'
 import { ClientSyncLogStorage } from '../client-sync-log'
 import { RecurringTask } from '../utils/recurring-task'
 import { SyncSettingsStore } from './settings'
@@ -147,11 +153,14 @@ export class ContinuousSync {
             deviceId: this.deviceId,
             serializer: this.getSerializer() || undefined,
             preSend: this.getPreSendProcessor() || undefined,
+            postReceive: this.getPostReceiveProcessor() || undefined,
             syncEvents,
         })
     }
 
     getPreSendProcessor(): SyncPreSendProcessor | void {}
+
+    getPostReceiveProcessor(): SyncPostReceiveProcessor | void {}
 
     getSerializer(): SyncSerializer | void {}
 }
