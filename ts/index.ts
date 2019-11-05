@@ -124,6 +124,10 @@ export async function receiveLogEntries(args: SyncOptions) {
     const deserializeEntryData = args.serializer
         ? args.serializer.deserializeSharedSyncLogEntryData
         : async (serialized: string) => JSON.parse(serialized, jsonDateParser)
+    const serializeEntryData = args.serializer
+        ? args.serializer.serializeSharedSyncLogEntryData
+        : async (deserialized: SharedSyncLogEntryData) =>
+              JSON.stringify(deserialized)
 
     const logUpdate = await args.sharedSyncLog.getUnsyncedEntries({
         userId: args.userId,
@@ -146,7 +150,12 @@ export async function receiveLogEntries(args: SyncOptions) {
 
     if (args.syncEvents) {
         args.syncEvents.emit('receivedSharedEntries', {
-            entries: logUpdate.entries,
+            entries: await Promise.all(
+                processedEntries.map(async entry => ({
+                    ...entry,
+                    data: await serializeEntryData(entry.data),
+                })),
+            ),
             deviceId: args.deviceId,
         })
     }
