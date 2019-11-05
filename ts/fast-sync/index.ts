@@ -78,6 +78,7 @@ export class FastSyncSender {
             return processedObjects
         }
 
+        channel.events.on('stalled', () => this.events.emit('stalled'))
         const interruptable = (this.interruptable = new Interruptable())
         this._state = 'running'
         try {

@@ -388,6 +388,30 @@ describe('Fast initial sync', () => {
                 await syncPromise
             }
         })
+
+        it('must detect on the sender side the connection has stalled', async options => {
+            const setup = await setupMinimalTest(options)
+            setup.channels.senderChannel.timeoutInMiliseconds = 100
+            setup.channels.receiverChannel.postReceive = async () => {
+                return new Promise(resolve => setTimeout(resolve, 400))
+            }
+            const syncPromise = setup.sync()
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            try {
+                expect(setup.senderEventSpy.popEvents()).toEqual([
+                    (expect as any).objectContaining({ eventName: 'prepared' }),
+                    (expect as any).objectContaining({ eventName: 'progress' }),
+                    (expect as any).objectContaining({ eventName: 'stalled' }),
+                    (expect as any).objectContaining({ eventName: 'progress' }),
+                    (expect as any).objectContaining({ eventName: 'stalled' }),
+                    (expect as any).objectContaining({ eventName: 'progress' }),
+                    (expect as any).objectContaining({ eventName: 'stalled' }),
+                ])
+            } finally {
+                await setup.senderFastSync.cancel()
+                await syncPromise
+            }
+        })
     }
 
     describe('in-memory data channel', () => {
