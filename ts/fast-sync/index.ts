@@ -35,6 +35,8 @@ export class FastSyncSender {
     public events: TypedEmitter<
         FastSyncEvents
     > = new EventEmitter() as TypedEmitter<FastSyncEvents>
+    public timeoutInMiliseconds = 10 * 1000
+
     private totalObjectsProcessed: number
     private interruptable: Interruptable | null = null
     private _state:
