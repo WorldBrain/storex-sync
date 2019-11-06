@@ -63,7 +63,7 @@ export default class Interruptable {
                 }
             }
         } else {
-            for (const item of iterable) {
+            for (const item of iterable as Iterable<T>) {
                 if (await this._shouldCancelAfterWaitingForPause()) {
                     break
                 }
