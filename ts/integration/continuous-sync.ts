@@ -8,6 +8,7 @@ import {
     SyncSerializer,
     SyncEvents,
     SyncPostReceiveProcessor,
+    SyncOptions,
 } from '../'
 import { ClientSyncLogStorage } from '../client-sync-log'
 import { RecurringTask } from '../utils/recurring-task'
@@ -21,14 +22,14 @@ export interface ContinuousSyncDependencies {
     settingStore: SyncSettingsStore
     frequencyInMs?: number
     toggleSyncLogging: ((enabled: true, deviceId: string | number) => void) &
-        ((enabled: false) => void)
+    ((enabled: false) => void)
 }
 export class ContinuousSync {
     public recurringIncrementalSyncTask?: RecurringTask
     public deviceId?: number | string
     public enabled = false
 
-    constructor(private dependencies: ContinuousSyncDependencies) {}
+    constructor(private dependencies: ContinuousSyncDependencies) { }
 
     async setup() {
         const enabled = await this.dependencies.settingStore.retrieveSetting(
@@ -57,7 +58,7 @@ export class ContinuousSync {
                     this.maybeDoIncrementalSync(options),
                 {
                     intervalInMs: this.dependencies.frequencyInMs,
-                    onError: () => {},
+                    onError: () => { },
                 },
             )
         }
@@ -125,6 +126,18 @@ export class ContinuousSync {
     }
 
     private async doIncrementalSync(options?: { debug?: boolean }) {
+        const syncOptions = await this.getSyncOptions()
+        if (options && options.debug) {
+            syncOptions.syncEvents = new EventEmitter() as SyncEvents
+            syncOptions.syncEvents.emit = ((name: string, event: any) => {
+                console.log(`SYNC EVENT '${name}':`, event)
+                return true
+            }) as any
+        }
+        await doSync(syncOptions)
+    }
+
+    async getSyncOptions(): Promise<SyncOptions> {
         const { auth } = this.dependencies
         const userId = await auth.getUserId()
         if (!userId) {
@@ -134,16 +147,7 @@ export class ContinuousSync {
             throw new Error(`Cannot Sync without device ID`)
         }
 
-        let syncEvents: SyncEvents | undefined
-        if (options && options.debug) {
-            syncEvents = new EventEmitter() as SyncEvents
-            syncEvents.emit = ((name: string, event: any) => {
-                console.log(`SYNC EVENT '${name}':`, event)
-                return true
-            }) as any
-        }
-
-        await doSync({
+        return {
             clientSyncLog: this.dependencies.clientSyncLog,
             sharedSyncLog: await this.dependencies.getSharedSyncLog(),
             storageManager: this.dependencies.storageManager,
@@ -154,13 +158,12 @@ export class ContinuousSync {
             serializer: this.getSerializer() || undefined,
             preSend: this.getPreSendProcessor() || undefined,
             postReceive: this.getPostReceiveProcessor() || undefined,
-            syncEvents,
-        })
+        }
     }
 
-    getPreSendProcessor(): SyncPreSendProcessor | void {}
+    getPreSendProcessor(): SyncPreSendProcessor | void { }
 
-    getPostReceiveProcessor(): SyncPostReceiveProcessor | void {}
+    getPostReceiveProcessor(): SyncPostReceiveProcessor | void { }
 
-    getSerializer(): SyncSerializer | void {}
+    getSerializer(): SyncSerializer | void { }
 }

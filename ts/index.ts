@@ -60,7 +60,7 @@ export type SyncPostReceiveProcessor = (params: {
     entry: SharedSyncLogEntry<'deserialized-data'>
 }) => Promise<{ entry: SharedSyncLogEntry<'deserialized-data'> | null }>
 
-export interface SyncOptions {
+export interface CommonSyncOptions {
     clientSyncLog: ClientSyncLogStorage
     sharedSyncLog: SharedSyncLog
     now: number | '$now'
@@ -71,9 +71,14 @@ export interface SyncOptions {
     postReceive?: SyncPostReceiveProcessor
     syncEvents?: SyncEvents
 }
+export interface SyncOptions extends CommonSyncOptions {
+    storageManager: StorageManager
+    reconciler: ReconcilerFunction
+    extraSentInfo?: any
+}
 
 export async function shareLogEntries(
-    args: SyncOptions & { extraSentInfo?: any },
+    args: CommonSyncOptions & { extraSentInfo?: any },
 ) {
     const preSend: SyncPreSendProcessor = args.preSend || (async args => args)
     const serializeEntryData = args.serializer
@@ -117,7 +122,7 @@ export async function shareLogEntries(
     })
 }
 
-export async function receiveLogEntries(args: SyncOptions) {
+export async function receiveLogEntries(args: CommonSyncOptions) {
     const postReceive: SyncPostReceiveProcessor =
         args.postReceive || (async args => args)
     const deserializeEntryData = args.serializer
@@ -126,7 +131,7 @@ export async function receiveLogEntries(args: SyncOptions) {
     const serializeEntryData = args.serializer
         ? args.serializer.serializeSharedSyncLogEntryData
         : async (deserialized: SharedSyncLogEntryData) =>
-              JSON.stringify(deserialized)
+            JSON.stringify(deserialized)
 
     const logUpdate = await args.sharedSyncLog.getUnsyncedEntries({
         userId: args.userId,
@@ -181,11 +186,7 @@ export async function writeReconcilation(args: {
 }
 
 export async function doSync(
-    options: SyncOptions & {
-        storageManager: StorageManager
-        reconciler: ReconcilerFunction
-        extraSentInfo?: any
-    },
+    options: SyncOptions,
 ) {
     await receiveLogEntries(options)
     await shareLogEntries(options)
