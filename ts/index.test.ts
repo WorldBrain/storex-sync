@@ -386,6 +386,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 serializer?: SyncSerializer
                 preSend?: SyncPreSendProcessor
                 postReceive?: SyncPostReceiveProcessor
+                extraSentInfo?: any
             }) => {
                 const client = clients[options.clientName]
                 await doSync({
@@ -399,6 +400,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     serializer: options.serializer,
                     preSend: options.preSend,
                     postReceive: options.postReceive,
+                    extraSentInfo: options.extraSentInfo,
                 })
             }
             return { clients, backend, sync, userId }
@@ -799,6 +801,46 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     { ...users[1], displayName: 'Joe!!' },
                     { ...users[2], displayName: 'Jack!!' },
                 ])
+            },
+            { includeTimestampChecks: true },
+        )
+
+        it(
+            'should allow for sending and receiving custom information when syncing',
+            async (dependencies: TestDependencies) => {
+                const { clients, sync } = await setupSyncTest(dependencies)
+                const users = []
+                for (const displayName of ['Jane', 'Joe', 'Jack']) {
+                    users.push(
+                        (await clients.one.storageManager
+                            .collection('user')
+                            .createObject({
+                                displayName,
+                            })).object,
+                    )
+                }
+
+                let receivedExtraInfo: any[] = []
+                const extraSentInfo = { appVersion: 666 }
+                await sync({ clientName: 'one', extraSentInfo })
+                await sync({
+                    clientName: 'two',
+                    postReceive: async params => {
+                        receivedExtraInfo.push(params.entry.extraInfo)
+                        return params
+                    },
+                })
+
+                expect(receivedExtraInfo).toEqual([
+                    extraSentInfo,
+                    extraSentInfo,
+                    extraSentInfo,
+                ])
+                expect(
+                    await clients.two.storageManager
+                        .collection('user')
+                        .findObjects({}),
+                ).toEqual(users)
             },
             { includeTimestampChecks: true },
         )

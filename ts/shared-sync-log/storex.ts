@@ -151,6 +151,7 @@ export class SharedSyncLogStorage extends StorageModule
             userId: number | string
             deviceId: string | number
             now: number | '$now'
+            extraSentInfo?: any
         },
     ): Promise<void> {
         if (!entries.length) {
@@ -158,7 +159,7 @@ export class SharedSyncLogStorage extends StorageModule
         }
 
         const batch: SharedSyncLogEntryBatch = {
-            data: JSON.stringify(entries),
+            data: JSON.stringify({ entries, extraInfo: options.extraSentInfo }),
             userId: options.userId,
             deviceId: options.deviceId,
             sharedOn: (options && options.now) || ('$now' as any),
@@ -193,14 +194,18 @@ export class SharedSyncLogStorage extends StorageModule
         const entries = flatten(
             entryBatches
                 .filter(batch => batch.deviceId !== options.deviceId)
-                .map((batch): SharedSyncLogEntry[] =>
-                    JSON.parse(batch.data).map((entry: SharedSyncLogEntry) => ({
-                        ...entry,
-                        sharedOn: batch.sharedOn,
-                        deviceId: batch.deviceId,
-                        userId: options.userId,
-                    })),
-                ),
+                .map((batch): SharedSyncLogEntry[] => {
+                    const batchData = JSON.parse(batch.data)
+                    return batchData.entries.map(
+                        (entry: SharedSyncLogEntry) => ({
+                            ...entry,
+                            sharedOn: batch.sharedOn,
+                            deviceId: batch.deviceId,
+                            userId: options.userId,
+                            extraInfo: batchData.extraInfo,
+                        }),
+                    )
+                }),
         ) as SharedSyncLogEntry[]
 
         return {

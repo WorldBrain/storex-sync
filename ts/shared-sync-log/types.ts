@@ -21,6 +21,7 @@ export interface SharedSyncLog {
             userId: number | string
             deviceId: string | number
             now?: number | '$now'
+            extraSentInfo?: any
         },
     ): Promise<void>
     getUnsyncedEntries(options: {
@@ -46,6 +47,7 @@ interface SharedSyncLogEntryBase {
     deviceId: number | string
     createdOn: number | '$now'
     sharedOn: number
+    extraInfo?: any
 }
 
 export type SharedSyncLogEntry<

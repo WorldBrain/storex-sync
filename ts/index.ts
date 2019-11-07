@@ -72,7 +72,9 @@ export interface SyncOptions {
     syncEvents?: SyncEvents
 }
 
-export async function shareLogEntries(args: SyncOptions) {
+export async function shareLogEntries(
+    args: SyncOptions & { extraSentInfo?: any },
+) {
     const preSend: SyncPreSendProcessor = args.preSend || (async args => args)
     const serializeEntryData = args.serializer
         ? args.serializer.serializeSharedSyncLogEntryData
@@ -108,10 +110,7 @@ export async function shareLogEntries(args: SyncOptions) {
             deviceId: args.deviceId,
         })
     }
-    await args.sharedSyncLog.writeEntries(
-        sharedLogEntries,
-        pick(args, ['userId', 'deviceId', 'now']),
-    )
+    await args.sharedSyncLog.writeEntries(sharedLogEntries, args)
     await args.clientSyncLog.updateSharedUntil({
         until: args.now,
         sharedOn: args.now,
@@ -185,6 +184,7 @@ export async function doSync(
     options: SyncOptions & {
         storageManager: StorageManager
         reconciler: ReconcilerFunction
+        extraSentInfo?: any
     },
 ) {
     await receiveLogEntries(options)
