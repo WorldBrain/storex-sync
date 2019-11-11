@@ -716,4 +716,67 @@ describe('Sync logging middleware', () => {
         expect(await clientSyncLog.getEntriesCreatedAfter(0)).toEqual([])
         expect(now).toEqual(2)
     })
+
+    it('should be able to modify operations before they get logged', async () => {
+        let now = 2
+        const {
+            storageManager,
+            clientSyncLog,
+            loggingMiddleware,
+        } = await setupTest({
+            now: () => ++now,
+        })
+        loggingMiddleware.operationPreprocessor = async args => {
+            const { operation } = args
+            if (operation[0] === 'createObject' && operation[1] === 'user') {
+                operation[2]['displayName'] += '!!!'
+            }
+
+            return args
+        }
+
+        await storageManager
+            .collection('user')
+            .createObject({ id: 53, displayName: 'John Doe' })
+        expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
+            {
+                id: (expect as any).anything(),
+                deviceId: 'device-one',
+                createdOn: 3,
+                sharedOn: null,
+                needsIntegration: false,
+                collection: 'user',
+                pk: 53,
+                operation: 'create',
+                value: { displayName: 'John Doe!!!' },
+            },
+        ])
+    })
+
+    it('should be able to exlude operations from being logged', async () => {
+        let now = 2
+        const {
+            storageManager,
+            clientSyncLog,
+            loggingMiddleware,
+        } = await setupTest({
+            now: () => ++now,
+        })
+        loggingMiddleware.operationPreprocessor = async args => {
+            const { operation } = args
+            if (operation[0] === 'updateObjects' && operation[1] === 'user') {
+                return { operation: null }
+            }
+
+            return args
+        }
+
+        await storageManager
+            .collection('user')
+            .createObject({ id: 53, displayName: 'John Doe' })
+        await storageManager
+            .collection('user')
+            .updateObjects({ id: 53 }, { displayName: 'John' })
+        expect(await clientSyncLog.getEntriesCreatedAfter(4)).toEqual([])
+    })
 })

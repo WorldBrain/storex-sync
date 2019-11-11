@@ -7,9 +7,13 @@ import {
     DEFAULT_OPERATION_PROCESSORS,
 } from './operation-processors'
 
+export type SyncLoggingOperationPreprocessor = (args: {
+    operation: any[]
+}) => Promise<{ operation: any[] | null }>
 export class SyncLoggingMiddleware implements StorageMiddleware {
     public enabled = true
     public deviceId: string | number | null = null
+    public operationPreprocessor: SyncLoggingOperationPreprocessor | null = null
 
     private clientSyncLog: ClientSyncLogStorage
     private storageManager: StorageManager
@@ -35,6 +39,14 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
     }) {
         if (!this.enabled || !this.deviceId) {
             return next.process({ operation })
+        }
+        if (this.operationPreprocessor) {
+            const result = await this.operationPreprocessor({ operation })
+            if (result.operation) {
+                operation = result.operation
+            } else {
+                return next.process({ operation })
+            }
         }
 
         const executeAndLog = (
