@@ -85,11 +85,11 @@ function clientSyncLogTests(dependencies: TestDependencies) {
         ])
 
         expect(await syncLogStorage.getEntriesCreatedAfter(2)).toEqual([
-            { ...TEST_LOG_ENTRIES[0], id: 1 },
-            { ...TEST_LOG_ENTRIES[2], id: 2 },
+            { ...TEST_LOG_ENTRIES[0] },
+            { ...TEST_LOG_ENTRIES[2] },
         ])
         expect(await syncLogStorage.getEntriesCreatedAfter(3)).toEqual([
-            { ...TEST_LOG_ENTRIES[2], id: 2 },
+            { ...TEST_LOG_ENTRIES[2] },
         ])
     })
 
@@ -103,9 +103,9 @@ function clientSyncLogTests(dependencies: TestDependencies) {
         await syncLogStorage.insertEntries([TEST_LOG_ENTRIES[1]])
 
         expect(await syncLogStorage.getEntriesCreatedAfter(2)).toEqual([
-            { ...TEST_LOG_ENTRIES[0], id: 1 },
-            { ...TEST_LOG_ENTRIES[1], id: 3 },
-            { ...TEST_LOG_ENTRIES[2], id: 2 },
+            { ...TEST_LOG_ENTRIES[0] },
+            { ...TEST_LOG_ENTRIES[1] },
+            { ...TEST_LOG_ENTRIES[2] },
         ])
     })
 
@@ -118,9 +118,9 @@ function clientSyncLogTests(dependencies: TestDependencies) {
         await syncLogStorage.updateSharedUntil({ until: 3, sharedOn: 6 })
 
         expect(await syncLogStorage.getEntriesCreatedAfter(2)).toEqual([
-            { ...TEST_LOG_ENTRIES[0], id: 1, sharedOn: 6 },
-            { ...TEST_LOG_ENTRIES[1], id: 2, sharedOn: 6 },
-            { ...TEST_LOG_ENTRIES[2], id: 3 },
+            { ...TEST_LOG_ENTRIES[0], sharedOn: 6 },
+            { ...TEST_LOG_ENTRIES[1], sharedOn: 6 },
+            { ...TEST_LOG_ENTRIES[2] },
         ])
     })
 
@@ -135,8 +135,8 @@ function clientSyncLogTests(dependencies: TestDependencies) {
         await syncLogStorage.updateSharedUntil({ until: 2, sharedOn: 6 })
 
         expect(await syncLogStorage.getUnsharedEntries()).toEqual([
-            { ...TEST_LOG_ENTRIES[1], id: 3 },
-            { ...TEST_LOG_ENTRIES[2], id: 2 },
+            { ...TEST_LOG_ENTRIES[1] },
+            { ...TEST_LOG_ENTRIES[2] },
         ])
     })
 
@@ -162,7 +162,6 @@ function clientSyncLogTests(dependencies: TestDependencies) {
         )
         expect(await syncLogStorage.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: 1,
                 createdOn: 2,
                 deviceId: 'u1d1',
                 sharedOn: now,
@@ -192,7 +191,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
             },
             {
                 deviceId: 'device-one',
-                createdOn: 2,
+                createdOn: 3,
                 sharedOn: 10,
                 needsIntegration: true,
                 operation: 'create',
@@ -207,8 +206,8 @@ function clientSyncLogTests(dependencies: TestDependencies) {
             await syncLogStorage.getEntriesCreatedAfter(1),
         )
         expect(await syncLogStorage.getEntriesCreatedAfter(1)).toEqual([
-            { ...entries[0], id: 1, needsIntegration: false },
-            { ...entries[1], id: 2, needsIntegration: false },
+            { ...entries[0], needsIntegration: false },
+            { ...entries[1], needsIntegration: false },
         ])
     })
 
@@ -229,7 +228,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
                 },
                 {
                     deviceId: 'device-one',
-                    createdOn: 2,
+                    createdOn: 3,
                     sharedOn: 10,
                     needsIntegration: true,
                     operation: 'create',
@@ -239,7 +238,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
                 },
                 {
                     deviceId: 'device-one',
-                    createdOn: 3,
+                    createdOn: 4,
                     sharedOn: 10,
                     needsIntegration: true,
                     operation: 'modify',
@@ -250,7 +249,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
                 },
                 {
                     deviceId: 'device-one',
-                    createdOn: 4,
+                    createdOn: 5,
                     sharedOn: 10,
                     needsIntegration: true,
                     operation: 'delete',
@@ -262,14 +261,14 @@ function clientSyncLogTests(dependencies: TestDependencies) {
             await syncLogStorage.insertEntries(entries)
             const firstEntries = (await syncLogStorage.getNextEntriesToIntgrate()) as ClientSyncLogEntry[]
             expect(firstEntries).toEqual([
-                { id: 1, ...entries[0] },
-                { id: 3, ...entries[2] },
-                { id: 4, ...entries[3] },
+                { ...entries[0] },
+                { ...entries[2] },
+                { ...entries[3] },
             ])
 
             await syncLogStorage.markAsIntegrated(firstEntries)
             const secondEntries = (await syncLogStorage.getNextEntriesToIntgrate()) as ClientSyncLogEntry[]
-            expect(secondEntries).toEqual([{ id: 2, ...entries[1] }])
+            expect(secondEntries).toEqual([{ ...entries[1] }])
 
             await syncLogStorage.markAsIntegrated(secondEntries)
             const thirdEntries = await syncLogStorage.getNextEntriesToIntgrate()

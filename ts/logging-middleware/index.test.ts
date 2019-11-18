@@ -52,7 +52,6 @@ describe('Sync logging middleware', () => {
             .createObject({ id: 53, displayName: 'John Doe' })
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
@@ -78,7 +77,6 @@ describe('Sync logging middleware', () => {
             .updateOneObject({ id: 53 }, { displayName: 'Jack Doe' })
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
@@ -89,7 +87,6 @@ describe('Sync logging middleware', () => {
                 value: { displayName: 'John Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
@@ -123,7 +120,6 @@ describe('Sync logging middleware', () => {
             )
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
@@ -134,7 +130,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'John', lastName: 'Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
@@ -146,7 +141,6 @@ describe('Sync logging middleware', () => {
                 value: 'Jack',
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 5,
                 sharedOn: null,
@@ -183,7 +177,6 @@ describe('Sync logging middleware', () => {
             .updateObjects({ lastName: 'Doe' }, { lastName: 'Trump' })
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
@@ -194,7 +187,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'John', lastName: 'Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
@@ -205,7 +197,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'Jane', lastName: 'Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 5,
                 sharedOn: null,
@@ -216,7 +207,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'Jack', lastName: 'Daniels' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 6,
                 sharedOn: null,
@@ -228,7 +218,6 @@ describe('Sync logging middleware', () => {
                 value: 'Trump',
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 7,
                 sharedOn: null,
@@ -268,7 +257,6 @@ describe('Sync logging middleware', () => {
             )
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
@@ -279,7 +267,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'John', lastName: 'Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
@@ -290,7 +277,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'Jane', lastName: 'Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 5,
                 sharedOn: null,
@@ -301,7 +287,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'Jack', lastName: 'Daniels' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 6,
                 sharedOn: null,
@@ -313,7 +298,6 @@ describe('Sync logging middleware', () => {
                 value: 'Pinata',
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 7,
                 sharedOn: null,
@@ -325,7 +309,6 @@ describe('Sync logging middleware', () => {
                 value: 'Trump',
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 8,
                 sharedOn: null,
@@ -337,7 +320,6 @@ describe('Sync logging middleware', () => {
                 value: 'Pinata',
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 9,
                 sharedOn: null,
@@ -372,7 +354,6 @@ describe('Sync logging middleware', () => {
         ])
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
@@ -383,7 +364,6 @@ describe('Sync logging middleware', () => {
                 value: { displayName: 'John Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
@@ -407,7 +387,6 @@ describe('Sync logging middleware', () => {
         await storageManager.collection('user').deleteOneObject({ id: 53 })
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
@@ -418,7 +397,6 @@ describe('Sync logging middleware', () => {
                 value: { displayName: 'John Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
@@ -443,7 +421,6 @@ describe('Sync logging middleware', () => {
             .deleteObjects({ firstName: 'John', lastName: 'Doe' })
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
@@ -454,7 +431,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'John', lastName: 'Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
@@ -485,7 +461,6 @@ describe('Sync logging middleware', () => {
             .deleteObjects({ firstName: 'John', lastName: 'Doe' })
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
@@ -496,7 +471,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'John', lastName: 'Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
@@ -507,7 +481,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'John', lastName: 'Paul' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 5,
                 sharedOn: null,
@@ -518,7 +491,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'Jess', lastName: 'Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 6,
                 sharedOn: null,
@@ -549,7 +521,6 @@ describe('Sync logging middleware', () => {
             .deleteObjects({ firstName: 'John' })
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
@@ -560,7 +531,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'John', lastName: 'Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
@@ -571,7 +541,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'John', lastName: 'Paul' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 5,
                 sharedOn: null,
@@ -582,7 +551,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'Jess', lastName: 'Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 6,
                 sharedOn: null,
@@ -592,7 +560,6 @@ describe('Sync logging middleware', () => {
                 operation: 'delete',
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 7,
                 sharedOn: null,
@@ -624,7 +591,6 @@ describe('Sync logging middleware', () => {
             .deleteObjects({ firstName: 'John' }, { limit: 1 })
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,
@@ -635,7 +601,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'John', lastName: 'Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
@@ -646,7 +611,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'John', lastName: 'Paul' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 5,
                 sharedOn: null,
@@ -657,7 +621,6 @@ describe('Sync logging middleware', () => {
                 value: { firstName: 'Jess', lastName: 'Doe' },
             },
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 6,
                 sharedOn: null,
@@ -687,7 +650,6 @@ describe('Sync logging middleware', () => {
         ])
         expect(await clientSyncLog.getEntriesCreatedAfter(4)).toEqual([
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 4,
                 sharedOn: null,
@@ -740,7 +702,6 @@ describe('Sync logging middleware', () => {
             .createObject({ id: 53, displayName: 'John Doe' })
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
-                id: (expect as any).anything(),
                 deviceId: 'device-one',
                 createdOn: 3,
                 sharedOn: null,

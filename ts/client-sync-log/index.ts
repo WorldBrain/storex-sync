@@ -5,6 +5,7 @@ import {
 } from '@worldbrain/storex-pattern-modules'
 import { ClientSyncLogEntry } from './types'
 import { SharedSyncLogEntry } from '../shared-sync-log/types'
+import { UpdateObjectsBatchOperation } from '@worldbrain/storex'
 
 export class ClientSyncLogStorage extends StorageModule {
     getConfig(): StorageModuleConfig {
@@ -24,6 +25,7 @@ export class ClientSyncLogStorage extends StorageModule {
                         value: { type: 'json', optional: true },
                     },
                     indices: [
+                        { field: ['deviceId', 'createdOn'], pk: true },
                         { field: 'createdOn' },
                         { field: ['collection', 'pk'] },
                     ],
@@ -61,12 +63,8 @@ export class ClientSyncLogStorage extends StorageModule {
                     },
                 },
                 markAsIntegrated: {
-                    operation: 'updateObjects',
-                    collection: 'clientSyncLogEntry',
-                    args: [
-                        { id: { $in: '$ids:array:pk' } },
-                        { needsIntegration: false },
-                    ],
+                    operation: 'executeBatch',
+                    args: ['$batch'],
                 },
                 findFirstUnintegratedEntry: {
                     operation: 'findObjects',
@@ -169,7 +167,19 @@ export class ClientSyncLogStorage extends StorageModule {
 
     async markAsIntegrated(entries: ClientSyncLogEntry[]) {
         await this.operation('markAsIntegrated', {
-            ids: entries.map(entry => entry.id),
+            batch: entries.map(
+                (entry): UpdateObjectsBatchOperation => ({
+                    operation: 'updateObjects',
+                    collection: 'clientSyncLogEntry',
+                    where: {
+                        deviceId: entry.deviceId,
+                        createdOn: entry.createdOn,
+                    },
+                    updates: {
+                        needsIntegration: false,
+                    },
+                }),
+            ),
         })
     }
 

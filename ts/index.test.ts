@@ -325,7 +325,6 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 ),
             ).toEqual([
                 (expect as any).objectContaining({
-                    id: (expect as any).anything(),
                     deviceId: 1,
                     createdOn: 2,
                     needsIntegration: false,
@@ -335,7 +334,6 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     value: { displayName: 'Bob' },
                 }),
                 {
-                    id: (expect as any).anything(),
                     deviceId: 2,
                     createdOn: 5,
                     sharedOn: 60,
@@ -346,7 +344,6 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                     value: { displayName: 'Joe' },
                 },
                 {
-                    id: (expect as any).anything(),
                     deviceId: 2,
                     createdOn: 7,
                     sharedOn: 60,
