@@ -37,8 +37,13 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         next: { process: (options: { operation: any[] }) => any }
         operation: any[]
     }) {
-        if (!this.enabled || !this.deviceId) {
+        if (!this.enabled) {
             return next.process({ operation })
+        }
+        if (!this.deviceId) {
+            throw new Error(
+                `Cannot log sync operations without setting a device ID first`,
+            )
         }
         if (this.operationPreprocessor) {
             const result = await this.operationPreprocessor({ operation })
