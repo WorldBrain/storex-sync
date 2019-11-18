@@ -131,7 +131,7 @@ export async function receiveLogEntries(args: CommonSyncOptions) {
     const serializeEntryData = args.serializer
         ? args.serializer.serializeSharedSyncLogEntryData
         : async (deserialized: SharedSyncLogEntryData) =>
-            JSON.stringify(deserialized)
+              JSON.stringify(deserialized)
 
     const logUpdate = await args.sharedSyncLog.getUnsyncedEntries({
         userId: args.userId,
@@ -174,20 +174,24 @@ export async function receiveLogEntries(args: CommonSyncOptions) {
 
 export async function writeReconcilation(args: {
     storageManager: StorageManager
+    clientSyncLog: ClientSyncLogStorage
+    entries: ClientSyncLogEntry[]
     reconciliation: OperationBatch
 }) {
+    const batchSteps = [
+        ...args.reconciliation,
+        ...args.clientSyncLog.getMarkAsIntegratedBatchSteps(args.entries),
+    ]
     await args.storageManager.backend.operation(
         'executeBatch',
-        args.reconciliation.map((step: any) => ({
+        batchSteps.map((step: any) => ({
             ...step,
             placeholder: '',
         })),
     )
 }
 
-export async function doSync(
-    options: SyncOptions,
-) {
+export async function doSync(options: SyncOptions) {
     await receiveLogEntries(options)
     await shareLogEntries(options)
 
@@ -211,8 +215,9 @@ export async function doSync(
 
         await writeReconcilation({
             storageManager: options.storageManager,
+            clientSyncLog: options.clientSyncLog,
+            entries,
             reconciliation,
         })
-        await options.clientSyncLog.markAsIntegrated(entries)
     }
 }

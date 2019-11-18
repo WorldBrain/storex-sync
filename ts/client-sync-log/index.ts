@@ -167,20 +167,24 @@ export class ClientSyncLogStorage extends StorageModule {
 
     async markAsIntegrated(entries: ClientSyncLogEntry[]) {
         await this.operation('markAsIntegrated', {
-            batch: entries.map(
-                (entry): UpdateObjectsBatchOperation => ({
-                    operation: 'updateObjects',
-                    collection: 'clientSyncLogEntry',
-                    where: {
-                        deviceId: entry.deviceId,
-                        createdOn: entry.createdOn,
-                    },
-                    updates: {
-                        needsIntegration: false,
-                    },
-                }),
-            ),
+            batch: this.getMarkAsIntegratedBatchSteps(entries),
         })
+    }
+
+    getMarkAsIntegratedBatchSteps(entries: ClientSyncLogEntry[]) {
+        return entries.map(
+            (entry): UpdateObjectsBatchOperation => ({
+                operation: 'updateObjects',
+                collection: 'clientSyncLogEntry',
+                where: {
+                    deviceId: entry.deviceId,
+                    createdOn: entry.createdOn,
+                },
+                updates: {
+                    needsIntegration: false,
+                },
+            }),
+        )
     }
 
     async getNextEntriesToIntgrate(): Promise<ClientSyncLogEntry[] | null> {
