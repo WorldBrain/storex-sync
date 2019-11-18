@@ -28,7 +28,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         this.includeCollections = new Set(options.includeCollections)
     }
 
-    enable(deviceId: string | null) {
+    enable(deviceId: string | number) {
         this.enabled = true
         this.deviceId = deviceId
     }
