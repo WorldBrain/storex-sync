@@ -37,10 +37,13 @@ async function setupTest(options: {
         storageManager,
         includeCollections: ['user'],
     })
-    loggingMiddleware.deviceId =
-        typeof options.deviceId !== 'undefined'
-            ? options.deviceId
-            : 'device-one'
+    if (options.deviceId !== null) {
+        loggingMiddleware.enable(
+            typeof options.deviceId !== 'undefined'
+                ? options.deviceId
+                : 'device-one',
+        )
+    }
     loggingMiddleware._getNow = options.now
     storageManager.setMiddleware([loggingMiddleware])
     return { storageManager, clientSyncLog, loggingMiddleware }
@@ -673,8 +676,8 @@ describe('Sync logging middleware', () => {
             loggingMiddleware,
         } = await setupTest({
             now: () => ++now,
+            deviceId: null,
         })
-        loggingMiddleware.enabled = false
 
         await storageManager
             .collection('user')
@@ -743,21 +746,5 @@ describe('Sync logging middleware', () => {
             .collection('user')
             .updateObjects({ id: 53 }, { displayName: 'John' })
         expect(await clientSyncLog.getEntriesCreatedAfter(4)).toEqual([])
-    })
-
-    it('should complain if you try to enable the logging middleware without setting a device ID', async () => {
-        let now = 2
-        const { storageManager } = await setupTest({
-            now: () => ++now,
-            deviceId: null,
-        })
-
-        await (expect as any)(
-            storageManager
-                .collection('user')
-                .createObject({ id: 53, displayName: 'John Doe' }),
-        ).rejects.toThrow(
-            'Cannot log sync operations without setting a device ID first',
-        )
     })
 })

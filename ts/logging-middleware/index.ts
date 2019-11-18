@@ -11,23 +11,30 @@ export type SyncLoggingOperationPreprocessor = (args: {
     operation: any[]
 }) => Promise<{ operation: any[] | null }>
 export class SyncLoggingMiddleware implements StorageMiddleware {
-    public enabled = true
-    public deviceId: string | number | null = null
     public operationPreprocessor: SyncLoggingOperationPreprocessor | null = null
 
-    private clientSyncLog: ClientSyncLogStorage
-    private storageManager: StorageManager
     private operationProcessors: OperationProcessorMap = DEFAULT_OPERATION_PROCESSORS
     private includeCollections: Set<string>
+    private enabled = false
+    private deviceId: string | number | null = null
 
-    constructor(options: {
-        clientSyncLog: ClientSyncLogStorage
-        storageManager: StorageManager
-        includeCollections: string[]
-    }) {
-        this.clientSyncLog = options.clientSyncLog
-        this.storageManager = options.storageManager
+    constructor(
+        private options: {
+            clientSyncLog: ClientSyncLogStorage
+            storageManager: StorageManager
+            includeCollections: string[]
+        },
+    ) {
         this.includeCollections = new Set(options.includeCollections)
+    }
+
+    enable(deviceId: string | null) {
+        this.enabled = true
+        this.deviceId = deviceId
+    }
+
+    disable() {
+        this.enabled = false
     }
 
     async process({
@@ -83,7 +90,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
                 deviceId: this.deviceId,
                 getNow: () => this._getNow(),
                 includeCollections: this.includeCollections,
-                storageRegistry: this.storageManager.registry,
+                storageRegistry: this.options.storageManager.registry,
             })
         } else {
             return next.process({ operation })
