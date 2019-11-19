@@ -181,8 +181,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 userId,
                 sharedUntil: null,
             })
-            clients[name].syncLoggingMiddleware.deviceId =
-                clients[name].deviceId
+            clients[name].syncLoggingMiddleware.enable(clients[name].deviceId)
         }
 
         return { backend, clients, userId }

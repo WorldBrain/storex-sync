@@ -10,19 +10,27 @@ import {
     FastSyncReceiverChannelEvents,
     FastSyncSenderChannelEvents,
     SyncPackage,
+    FastSyncChannelEvents,
 } from './types'
 import { ResolvablePromise, resolvablePromise } from './utils'
 
-abstract class FastSyncReceiverChannelBase<UserPackageType>
-    implements FastSyncReceiverChannel {
+abstract class FastSyncChannel<UserPackageType> {
     timeoutInMiliseconds = 10 * 1000
+    preSend?: (syncPackage: SyncPackage) => Promise<void>
     postReceive?: (syncPackage: SyncPackage) => Promise<void>
 
-    events = new EventEmitter() as TypedEmitter<FastSyncReceiverChannelEvents>
-
-    abstract destroy(): Promise<void>
+    abstract events:
+        | TypedEmitter<FastSyncSenderChannelEvents>
+        | TypedEmitter<FastSyncReceiverChannelEvents>
+    protected abstract _sendPackage(syncPackage: SyncPackage): Promise<void>
     protected abstract _receivePackage(): Promise<SyncPackage>
-    protected abstract _cleanup(): Promise<void>
+
+    async sendUserPackage(jsonSerializable: any): Promise<void> {
+        await this._sendPackageSafely({
+            type: 'user-package',
+            package: jsonSerializable,
+        })
+    }
 
     async receiveUserPackage(): Promise<UserPackageType> {
         const userPackage = await this._receivePackageSafely()
@@ -35,33 +43,71 @@ abstract class FastSyncReceiverChannelBase<UserPackageType>
         }
     }
 
+    protected async _receivePackageSafely() {
+        const stalledTimeout = setTimeout(() => {
+            ;(this.events as TypedEmitter<FastSyncChannelEvents>).emit(
+                'stalled',
+            )
+        }, this.timeoutInMiliseconds)
+
+        const syncPackage = await this._receivePackage()
+        clearTimeout(stalledTimeout)
+
+        if (this.postReceive) {
+            await this.postReceive(syncPackage)
+        }
+
+        return syncPackage
+    }
+
+    protected async _sendPackageSafely(syncPackage: SyncPackage) {
+        if (this.preSend) {
+            await this.preSend(syncPackage)
+        }
+
+        const stalledTimeout = setTimeout(() => {
+            ;(this.events as TypedEmitter<FastSyncChannelEvents>).emit(
+                'stalled',
+            )
+        }, this.timeoutInMiliseconds)
+        await this._sendPackage(syncPackage)
+        clearTimeout(stalledTimeout)
+    }
+}
+
+abstract class FastSyncReceiverChannelBase<UserPackageType = any>
+    extends FastSyncChannel<UserPackageType>
+    implements FastSyncReceiverChannel {
+    timeoutInMiliseconds = 10 * 1000
+    postReceive?: (syncPackage: SyncPackage) => Promise<void>
+
+    events = new EventEmitter() as TypedEmitter<FastSyncReceiverChannelEvents>
+
+    abstract destroy(): Promise<void>
+
     async *streamObjectBatches(): AsyncIterableIterator<{
         collection: string
         objects: any[]
     }> {
-        try {
-            while (true) {
-                const syncPackage: SyncPackage = await this._receivePackageSafely()
-                if (syncPackage.type === 'finish') {
-                    break
-                }
-                if (syncPackage.type === 'state-change') {
-                    this.events.emit(
-                        syncPackage.state === 'running' ? 'resumed' : 'paused',
-                    )
-                    continue
-                }
-
-                if (syncPackage.type === 'batch') {
-                    yield syncPackage.batch
-                } else {
-                    throw new Error(
-                        `Expected batch package in fast sync WebRTC channel, but got package type ${syncPackage.type}`,
-                    )
-                }
+        while (true) {
+            const syncPackage: SyncPackage = await this._receivePackageSafely()
+            if (syncPackage.type === 'finish') {
+                break
             }
-        } finally {
-            await this._cleanup()
+            if (syncPackage.type === 'state-change') {
+                this.events.emit(
+                    syncPackage.state === 'running' ? 'resumed' : 'paused',
+                )
+                continue
+            }
+
+            if (syncPackage.type === 'batch') {
+                yield syncPackage.batch
+            } else {
+                throw new Error(
+                    `Expected batch package in fast sync WebRTC channel, but got package type ${syncPackage.type}`,
+                )
+            }
         }
     }
 
@@ -74,38 +120,17 @@ abstract class FastSyncReceiverChannelBase<UserPackageType>
         }
         return syncPackage.info
     }
-
-    private async _receivePackageSafely() {
-        const stalledTimeout = setTimeout(() => {
-            this.events.emit('stalled')
-        }, this.timeoutInMiliseconds)
-
-        const syncPackage = await this._receivePackage()
-        clearTimeout(stalledTimeout)
-
-        if (this.postReceive) {
-            await this.postReceive(syncPackage)
-        }
-
-        return syncPackage
-    }
 }
 
-abstract class FastSyncSenderChannelBase implements FastSyncSenderChannel {
+abstract class FastSyncSenderChannelBase<UserPackageType = any>
+    extends FastSyncChannel<UserPackageType>
+    implements FastSyncSenderChannel {
     timeoutInMiliseconds = 10 * 1000
-    preSend?: (syncPackage: SyncPackage) => Promise<void>
-
     events = new EventEmitter() as TypedEmitter<FastSyncSenderChannelEvents>
 
     abstract destroy(): Promise<void>
     protected abstract _sendPackage(syncPackage: SyncPackage): Promise<void>
-
-    async sendUserPackage(jsonSerializable: any): Promise<void> {
-        await this._sendPackageSafely({
-            type: 'user-package',
-            package: jsonSerializable,
-        })
-    }
+    protected abstract _receivePackage(): Promise<SyncPackage>
 
     async sendSyncInfo(info: FastSyncInfo) {
         await this._sendPackageSafely({ type: 'sync-info', info })
@@ -122,89 +147,91 @@ abstract class FastSyncSenderChannelBase implements FastSyncSenderChannel {
     async finish() {
         await this._sendPackageSafely({ type: 'finish' })
     }
-
-    private async _sendPackageSafely(syncPackage: SyncPackage) {
-        if (this.preSend) {
-            await this.preSend(syncPackage)
-        }
-
-        const stalledTimeout = setTimeout(() => {
-            this.events.emit('stalled')
-        }, this.timeoutInMiliseconds)
-        await this._sendPackage(syncPackage)
-        clearTimeout(stalledTimeout)
-    }
 }
 
 export class WebRTCFastSyncReceiverChannel<
     UserPackageType
 > extends FastSyncReceiverChannelBase<UserPackageType> {
-    private dataReceived = resolvablePromise<string>()
-    private dataHandler: (data: any) => void
+    private mixin: ReturnType<typeof _createWebRTCMixin>
 
     constructor(private options: { peer: SimplePeer.Instance }) {
         super()
 
-        this.dataHandler = (data: any) => {
-            // This promise gets replaced after each received package
-            // NOTE: This assumes package are sent and confirmed one by one
-            this.dataReceived.resolve(data.toString())
-        }
-        this.options.peer.on('data', this.dataHandler)
+        this.mixin = _createWebRTCMixin(options)
     }
 
-    async destroy() {
-        await this.options.peer.destroy()
-    }
-
-    async _cleanup() {
-        this.options.peer.removeListener('data', this.dataHandler)
-    }
-
-    async _receivePackage(): Promise<SyncPackage> {
-        const data = await this.dataReceived.promise
-        this.dataReceived = resolvablePromise()
-
-        const syncPackage: SyncPackage = JSON.parse(data, jsonDateParser)
-
-        const confirmationPackage: SyncPackage = {
-            type: 'confirm',
-        }
-        this.options.peer.send(JSON.stringify(confirmationPackage))
-
-        return syncPackage
-    }
+    _sendPackage = (syncPackage: SyncPackage) =>
+        this.mixin._sendPackage(syncPackage)
+    _receivePackage = () => this.mixin._receivePackage()
+    destroy = () => this.mixin.destroy()
 }
 
-export class WebRTCFastSyncSenderChannel extends FastSyncSenderChannelBase {
-    constructor(private options: { peer: SimplePeer.Instance }) {
+export class WebRTCFastSyncSenderChannel<
+    UserPackageType
+> extends FastSyncSenderChannelBase<UserPackageType> {
+    private mixin: ReturnType<typeof _createWebRTCMixin>
+
+    constructor(options: { peer: SimplePeer.Instance }) {
         super()
+
+        this.mixin = _createWebRTCMixin(options)
     }
 
-    async destroy() {
-        await this.options.peer.destroy()
+    _sendPackage = (syncPackage: SyncPackage) =>
+        this.mixin._sendPackage(syncPackage)
+    _receivePackage = () => this.mixin._receivePackage()
+    destroy = () => this.mixin.destroy()
+}
+
+function _createWebRTCMixin(options: { peer: SimplePeer.Instance }) {
+    let dataReceived = resolvablePromise<string>()
+    const dataHandler = (data: any) => {
+        // This promise gets replaced after each received package
+        // NOTE: This assumes package are sent and confirmed one by one
+        dataReceived.resolve(data.toString())
     }
+    options.peer.on('data', dataHandler)
 
-    async _sendPackage(syncPackage: SyncPackage) {
-        const confirmationPromise = resolvablePromise<string>()
-        this.options.peer.once('data', (data: any) => {
-            confirmationPromise.resolve(data.toString())
-        })
-        this.options.peer.send(JSON.stringify(syncPackage))
+    return {
+        async destroy() {
+            options.peer.removeListener('data', dataHandler)
+            await options.peer.destroy()
+        },
+        async _sendPackage(syncPackage: SyncPackage) {
+            options.peer.send(JSON.stringify(syncPackage))
 
-        const response: SyncPackage = JSON.parse(
-            await confirmationPromise.promise,
-        )
-        if (response.type !== 'confirm') {
-            console.error(`Invalid confirmation received:`, response)
-            throw new Error(`Invalid confirmation received`)
-        }
+            const response = await this._receivePackage(false)
+
+            if (response.type !== 'confirm') {
+                console.error(`Invalid confirmation received:`, response)
+                throw new Error(`Invalid confirmation received`)
+            }
+        },
+        async _receivePackage(confirm = true): Promise<SyncPackage> {
+            const data = await dataReceived.promise
+            dataReceived = resolvablePromise()
+
+            const syncPackage: SyncPackage = JSON.parse(data, jsonDateParser)
+
+            if (confirm) {
+                const confirmationPackage: SyncPackage = {
+                    type: 'confirm',
+                }
+                options.peer.send(JSON.stringify(confirmationPackage))
+            }
+
+            return syncPackage
+        },
     }
 }
 
-interface MemoryFastSyncChannelDependencies {
+interface MemoryFastSyncChannelPeer {
     sendPackage(syncPackage: SyncPackage): Promise<void>
     receivePackage(): Promise<SyncPackage>
+}
+interface MemoryFastSyncChannelDependencies {
+    sender: MemoryFastSyncChannelPeer
+    receiver: MemoryFastSyncChannelPeer
 }
 export class MemoryFastSyncReceiverChannel<
     UserPackageType = any
@@ -215,11 +242,13 @@ export class MemoryFastSyncReceiverChannel<
 
     async destroy() {}
 
-    async _receivePackage() {
-        return this.dependencies.receivePackage()
+    async _sendPackage(syncPackage: SyncPackage) {
+        return this.dependencies.receiver.sendPackage(syncPackage)
     }
 
-    async _cleanup() {}
+    async _receivePackage() {
+        return this.dependencies.sender.receivePackage()
+    }
 }
 
 export class MemoryFastSyncSenderChannel extends FastSyncSenderChannelBase {
@@ -229,18 +258,20 @@ export class MemoryFastSyncSenderChannel extends FastSyncSenderChannelBase {
 
     async destroy() {}
 
-    _sendPackage(syncPackage: SyncPackage) {
-        return this.dependencies.sendPackage(syncPackage)
+    async _sendPackage(syncPackage: SyncPackage) {
+        return this.dependencies.sender.sendPackage(syncPackage)
     }
 
-    async _cleanup() {}
+    async _receivePackage() {
+        return this.dependencies.receiver.receivePackage()
+    }
 }
 
-export function createMemoryChannel() {
+function _createMemoryChannelPeer() {
     let sendPackagePromise = resolvablePromise<SyncPackage>()
     let receivePackagePromise = resolvablePromise()
 
-    const shared = {
+    return {
         async sendPackage(syncPackage: SyncPackage) {
             // console.log('sendPackage', syncPackage)
             sendPackagePromise.resolve(syncPackage)
@@ -254,9 +285,15 @@ export function createMemoryChannel() {
             return syncPackage
         },
     }
+}
 
-    const senderChannel = new MemoryFastSyncSenderChannel(shared)
-    const receiverChannel = new MemoryFastSyncReceiverChannel(shared)
+export function createMemoryChannel() {
+    const peers: MemoryFastSyncChannelDependencies = {
+        sender: _createMemoryChannelPeer(),
+        receiver: _createMemoryChannelPeer(),
+    }
+    const senderChannel = new MemoryFastSyncSenderChannel(peers)
+    const receiverChannel = new MemoryFastSyncReceiverChannel(peers)
 
     return {
         senderChannel,
