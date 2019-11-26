@@ -27,16 +27,16 @@ export type InitialSyncInfo = {
     events: TypedEmitter<InitialSyncEvents>
     finishPromise: Promise<void>
 } & (
-    | {
-          role: 'sender'
-          senderFastSyncChannel: FastSyncSenderChannel
-          senderFastSync: FastSyncSender
-      }
-    | {
-          role: 'receiver'
-          receiverFastSyncChannel: FastSyncReceiverChannel
-          receiverFastSync: FastSyncReceiver
-      })
+        | {
+            role: 'sender'
+            senderFastSyncChannel: FastSyncSenderChannel
+            senderFastSync: FastSyncSender
+        }
+        | {
+            role: 'receiver'
+            receiverFastSyncChannel: FastSyncReceiverChannel
+            receiverFastSync: FastSyncReceiver
+        })
 
 export type InitialSyncEvents = FastSyncEvents &
     SimplePeerSignallingEvents & {
@@ -57,9 +57,11 @@ export class InitialSync {
     public wrtc: any // Possibility for tests to inject wrtc library
     private initialSyncInfo?: InitialSyncInfo
 
-    constructor(protected dependencies: InitialSyncDependencies) {}
+    constructor(protected dependencies: InitialSyncDependencies) { }
 
-    async requestInitialSync(): Promise<{ initialMessage: string }> {
+    async requestInitialSync(options?: {
+        preserveChannel?: boolean
+    }): Promise<{ initialMessage: string }> {
         const role = 'sender'
         const {
             signalTransport,
@@ -77,6 +79,7 @@ export class InitialSync {
 
     async answerInitialSync(options: {
         initialMessage: string
+        preserveChannel?: boolean
     }): Promise<void> {
         const role = 'receiver'
         const { signalTransport } = await this._createSignalTransport(role)
@@ -121,6 +124,7 @@ export class InitialSync {
         signalTransport: SignalTransport
         initialMessage: string
         deviceId: 'first' | 'second'
+        preserveChannel?: boolean
     }): Promise<InitialSyncInfo> {
         const signalChannel = await options.signalTransport.openChannel(
             pick(options, 'initialMessage', 'deviceId'),
@@ -132,6 +136,8 @@ export class InitialSync {
 
         let senderFastSyncChannel: FastSyncSenderChannel | undefined
         let receiverFastSyncChannel: FastSyncReceiverChannel | undefined
+        let fastSyncChannel: { destroy: () => Promise<void> }
+
         let senderFastSync: FastSyncSender | undefined
         let receiverFastSync: FastSyncReceiver | undefined
         let fastSync: {
@@ -140,23 +146,21 @@ export class InitialSync {
         }
 
         if (options.role === 'sender') {
-            senderFastSyncChannel = new WebRTCFastSyncSenderChannel({ peer })
-            senderFastSync = new FastSyncSender({
+            fastSyncChannel = senderFastSyncChannel = new WebRTCFastSyncSenderChannel({ peer })
+            fastSync = senderFastSync = new FastSyncSender({
                 storageManager: this.dependencies.storageManager,
                 channel: senderFastSyncChannel,
                 collections: this.dependencies.syncedCollections,
                 preSendProcessor: this.getPreSendProcessor() || undefined,
             })
-            fastSync = senderFastSync
         } else {
-            receiverFastSyncChannel = new WebRTCFastSyncReceiverChannel({
+            fastSyncChannel = receiverFastSyncChannel = new WebRTCFastSyncReceiverChannel({
                 peer,
             })
-            receiverFastSync = new FastSyncReceiver({
+            fastSync = receiverFastSync = new FastSyncReceiver({
                 storageManager: this.dependencies.storageManager,
                 channel: receiverFastSyncChannel,
             })
-            fastSync = receiverFastSync
         }
 
         const buildInfo = (): InitialSyncInfo => {
@@ -198,12 +202,16 @@ export class InitialSync {
             await this.preSync(buildInfo())
             await fastSync.execute()
             fastSync.events.emit('finished', {})
+
+            if (!options.preserveChannel) {
+                fastSyncChannel.destroy()
+            }
         })()
 
         return buildInfo()
     }
 
-    protected getPreSendProcessor(): FastSyncPreSendProcessor | void {}
+    protected getPreSendProcessor(): FastSyncPreSendProcessor | void { }
 
-    protected async preSync(options: InitialSyncInfo) {}
+    protected async preSync(options: InitialSyncInfo) { }
 }
