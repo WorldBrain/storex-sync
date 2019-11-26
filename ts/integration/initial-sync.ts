@@ -72,6 +72,7 @@ export class InitialSync {
             signalTransport,
             initialMessage,
             deviceId: 'first',
+            ...(options || {})
         })
 
         return { initialMessage }
@@ -86,8 +87,8 @@ export class InitialSync {
         this.initialSyncInfo = await this._setupInitialSync({
             role,
             signalTransport,
-            initialMessage: options.initialMessage,
             deviceId: 'second',
+            ...options,
         })
     }
 
