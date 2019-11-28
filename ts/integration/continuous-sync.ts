@@ -76,6 +76,7 @@ export class ContinuousSync {
             'deviceId',
         )
         if (existingDeviceId) {
+            this.deviceId = existingDeviceId as number | string
             return
         }
 
