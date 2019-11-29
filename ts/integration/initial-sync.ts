@@ -21,6 +21,7 @@ import {
     FastSyncSenderChannel,
     FastSyncReceiverChannel,
 } from '../fast-sync/types'
+import { resolvablePromise } from '../fast-sync/utils'
 
 export type InitialSyncInfo = {
     signalChannel: SignalChannel
@@ -43,6 +44,7 @@ export type InitialSyncEvents = FastSyncEvents &
         connecting: {}
         releasingSignalChannel: {}
         connected: {}
+        preSyncSuccess: {}
         finished: {}
     }
 
@@ -90,6 +92,20 @@ export class InitialSync {
             deviceId: 'second',
             ...options,
         })
+    }
+
+    async waitForInitialSyncConnected() {
+        if (!this.initialSyncInfo) {
+            throw new Error('Cannot wait for initial sync connection if it has not been started, or already finished')
+        }
+
+        const connected = resolvablePromise<void>()
+        const handler = () => {
+            connected.resolve()
+        }
+        this.initialSyncInfo.events.on('connected', handler)
+        await connected.promise
+        this.initialSyncInfo.events.removeListener('connected', handler)
     }
 
     async waitForInitialSync(): Promise<void> {
@@ -188,6 +204,12 @@ export class InitialSync {
         }
 
         const finishPromise: Promise<void> = (async () => {
+            // const origEmit = fastSync.events.emit.bind(fastSync.events) as any
+            // fastSync.events.emit = ((eventName: string, event: any) => {
+            //     console.log(eventName, event)
+            //     return origEmit(eventName, event)
+            // }) as any
+
             fastSync.events.emit('connecting', {})
             await signalChannel.connect()
             await signalSimplePeer({
@@ -201,6 +223,7 @@ export class InitialSync {
             fastSync.events.emit('connected', {})
 
             await this.preSync(buildInfo())
+            fastSync.events.emit('preSyncSuccess', {})
             await fastSync.execute()
             fastSync.events.emit('finished', {})
 
