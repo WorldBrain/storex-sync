@@ -58,7 +58,7 @@ export interface InitialSyncDependencies {
 export type SignalTransportFactory = () => SignalTransport
 export class InitialSync {
     public debug: boolean
-    public wrtc: any // Possibility for tests to inject wrtc library
+    public wrtc?: any // Possibility for tests to inject wrtc library
     private initialSyncInfo?: InitialSyncInfo
 
     constructor(protected dependencies: InitialSyncDependencies) {
@@ -150,9 +150,8 @@ export class InitialSync {
         const signalChannel = await options.signalTransport.openChannel(
             pick(options, 'initialMessage', 'deviceId'),
         )
-        const peer = new Peer({
+        const peer = await this.getPeer({
             initiator: options.role === 'receiver',
-            wrtc: this.wrtc,
         })
 
         let senderFastSyncChannel: FastSyncSenderChannel | undefined
@@ -240,8 +239,14 @@ export class InitialSync {
     }
 
     getPreSendProcessor(): FastSyncPreSendProcessor | void { }
-
     async preSync(options: InitialSyncInfo) { }
+
+    async getPeer(options: { initiator: boolean }): Promise<Peer.Instance> {
+        return new Peer({
+            initiator: options.initiator,
+            wrtc: this.wrtc,
+        })
+    }
 
     _debugLog(...args: any[]) {
         if (this.debug) {
