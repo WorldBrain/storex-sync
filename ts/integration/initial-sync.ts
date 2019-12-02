@@ -52,14 +52,18 @@ export interface InitialSyncDependencies {
     storageManager: StorageManager
     signalTransportFactory: SignalTransportFactory
     syncedCollections: string[]
+    debug?: boolean
 }
 
 export type SignalTransportFactory = () => SignalTransport
 export class InitialSync {
+    public debug: boolean
     public wrtc: any // Possibility for tests to inject wrtc library
     private initialSyncInfo?: InitialSyncInfo
 
-    constructor(protected dependencies: InitialSyncDependencies) { }
+    constructor(protected dependencies: InitialSyncDependencies) {
+        this.debug = !!dependencies.debug
+    }
 
     async requestInitialSync(options?: {
         preserveChannel?: boolean
@@ -204,11 +208,11 @@ export class InitialSync {
         }
 
         const finishPromise: Promise<void> = (async () => {
-            // const origEmit = fastSync.events.emit.bind(fastSync.events) as any
-            // fastSync.events.emit = ((eventName: string, event: any) => {
-            //     console.log(eventName, event)
-            //     return origEmit(eventName, event)
-            // }) as any
+            const origEmit = fastSync.events.emit.bind(fastSync.events) as any
+            fastSync.events.emit = ((eventName: string, event: any) => {
+                this._debugLog(`Event '${eventName}':`, event)
+                return origEmit(eventName, event)
+            }) as any
 
             fastSync.events.emit('connecting', {})
             await signalChannel.connect()
@@ -235,7 +239,13 @@ export class InitialSync {
         return buildInfo()
     }
 
-    protected getPreSendProcessor(): FastSyncPreSendProcessor | void { }
+    getPreSendProcessor(): FastSyncPreSendProcessor | void { }
 
-    protected async preSync(options: InitialSyncInfo) { }
+    async preSync(options: InitialSyncInfo) { }
+
+    _debugLog(...args: any[]) {
+        if (this.debug) {
+            console['log']("Initial Sync -", ...args)
+        }
+    }
 }

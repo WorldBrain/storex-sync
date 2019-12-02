@@ -21,15 +21,22 @@ export interface ContinuousSyncDependencies {
     getSharedSyncLog: () => Promise<SharedSyncLog>
     settingStore: SyncSettingsStore
     frequencyInMs?: number
-    toggleSyncLogging: ((enabled: true, deviceId: string | number) => void) &
-    ((enabled: false) => void)
+    toggleSyncLogging: (
+        ((enabled: true, deviceId: string | number) => void) &
+        ((enabled: false) => void)
+    )
+    debug?: boolean
 }
+
 export class ContinuousSync {
     public recurringIncrementalSyncTask?: RecurringTask
     public deviceId?: number | string
     public enabled = false
+    public debug: boolean
 
-    constructor(private dependencies: ContinuousSyncDependencies) { }
+    constructor(private dependencies: ContinuousSyncDependencies) {
+        this.debug = !!dependencies.debug
+    }
 
     async setup() {
         const enabled = await this.dependencies.settingStore.retrieveSetting(
@@ -167,4 +174,10 @@ export class ContinuousSync {
     getPostReceiveProcessor(): SyncPostReceiveProcessor | void { }
 
     getSerializer(): SyncSerializer | void { }
+
+    _debugLog(...args: any[]) {
+        if (this.debug) {
+            console['log']("Initial Sync -", ...args)
+        }
+    }
 }
