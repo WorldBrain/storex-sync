@@ -9,4 +9,9 @@ export const FAST_SYNC_TEST_DATA = {
         label: 'Bar',
         createdWhen: new Date('2019-09-10 01:23:45'),
     },
+    test3: {
+        key: 'three',
+        label: 'spam',
+        createdWhen: new Date('2019-09-11 01:23:45'),
+    },
 }

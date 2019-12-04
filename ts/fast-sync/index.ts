@@ -53,8 +53,10 @@ export class FastSync {
 
     async execute(options: { role: 'sender' | 'receiver' }) {
         if (options.role === 'sender') {
+            await this.receive()
             await this.send()
         } else {
+            await this.send()
             await this.receive()
         }
     }
@@ -170,9 +172,10 @@ export class FastSync {
             for await (const objectBatch of this.options.channel.streamObjectBatches()) {
                 // console.log('recv: start iter')
                 for (const object of objectBatch.objects) {
-                    await this.options.storageManager
-                        .collection(objectBatch.collection)
-                        .createObject(object)
+                    await this.options.storageManager.backend.createObject(
+                        objectBatch.collection,
+                        object,
+                    )
                 }
                 this.totalObjectsProcessed += objectBatch.objects.length
                 this.events.emit('progress', {

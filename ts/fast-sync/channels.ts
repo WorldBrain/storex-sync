@@ -94,14 +94,9 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     }
 
     async _receivePackageSafely() {
-        const stalledTimeout = setTimeout(() => {
-            ;(this.events as TypedEmitter<FastSyncChannelEvents>).emit(
-                'stalled',
-            )
-        }, this.timeoutInMiliseconds)
-
-        const syncPackage = await this._receivePackage()
-        clearTimeout(stalledTimeout)
+        const syncPackage = await this._withStallingDetection(() =>
+            this._receivePackage(),
+        )
 
         if (this.postReceive) {
             await this.postReceive(syncPackage)
@@ -115,13 +110,16 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
             await this.preSend(syncPackage)
         }
 
+        await this._withStallingDetection(() => this._sendPackage(syncPackage))
+    }
+
+    async _withStallingDetection<T>(f: () => Promise<T>) {
         const stalledTimeout = setTimeout(() => {
-            ;(this.events as TypedEmitter<FastSyncChannelEvents>).emit(
-                'stalled',
-            )
+            this.events.emit('stalled')
         }, this.timeoutInMiliseconds)
-        await this._sendPackage(syncPackage)
+        const toReturn = await f()
         clearTimeout(stalledTimeout)
+        return toReturn
     }
 }
 
