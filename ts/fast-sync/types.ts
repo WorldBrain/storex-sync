@@ -9,39 +9,28 @@ export type SyncPackage<UserPackageType = any> =
     | { type: 'user-package'; package: UserPackageType }
 export interface FastSyncChannelEvents {
     stalled: () => void
+    paused: () => void
+    resumed: () => void
 }
-export interface FastSyncSenderChannelEvents extends FastSyncChannelEvents {}
-export interface FastSyncSenderChannel {
+export interface FastSyncChannel {
     timeoutInMiliseconds: number
     preSend?: (syncPackage: SyncPackage) => Promise<void>
+    postReceive?: (syncPackage: SyncPackage) => Promise<void>
 
-    events: TypedEmitter<FastSyncSenderChannelEvents>
+    events: TypedEmitter<FastSyncChannelEvents>
 
     sendUserPackage(jsonSerializable: any): Promise<void>
     receiveUserPackage(): Promise<any>
 
     sendSyncInfo(syncInfo: FastSyncInfo): Promise<void>
+    receiveSyncInfo(): Promise<FastSyncInfo>
+
+    streamObjectBatches(): AsyncIterableIterator<FastSyncBatch>
     sendObjectBatch(batch: FastSyncBatch): Promise<void>
+
     sendStateChange(state: 'paused' | 'running'): Promise<void>
 
     finish(): Promise<void>
-    destroy(): Promise<void>
-}
-export interface FastSyncReceiverChannelEvents extends FastSyncChannelEvents {
-    paused: () => void
-    resumed: () => void
-}
-export interface FastSyncReceiverChannel {
-    timeoutInMiliseconds: number
-    postReceive?: (syncPackage: SyncPackage) => Promise<void>
-
-    events: TypedEmitter<FastSyncReceiverChannelEvents>
-
-    sendUserPackage(jsonSerializable: any): Promise<void>
-    receiveUserPackage(): Promise<any>
-
-    streamObjectBatches(): AsyncIterableIterator<FastSyncBatch>
-    receiveSyncInfo(): Promise<FastSyncInfo>
     destroy(): Promise<void>
 }
 export interface FastSyncInfo {

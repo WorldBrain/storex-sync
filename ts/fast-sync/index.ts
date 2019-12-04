@@ -1,19 +1,15 @@
 import { EventEmitter } from 'events'
 import TypedEmitter from 'typed-emitter'
 import StorageManager from '@worldbrain/storex'
-import {
-    FastSyncReceiverChannel,
-    FastSyncSenderChannel,
-    FastSyncInfo,
-    FastSyncProgress,
-} from './types'
+import { FastSyncInfo, FastSyncProgress, FastSyncChannel } from './types'
 import Interruptable from './interruptable'
 
-export interface FastSyncSenderOptions {
+export interface FastSyncOptions {
     storageManager: StorageManager
-    channel: FastSyncSenderChannel
+    channel: FastSyncChannel
     collections: string[]
     preSendProcessor?: FastSyncPreSendProcessor
+    postReceiveProcessor?: FastSyncPreSendProcessor
 }
 
 export type FastSyncPreSendProcessor = (
@@ -32,7 +28,7 @@ export interface FastSyncEvents {
     resumed: () => void
 }
 
-export class FastSyncSender {
+export class FastSync {
     public events: TypedEmitter<
         FastSyncEvents
     > = new EventEmitter() as TypedEmitter<FastSyncEvents>
@@ -47,7 +43,7 @@ export class FastSyncSender {
         | 'cancelled'
         | 'error' = 'pristine'
 
-    constructor(private options: FastSyncSenderOptions) {
+    constructor(private options: FastSyncOptions) {
         this.totalObjectsProcessed = 0
     }
 
@@ -55,7 +51,15 @@ export class FastSyncSender {
         return this._state
     }
 
-    async execute() {
+    async execute(options: { role: 'sender' | 'receiver' }) {
+        if (options.role === 'sender') {
+            await this.send()
+        } else {
+            await this.receive()
+        }
+    }
+
+    async send() {
         const { channel } = this.options
         const preproccesObjects = async (params: {
             collection: string
@@ -141,50 +145,7 @@ export class FastSyncSender {
         }
     }
 
-    async pause() {
-        if (this.interruptable) {
-            this._state = 'paused'
-            this.events.emit('paused')
-            await this.interruptable.pause()
-            await this.options.channel.sendStateChange('paused')
-        }
-    }
-
-    async resume() {
-        if (this.interruptable) {
-            this._state = 'running'
-            this.events.emit('resumed')
-            await this.options.channel.sendStateChange('running')
-            await this.interruptable.resume()
-        }
-    }
-
-    async cancel() {
-        if (this.interruptable) {
-            this._state = 'cancelled'
-            await this.interruptable.cancel()
-        }
-    }
-}
-
-export class FastSyncReceiver {
-    public events: TypedEmitter<FastSyncEvents> = new EventEmitter() as any
-    private totalObjectsProcessed: number = 0
-    private _state: 'pristine' | 'running' | 'paused' | 'done' | 'error' =
-        'pristine'
-
-    constructor(
-        private options: {
-            storageManager: StorageManager
-            channel: FastSyncReceiverChannel
-        },
-    ) {}
-
-    get state() {
-        return this._state
-    }
-
-    async execute() {
+    async receive() {
         this._state = 'running'
         const stateChangeHandler = (state: 'paused' | 'resumed') => () => {
             this._state = state === 'paused' ? 'paused' : 'running'
@@ -229,8 +190,29 @@ export class FastSyncReceiver {
         }
     }
 
-    getState() {
-        return this._state
+    async pause() {
+        if (this.interruptable) {
+            this._state = 'paused'
+            this.events.emit('paused')
+            await this.interruptable.pause()
+            await this.options.channel.sendStateChange('paused')
+        }
+    }
+
+    async resume() {
+        if (this.interruptable) {
+            this._state = 'running'
+            this.events.emit('resumed')
+            await this.options.channel.sendStateChange('running')
+            await this.interruptable.resume()
+        }
+    }
+
+    async cancel() {
+        if (this.interruptable) {
+            this._state = 'cancelled'
+            await this.interruptable.cancel()
+        }
     }
 }
 

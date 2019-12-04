@@ -7,22 +7,23 @@ import { MemorySignalTransportManager } from 'simple-signalling/lib/memory'
 import { FirebaseSignalTransport } from 'simple-signalling/lib/firebase'
 import { createSignallingFirebaseTestApp } from 'simple-signalling/lib/firebase.tests'
 import { signalSimplePeer } from 'simple-signalling/lib/simple-peer'
-import { FastSyncReceiver, FastSyncSender, FastSyncPreSendProcessor } from '.'
+import { FastSync, FastSyncPreSendProcessor } from '.'
 import {
     createMemoryChannel,
-    WebRTCFastSyncSenderChannel,
-    WebRTCFastSyncReceiverChannel,
-    MemoryFastSyncReceiverChannel,
+    // WebRTCFastSyncSenderChannel,
+    // WebRTCFastSyncReceiverChannel,
+    MemoryFastSyncChannel,
+    WebRTCFastSyncChannel,
 } from './channels'
-import { FastSyncSenderChannel, FastSyncReceiverChannel } from './types'
+import { FastSyncChannel } from './types'
 import { SignalTransport } from 'simple-signalling/lib/types'
 import { FAST_SYNC_TEST_DATA } from './index.test.data'
 import { resolvablePromise } from './utils'
 
 interface TestOptions {
     createChannels: () => Promise<{
-        senderChannel: FastSyncSenderChannel
-        receiverChannel: FastSyncReceiverChannel
+        senderChannel: FastSyncChannel
+        receiverChannel: FastSyncChannel
     }>
     preSendProcessor?: FastSyncPreSendProcessor
 }
@@ -111,8 +112,8 @@ async function createWebRTCSyncChannels(options: {
     ])
 
     return {
-        senderChannel: new WebRTCFastSyncSenderChannel({ peer: peers[0] }),
-        receiverChannel: new WebRTCFastSyncReceiverChannel({
+        senderChannel: new WebRTCFastSyncChannel({ peer: peers[0] }),
+        receiverChannel: new WebRTCFastSyncChannel({
             peer: peers[1],
         }),
     }
@@ -130,15 +131,17 @@ async function setupMinimalTest(options: TestOptions) {
         .createObject(FAST_SYNC_TEST_DATA.test2)
 
     const channels = await testSetup.createChannels()
-    const senderFastSync = new FastSyncSender({
+    const senderFastSync = new FastSync({
         storageManager: device1.storageManager,
         channel: channels.senderChannel,
         collections: ['test'],
         preSendProcessor: options.preSendProcessor,
     })
-    const receiverFastSync = new FastSyncReceiver({
+    const receiverFastSync = new FastSync({
         storageManager: device2.storageManager,
         channel: channels.receiverChannel,
+        collections: ['test'],
+        preSendProcessor: options.preSendProcessor,
     })
 
     const senderEventSpy = testSetup.createEventSpy()
@@ -148,8 +151,8 @@ async function setupMinimalTest(options: TestOptions) {
     receiverEventSpy.listen(receiverFastSync.events as EventEmitter)
 
     const sync = async () => {
-        const senderPromise = senderFastSync.execute()
-        const receiverPromise = receiverFastSync.execute()
+        const senderPromise = senderFastSync.execute({ role: 'sender' })
+        const receiverPromise = receiverFastSync.execute({ role: 'receiver' })
 
         await receiverPromise
         await senderPromise

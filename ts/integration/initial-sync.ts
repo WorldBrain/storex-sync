@@ -6,38 +6,24 @@ import {
     SimplePeerSignallingEvents,
 } from 'simple-signalling/lib/simple-peer'
 import {
-    FastSyncSender,
-    FastSyncReceiver,
     FastSyncEvents,
     FastSyncPreSendProcessor,
+    FastSync,
 } from '../fast-sync'
-import {
-    WebRTCFastSyncSenderChannel,
-    WebRTCFastSyncReceiverChannel,
-} from '../fast-sync/channels'
+import { WebRTCFastSyncChannel } from '../fast-sync/channels'
 import TypedEmitter from 'typed-emitter'
 import StorageManager from '@worldbrain/storex'
-import {
-    FastSyncSenderChannel,
-    FastSyncReceiverChannel,
-} from '../fast-sync/types'
+import { FastSyncChannel } from '../fast-sync/types'
 import { resolvablePromise } from '../fast-sync/utils'
 
 export type InitialSyncInfo = {
     signalChannel: SignalChannel
     events: TypedEmitter<InitialSyncEvents>
     finishPromise: Promise<void>
-} & (
-        | {
-            role: 'sender'
-            senderFastSyncChannel: FastSyncSenderChannel
-            senderFastSync: FastSyncSender
-        }
-        | {
-            role: 'receiver'
-            receiverFastSyncChannel: FastSyncReceiverChannel
-            receiverFastSync: FastSyncReceiver
-        })
+    role: 'sender' | 'receiver'
+    fastSyncChannel: FastSyncChannel
+    fastSync: FastSync
+}
 
 export type InitialSyncEvents = FastSyncEvents &
     SimplePeerSignallingEvents & {
@@ -78,7 +64,7 @@ export class InitialSync {
             signalTransport,
             initialMessage,
             deviceId: 'first',
-            ...(options || {})
+            ...(options || {}),
         })
 
         return { initialMessage }
@@ -100,7 +86,9 @@ export class InitialSync {
 
     async waitForInitialSyncConnected() {
         if (!this.initialSyncInfo) {
-            throw new Error('Cannot wait for initial sync connection if it has not been started, or already finished')
+            throw new Error(
+                'Cannot wait for initial sync connection if it has not been started, or already finished',
+            )
         }
 
         const connected = resolvablePromise<void>()
@@ -154,66 +142,36 @@ export class InitialSync {
             initiator: options.role === 'receiver',
         })
 
-        let senderFastSyncChannel: FastSyncSenderChannel | undefined
-        let receiverFastSyncChannel: FastSyncReceiverChannel | undefined
-        let fastSyncChannel: { destroy: () => Promise<void> }
-
-        let senderFastSync: FastSyncSender | undefined
-        let receiverFastSync: FastSyncReceiver | undefined
-        let fastSync: {
-            execute: () => Promise<void>
-            events: TypedEmitter<FastSyncEvents & InitialSyncEvents>
-        }
-
-        if (options.role === 'sender') {
-            fastSyncChannel = senderFastSyncChannel = new WebRTCFastSyncSenderChannel({ peer })
-            fastSync = senderFastSync = new FastSyncSender({
-                storageManager: this.dependencies.storageManager,
-                channel: senderFastSyncChannel,
-                collections: this.dependencies.syncedCollections,
-                preSendProcessor: this.getPreSendProcessor() || undefined,
-            })
-        } else {
-            fastSyncChannel = receiverFastSyncChannel = new WebRTCFastSyncReceiverChannel({
-                peer,
-            })
-            fastSync = receiverFastSync = new FastSyncReceiver({
-                storageManager: this.dependencies.storageManager,
-                channel: receiverFastSyncChannel,
-            })
-        }
+        let fastSyncChannel: FastSyncChannel = new WebRTCFastSyncChannel({
+            peer,
+        })
+        let fastSync = new FastSync({
+            storageManager: this.dependencies.storageManager,
+            channel: fastSyncChannel,
+            collections: this.dependencies.syncedCollections,
+            preSendProcessor: this.getPreSendProcessor() || undefined,
+        })
 
         const buildInfo = (): InitialSyncInfo => {
-            const common = {
+            return {
+                role: options.role,
                 signalChannel,
                 finishPromise,
                 events: fastSync.events,
-            }
-            if (options.role === 'sender') {
-                return {
-                    role: 'sender',
-                    ...common,
-                    senderFastSync: senderFastSync!,
-                    senderFastSyncChannel: senderFastSyncChannel!,
-                }
-            } else {
-                return {
-                    role: 'receiver',
-                    ...common,
-                    receiverFastSync: receiverFastSync!,
-                    receiverFastSyncChannel: receiverFastSyncChannel!,
-                }
+                fastSync,
+                fastSyncChannel,
             }
         }
 
+        const events = fastSync.events as TypedEmitter<InitialSyncEvents>
         const finishPromise: Promise<void> = (async () => {
             const origEmit = fastSync.events.emit.bind(fastSync.events) as any
-            fastSync.events.emit = ((eventName: string, event: any) => {
+            events.emit = ((eventName: string, event: any) => {
                 this._debugLog(`Event '${eventName}':`, event)
                 return origEmit(eventName, event)
             }) as any
 
-            fastSync.events.emit('connecting', {})
+            events.emit('connecting', {})
             await signalChannel.connect()
             await signalSimplePeer({
                 signalChannel,
@@ -221,14 +179,14 @@ export class InitialSync {
                 reporter: (eventName, event) =>
                     (fastSync.events as any).emit(eventName, event),
             })
-            fastSync.events.emit('releasingSignalChannel', {})
+            events.emit('releasingSignalChannel', {})
             await signalChannel.release()
-            fastSync.events.emit('connected', {})
+            events.emit('connected', {})
 
             await this.preSync(buildInfo())
-            fastSync.events.emit('preSyncSuccess', {})
-            await fastSync.execute()
-            fastSync.events.emit('finished', {})
+            events.emit('preSyncSuccess', {})
+            await fastSync.execute({ role: options.role })
+            events.emit('finished', {})
 
             if (!options.preserveChannel) {
                 fastSyncChannel.destroy()
@@ -238,8 +196,8 @@ export class InitialSync {
         return buildInfo()
     }
 
-    getPreSendProcessor(): FastSyncPreSendProcessor | void { }
-    async preSync(options: InitialSyncInfo) { }
+    getPreSendProcessor(): FastSyncPreSendProcessor | void {}
+    async preSync(options: InitialSyncInfo) {}
 
     async getPeer(options: { initiator: boolean }): Promise<Peer.Instance> {
         return new Peer({
@@ -250,7 +208,7 @@ export class InitialSync {
 
     _debugLog(...args: any[]) {
         if (this.debug) {
-            console['log']("Initial Sync -", ...args)
+            console['log']('Initial Sync -', ...args)
         }
     }
 }
