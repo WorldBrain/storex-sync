@@ -150,9 +150,15 @@ async function setupMinimalTest(options: TestOptions) {
     senderEventSpy.listen(senderFastSync.events as EventEmitter)
     receiverEventSpy.listen(receiverFastSync.events as EventEmitter)
 
-    const sync = async () => {
-        const senderPromise = senderFastSync.execute({ role: 'sender' })
-        const receiverPromise = receiverFastSync.execute({ role: 'receiver' })
+    const sync = async (options?: { bothWays?: boolean }) => {
+        const senderPromise = senderFastSync.execute({
+            role: 'sender',
+            ...options,
+        })
+        const receiverPromise = receiverFastSync.execute({
+            role: 'receiver',
+            ...options,
+        })
 
         await receiverPromise
         await senderPromise
@@ -216,52 +222,35 @@ describe('Fast initial sync', () => {
 
             await setup.sync()
 
-            const expectedSendInfo = {
+            const expectedSyncInfo = {
                 collectionCount: 1,
                 objectCount: 2,
-            }
-            const expectedReceiveInfo = {
-                collectionCount: 1,
-                objectCount: 0,
             }
             const allExpectedEvents = [
                 {
                     eventName: 'prepared',
                     syncInfo: {
-                        ...expectedReceiveInfo,
+                        ...expectedSyncInfo,
                     },
                 },
                 {
                     eventName: 'progress',
                     progress: {
-                        ...expectedReceiveInfo,
-                        totalObjectsProcessed: 0,
-                    },
-                },
-                {
-                    eventName: 'prepared',
-                    syncInfo: {
-                        ...expectedSendInfo,
-                    },
-                },
-                {
-                    eventName: 'progress',
-                    progress: {
-                        ...expectedSendInfo,
+                        ...expectedSyncInfo,
                         totalObjectsProcessed: 0,
                     },
                 },
                 {
                     eventName: 'progress',
                     progress: {
-                        ...expectedSendInfo,
+                        ...expectedSyncInfo,
                         totalObjectsProcessed: 1,
                     },
                 },
                 {
                     eventName: 'progress',
                     progress: {
-                        ...expectedSendInfo,
+                        ...expectedSyncInfo,
                         totalObjectsProcessed: 2,
                     },
                 },
@@ -322,7 +311,7 @@ describe('Fast initial sync', () => {
                 .collection('test')
                 .createObject(FAST_SYNC_TEST_DATA.test3)
 
-            await setup.sync()
+            await setup.sync({ bothWays: true })
 
             expect({
                 device: 'two',
@@ -369,8 +358,6 @@ describe('Fast initial sync', () => {
             expect(setup.senderEventSpy.popEvents()).toEqual([
                 (expect as any).objectContaining({ eventName: 'prepared' }),
                 (expect as any).objectContaining({ eventName: 'progress' }),
-                (expect as any).objectContaining({ eventName: 'prepared' }),
-                (expect as any).objectContaining({ eventName: 'progress' }),
                 (expect as any).objectContaining({ eventName: 'progress' }),
                 (expect as any).objectContaining({ eventName: 'paused' }),
             ])
@@ -378,8 +365,6 @@ describe('Fast initial sync', () => {
             await new Promise(resolve => setTimeout(resolve, 200))
             expect(setup.receiverFastSync.state).toBe('paused')
             expect(setup.receiverEventSpy.popEvents()).toEqual([
-                (expect as any).objectContaining({ eventName: 'prepared' }),
-                (expect as any).objectContaining({ eventName: 'progress' }),
                 (expect as any).objectContaining({ eventName: 'prepared' }),
                 (expect as any).objectContaining({ eventName: 'progress' }),
                 (expect as any).objectContaining({ eventName: 'progress' }),
@@ -443,47 +428,46 @@ describe('Fast initial sync', () => {
         it('must detect on the receiver side the connection has stalled', async options => {
             const setup = await setupMinimalTest(options)
             setup.channels.receiverChannel.timeoutInMiliseconds = 100
-
-            let objectsSent = 0
             setup.channels.senderChannel.preSend = async () => {
-                if (++objectsSent > 0) {
-                    await setup.senderFastSync.cancel()
-                }
-                return new Promise(resolve => setTimeout(resolve, 300))
+                return new Promise(resolve => setTimeout(resolve, 500))
             }
-            await setup.sync()
-
-            expect(setup.receiverEventSpy.popEvents()).toEqual([
-                (expect as any).objectContaining({ eventName: 'prepared' }),
-                (expect as any).objectContaining({ eventName: 'progress' }),
-                (expect as any).objectContaining({ eventName: 'stalled' }),
-                (expect as any).objectContaining({ eventName: 'stalled' }),
-                (expect as any).objectContaining({ eventName: 'prepared' }),
-                (expect as any).objectContaining({ eventName: 'progress' }),
-                (expect as any).objectContaining({ eventName: 'stalled' }),
-                (expect as any).objectContaining({ eventName: 'stalled' }),
-            ])
+            const syncPromise = setup.sync()
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            try {
+                expect(setup.receiverEventSpy.popEvents()).toEqual([
+                    (expect as any).objectContaining({ eventName: 'stalled' }),
+                    (expect as any).objectContaining({ eventName: 'prepared' }),
+                    (expect as any).objectContaining({ eventName: 'progress' }),
+                    (expect as any).objectContaining({ eventName: 'stalled' }),
+                ])
+            } finally {
+                await setup.senderFastSync.cancel()
+                await syncPromise
+            }
         })
 
         it('must detect on the sender side the connection has stalled', async options => {
             const setup = await setupMinimalTest(options)
             setup.channels.senderChannel.timeoutInMiliseconds = 100
-
-            let objectsSent = 0
             setup.channels.receiverChannel.postReceive = async () => {
-                if (++objectsSent > 0) {
-                    await setup.senderFastSync.cancel()
-                }
-                return new Promise(resolve => setTimeout(resolve, 300))
+                return new Promise(resolve => setTimeout(resolve, 400))
             }
-            await setup.sync()
-            expect(setup.senderEventSpy.popEvents()).toEqual([
-                (expect as any).objectContaining({ eventName: 'prepared' }),
-                (expect as any).objectContaining({ eventName: 'progress' }),
-                (expect as any).objectContaining({ eventName: 'prepared' }),
-                (expect as any).objectContaining({ eventName: 'stalled' }),
-                (expect as any).objectContaining({ eventName: 'stalled' }),
-            ])
+            const syncPromise = setup.sync()
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            try {
+                expect(setup.senderEventSpy.popEvents()).toEqual([
+                    (expect as any).objectContaining({ eventName: 'prepared' }),
+                    (expect as any).objectContaining({ eventName: 'progress' }),
+                    (expect as any).objectContaining({ eventName: 'stalled' }),
+                    (expect as any).objectContaining({ eventName: 'progress' }),
+                    (expect as any).objectContaining({ eventName: 'stalled' }),
+                    (expect as any).objectContaining({ eventName: 'progress' }),
+                    (expect as any).objectContaining({ eventName: 'stalled' }),
+                ])
+            } finally {
+                await setup.senderFastSync.cancel()
+                await syncPromise
+            }
         })
     }
 

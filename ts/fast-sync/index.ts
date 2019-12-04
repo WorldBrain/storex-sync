@@ -51,12 +51,19 @@ export class FastSync {
         return this._state
     }
 
-    async execute(options: { role: 'sender' | 'receiver' }) {
+    async execute(options: {
+        role: 'sender' | 'receiver'
+        bothWays?: boolean
+    }) {
         if (options.role === 'sender') {
-            await this.receive()
+            if (options.bothWays) {
+                await this.receive()
+            }
             await this.send()
         } else {
-            await this.send()
+            if (options.bothWays) {
+                await this.send()
+            }
             await this.receive()
         }
     }
