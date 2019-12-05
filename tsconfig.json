@@ -16,7 +16,11 @@
         "sourceMap": true,
         "suppressImplicitAnyIndexErrors": true,
         "typeRoots": ["./node_modules/@types"],
-        "outDir": "lib"
+        "outDir": "lib",
+        "paths": {
+            "simple-signalling": ["external/simple-signalling/ts"],
+            "simple-signalling/lib/*": ["external/simple-signalling/ts/*"]
+        }
     },
     "filesGlob": ["./ts/**/*.ts", "!./node_modules/**/*.ts"]
 }

@@ -1,0 +1,3 @@
+[submodule "external/simple-signalling"]
+	path = external/simple-signalling
+	url = https://github.com/WorldBrain/simple-signalling.git
