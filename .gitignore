@@ -6,3 +6,4 @@ test.dot
 yarn-error.log
 yarn.lock
 *.bak
+*-debug.log
