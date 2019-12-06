@@ -10,6 +10,8 @@ import {
     lazyMemorySignalTransportFactory,
 } from './index.tests'
 import { registerModuleMapCollections } from '@worldbrain/storex-pattern-modules'
+import { FastSyncEvents } from '../fast-sync'
+import { PromiseContentType } from '../types.test'
 
 describe('Integration helpers', () => {
     async function setupTest(options: { collections: RegistryCollections }) {
@@ -81,7 +83,15 @@ describe('Integration helpers', () => {
         return { clients, integration, sync }
     }
 
-    it('should do a successful two way initial sync through integration classes', async () => {
+    async function testTwoWaySync(options: {
+        insertData: (
+            clients: Array<
+                PromiseContentType<ReturnType<typeof setupSyncTestClient>>
+            >,
+        ) => Promise<void>
+        validateSenderRoleSwitch: FastSyncEvents['roleSwitch']
+        expectNoData?: boolean
+    }) {
         const { clients, integration, sync } = await setupTest({
             collections: {
                 test: {
@@ -96,21 +106,10 @@ describe('Integration helpers', () => {
             },
         })
 
-        await clients[0].storageManager
-            .collection('test')
-            .createObject(TEST_DATA.test1)
-        await clients[0].storageManager
-            .collection('test')
-            .createObject(TEST_DATA.test2)
-        await clients[1].storageManager
-            .collection('test')
-            .createObject(TEST_DATA.test3)
+        await options.insertData(clients)
 
         integration[0].initialSync.events.once('roleSwitch', event => {
-            expect(event).toEqual({
-                before: 'receiver',
-                after: 'sender',
-            })
+            options.validateSenderRoleSwitch(event)
         })
 
         await sync({
@@ -125,11 +124,13 @@ describe('Integration helpers', () => {
                 .findObjects({}, { order: [['createdWhen', 'asc']] }),
         }).toEqual({
             device: 'two',
-            objects: [
-                expect.objectContaining(TEST_DATA.test1),
-                expect.objectContaining(TEST_DATA.test2),
-                expect.objectContaining(TEST_DATA.test3),
-            ],
+            objects: options.expectNoData
+                ? []
+                : [
+                      expect.objectContaining(TEST_DATA.test1),
+                      expect.objectContaining(TEST_DATA.test2),
+                      expect.objectContaining(TEST_DATA.test3),
+                  ],
         })
 
         expect({
@@ -139,11 +140,70 @@ describe('Integration helpers', () => {
                 .findObjects({}, { order: [['createdWhen', 'asc']] }),
         }).toEqual({
             device: 'one',
-            objects: [
-                (expect as any).objectContaining(TEST_DATA.test1),
-                (expect as any).objectContaining(TEST_DATA.test2),
-                (expect as any).objectContaining(TEST_DATA.test3),
-            ],
+            objects: options.expectNoData
+                ? []
+                : [
+                      (expect as any).objectContaining(TEST_DATA.test1),
+                      (expect as any).objectContaining(TEST_DATA.test2),
+                      (expect as any).objectContaining(TEST_DATA.test3),
+                  ],
+        })
+    }
+
+    it('should do a successful two way initial sync through integration classes with the receiver having less data', async () => {
+        await testTwoWaySync({
+            async insertData(clients) {
+                await clients[0].storageManager
+                    .collection('test')
+                    .createObject(TEST_DATA.test1)
+                await clients[0].storageManager
+                    .collection('test')
+                    .createObject(TEST_DATA.test2)
+                await clients[1].storageManager
+                    .collection('test')
+                    .createObject(TEST_DATA.test3)
+            },
+            validateSenderRoleSwitch(event) {
+                expect(event).toEqual({
+                    before: 'receiver',
+                    after: 'sender',
+                })
+            },
+        })
+    })
+
+    it('should do a successful two way initial sync through integration classes with the sender having less data', async () => {
+        await testTwoWaySync({
+            async insertData(clients) {
+                await clients[0].storageManager
+                    .collection('test')
+                    .createObject(TEST_DATA.test1)
+                await clients[1].storageManager
+                    .collection('test')
+                    .createObject(TEST_DATA.test2)
+                await clients[1].storageManager
+                    .collection('test')
+                    .createObject(TEST_DATA.test3)
+            },
+            validateSenderRoleSwitch(event) {
+                expect(event).toEqual({
+                    before: 'sender',
+                    after: 'receiver',
+                })
+            },
+        })
+    })
+
+    it('should do a successful two way initial sync through integration classes without any data', async () => {
+        await testTwoWaySync({
+            async insertData(clients) {},
+            validateSenderRoleSwitch(event) {
+                expect(event).toEqual({
+                    before: 'receiver',
+                    after: 'sender',
+                })
+            },
+            expectNoData: true,
         })
     })
 })

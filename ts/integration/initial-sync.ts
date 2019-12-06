@@ -240,7 +240,7 @@ export class InitialSync {
                 type: 'storage-size',
                 size: localStorageSize,
             })
-            return localStorageSize >= remoteStorageSize
+            return localStorageSize > remoteStorageSize
                 ? 'receive-first'
                 : 'send-first'
         }
