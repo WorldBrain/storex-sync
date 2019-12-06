@@ -1,4 +1,4 @@
-export const FAST_SYNC_TEST_DATA = {
+export const TEST_DATA = {
     test1: {
         key: 'one',
         label: 'Foo',

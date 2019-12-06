@@ -28,6 +28,13 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         this.includeCollections = new Set(options.includeCollections)
     }
 
+    toggle(enabled: false): void
+    toggle(enabled: true, deviceId: number | string): void
+    toggle(enabled: boolean, deviceId?: number | string) {
+        this.enabled = enabled
+        this.deviceId = deviceId || null
+    }
+
     enable(deviceId: string | number) {
         this.enabled = true
         this.deviceId = deviceId

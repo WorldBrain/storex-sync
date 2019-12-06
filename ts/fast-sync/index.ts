@@ -1,8 +1,15 @@
 import { EventEmitter } from 'events'
 import TypedEmitter from 'typed-emitter'
 import StorageManager from '@worldbrain/storex'
-import { FastSyncInfo, FastSyncProgress, FastSyncChannel } from './types'
+import {
+    FastSyncInfo,
+    FastSyncProgress,
+    FastSyncChannel,
+    FastSyncRole,
+    FastSyncOrder,
+} from './types'
 import Interruptable from './interruptable'
+import { getFastSyncInfo } from './utils'
 
 export interface FastSyncOptions {
     storageManager: StorageManager
@@ -26,6 +33,7 @@ export interface FastSyncEvents {
     stalled: () => void
     paused: () => void
     resumed: () => void
+    roleSwitch: (event: { before: FastSyncRole; after: FastSyncRole }) => void
 }
 
 export class FastSync {
@@ -52,50 +60,48 @@ export class FastSync {
     }
 
     async execute(options: {
-        role: 'sender' | 'receiver'
-        bothWays?: boolean
+        role: FastSyncRole
+        bothWays?: FastSyncOrder
+        fastSyncInfo?: FastSyncInfo
     }) {
-        if (options.role === 'sender') {
-            if (options.bothWays) {
+        const initialRole: FastSyncRole = options.bothWays
+            ? options.bothWays === 'receive-first'
+                ? 'receiver'
+                : 'sender'
+            : options.role
+        const subsequentRole: FastSyncRole | null = options.bothWays
+            ? options.bothWays === 'receive-first'
+                ? 'sender'
+                : 'receiver'
+            : null
+        const execute = async (role: FastSyncRole) => {
+            if (role === 'sender') {
+                await this.send({ fastSyncInfo: options.fastSyncInfo })
+            } else {
                 await this.receive()
             }
-            await this.send()
-        } else {
-            if (options.bothWays) {
-                await this.send()
-            }
-            await this.receive()
+        }
+
+        await execute(initialRole)
+        if (subsequentRole) {
+            this.events.emit('roleSwitch', {
+                before: initialRole,
+                after: subsequentRole,
+            })
+            await execute(subsequentRole)
         }
     }
 
-    async send() {
+    async send(options: { fastSyncInfo?: FastSyncInfo }) {
         const { channel } = this.options
-        const preproccesObjects = async (params: {
-            collection: string
-            objects: any[]
-        }) => {
-            const preSendProcessor = this.options.preSendProcessor
-            if (!preSendProcessor) {
-                return params.objects
-            }
-
-            const processedObjects = (await Promise.all(
-                params.objects.map(
-                    async object =>
-                        (await preSendProcessor({
-                            collection: params.collection,
-                            object,
-                        })).object,
-                ),
-            )).filter(object => !!object)
-            return processedObjects
-        }
 
         channel.events.on('stalled', () => this.events.emit('stalled'))
         const interruptable = (this.interruptable = new Interruptable())
         this._state = 'running'
         try {
-            const syncInfo = await getSyncInfo(this.options.storageManager)
+            const syncInfo =
+                options.fastSyncInfo ||
+                (await getFastSyncInfo(this.options.storageManager))
             this.events.emit('prepared', { syncInfo })
             await channel.sendSyncInfo(syncInfo)
 
@@ -112,34 +118,10 @@ export class FastSync {
                 await interruptable.forOfLoop(
                     this.options.collections,
                     async collection => {
-                        await interruptable.forOfLoop(
-                            streamObjectBatches(
-                                this.options.storageManager,
-                                collection,
-                            ),
-                            async objects => {
-                                const processedObjects = await preproccesObjects(
-                                    {
-                                        collection,
-                                        objects,
-                                    },
-                                )
-                                if (processedObjects.length) {
-                                    await channel.sendObjectBatch({
-                                        collection,
-                                        objects: processedObjects,
-                                    })
-                                }
-                                this.totalObjectsProcessed += objects.length
-                                this.events.emit('progress', {
-                                    progress: {
-                                        ...syncInfo,
-                                        totalObjectsProcessed: this
-                                            .totalObjectsProcessed,
-                                    },
-                                })
-                            },
-                        )
+                        await this.sendObjecsInCollection(collection, {
+                            channel,
+                            syncInfo,
+                        })
                     },
                 )
                 this._state = 'done'
@@ -152,6 +134,56 @@ export class FastSync {
         } finally {
             this.interruptable = null
         }
+    }
+
+    private async sendObjecsInCollection(
+        collection: string,
+        options: { channel: FastSyncChannel<any>; syncInfo: FastSyncInfo },
+    ) {
+        await this.interruptable!.forOfLoop(
+            streamObjectBatches(this.options.storageManager, collection),
+            async objects => {
+                const processedObjects = await this._preproccesObjects({
+                    collection,
+                    objects,
+                })
+                if (processedObjects.length) {
+                    await options.channel.sendObjectBatch({
+                        collection,
+                        objects: processedObjects,
+                    })
+                }
+                this.totalObjectsProcessed += objects.length
+                this.events.emit('progress', {
+                    progress: {
+                        ...options.syncInfo,
+                        totalObjectsProcessed: this.totalObjectsProcessed,
+                    },
+                })
+            },
+        )
+    }
+
+    async _preproccesObjects(params: { collection: string; objects: any[] }) {
+        const preSendProcessor = this.options.preSendProcessor
+        if (!preSendProcessor) {
+            return params.objects
+        }
+
+        const processedObjects = (
+            await Promise.all(
+                params.objects.map(
+                    async object =>
+                        (
+                            await preSendProcessor({
+                                collection: params.collection,
+                                object,
+                            })
+                        ).object,
+                ),
+            )
+        ).filter(object => !!object)
+        return processedObjects
     }
 
     async receive() {
@@ -224,22 +256,6 @@ export class FastSync {
             await this.interruptable.cancel()
         }
     }
-}
-
-async function getSyncInfo(
-    storageManager: StorageManager,
-): Promise<FastSyncInfo> {
-    let collectionCount = 0
-    let objectCount = 0
-    for (const [collectionName, collectionDefinition] of Object.entries(
-        storageManager.registry.collections,
-    )) {
-        collectionCount += 1
-        objectCount += await storageManager
-            .collection(collectionName)
-            .countObjects({})
-    }
-    return { collectionCount, objectCount }
 }
 
 async function* streamObjectBatches(

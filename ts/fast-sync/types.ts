@@ -1,6 +1,8 @@
 import TypedEmitter from 'typed-emitter'
 
-export type SyncPackage<UserPackageType = any> =
+export type FastSyncRole = 'sender' | 'receiver'
+export type FastSyncOrder = 'receive-first' | 'send-first'
+export type FastSyncPackage<UserPackageType = any> =
     | { type: 'batch'; batch: any }
     | { type: 'confirm' }
     | { type: 'state-change'; state: 'paused' | 'running' }
@@ -12,15 +14,17 @@ export interface FastSyncChannelEvents {
     paused: () => void
     resumed: () => void
 }
-export interface FastSyncChannel {
+export interface FastSyncChannel<UserPackageType = any> {
     timeoutInMiliseconds: number
-    preSend?: (syncPackage: SyncPackage) => Promise<void>
-    postReceive?: (syncPackage: SyncPackage) => Promise<void>
+    preSend?: (syncPackage: FastSyncPackage) => Promise<void>
+    postReceive?: (syncPackage: FastSyncPackage) => Promise<void>
 
     events: TypedEmitter<FastSyncChannelEvents>
 
-    sendUserPackage(jsonSerializable: any): Promise<void>
-    receiveUserPackage(): Promise<any>
+    sendUserPackage(jsonSerializable: UserPackageType): Promise<void>
+    receiveUserPackage(options?: {
+        expectedType?: keyof UserPackageType
+    }): Promise<UserPackageType>
 
     sendSyncInfo(syncInfo: FastSyncInfo): Promise<void>
     receiveSyncInfo(): Promise<FastSyncInfo>

@@ -5,7 +5,7 @@ import * as SimplePeer from 'simple-peer'
 import {
     FastSyncBatch,
     FastSyncInfo,
-    SyncPackage,
+    FastSyncPackage,
     FastSyncChannelEvents,
     FastSyncChannel,
 } from './types'
@@ -15,11 +15,11 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     events = new EventEmitter() as TypedEmitter<FastSyncChannelEvents>
 
     timeoutInMiliseconds = 10 * 1000
-    preSend?: (syncPackage: SyncPackage) => Promise<void>
-    postReceive?: (syncPackage: SyncPackage) => Promise<void>
+    preSend?: (syncPackage: FastSyncPackage) => Promise<void>
+    postReceive?: (syncPackage: FastSyncPackage) => Promise<void>
 
-    abstract _sendPackage(syncPackage: SyncPackage): Promise<void>
-    abstract _receivePackage(): Promise<SyncPackage>
+    abstract _sendPackage(syncPackage: FastSyncPackage): Promise<void>
+    abstract _receivePackage(): Promise<FastSyncPackage>
 
     abstract destroy(): Promise<void>
 
@@ -30,10 +30,24 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
         })
     }
 
-    async receiveUserPackage(): Promise<UserPackageType> {
+    async receiveUserPackage(options?: {
+        expectedType?: keyof UserPackageType
+    }): Promise<UserPackageType> {
         const userPackage = await this._receivePackageSafely()
         if (userPackage.type === 'user-package') {
-            return userPackage.package
+            const innerPackage = userPackage.package
+            if (
+                options &&
+                options.expectedType &&
+                innerPackage.type !== options.expectedType
+            ) {
+                throw new Error(
+                    `Expected user package with type ${options.expectedType} ` +
+                        `in fast sync WebRTC channel, but got ` +
+                        `user package with type ${innerPackage.type}`,
+                )
+            }
+            return innerPackage
         } else {
             throw new Error(
                 `Expected user package in fast sync WebRTC channel, but got package type ${userPackage.type}`,
@@ -46,7 +60,7 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
         objects: any[]
     }> {
         while (true) {
-            const syncPackage: SyncPackage = await this._receivePackageSafely()
+            const syncPackage: FastSyncPackage = await this._receivePackageSafely()
             if (syncPackage.type === 'finish') {
                 break
             }
@@ -68,7 +82,7 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     }
 
     async receiveSyncInfo() {
-        const syncPackage: SyncPackage = await this._receivePackageSafely()
+        const syncPackage: FastSyncPackage = await this._receivePackageSafely()
         if (syncPackage.type !== 'sync-info') {
             throw new Error(
                 `Received package with unexpected type while waiting for initial Sync info: ${syncPackage.type}`,
@@ -105,7 +119,7 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
         return syncPackage
     }
 
-    async _sendPackageSafely(syncPackage: SyncPackage) {
+    async _sendPackageSafely(syncPackage: FastSyncPackage) {
         if (this.preSend) {
             await this.preSend(syncPackage)
         }
@@ -145,7 +159,7 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
         await this.options.peer.destroy()
     }
 
-    async _sendPackage(syncPackage: SyncPackage) {
+    async _sendPackage(syncPackage: FastSyncPackage) {
         this.options.peer.send(JSON.stringify(syncPackage))
 
         const response = await this._receivePackage(false)
@@ -156,14 +170,14 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
         }
     }
 
-    async _receivePackage(confirm = true): Promise<SyncPackage> {
+    async _receivePackage(confirm = true): Promise<FastSyncPackage> {
         const data = await this.dataReceived.promise
         this.dataReceived = resolvablePromise()
 
-        const syncPackage: SyncPackage = JSON.parse(data, jsonDateParser)
+        const syncPackage: FastSyncPackage = JSON.parse(data, jsonDateParser)
 
         if (confirm) {
-            const confirmationPackage: SyncPackage = {
+            const confirmationPackage: FastSyncPackage = {
                 type: 'confirm',
             }
             this.options.peer.send(JSON.stringify(confirmationPackage))
@@ -174,8 +188,8 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
 }
 
 interface MemoryFastSyncChannelPeer {
-    sendPackage(syncPackage: SyncPackage): Promise<void>
-    receivePackage(): Promise<SyncPackage>
+    sendPackage(syncPackage: FastSyncPackage): Promise<void>
+    receivePackage(): Promise<FastSyncPackage>
 }
 interface MemoryFastSyncChannelDependencies {
     sender: MemoryFastSyncChannelPeer
@@ -190,7 +204,7 @@ export class MemoryFastSyncChannel<
 
     async destroy() {}
 
-    async _sendPackage(syncPackage: SyncPackage) {
+    async _sendPackage(syncPackage: FastSyncPackage) {
         return this.dependencies.receiver.sendPackage(syncPackage)
     }
 
@@ -200,18 +214,18 @@ export class MemoryFastSyncChannel<
 }
 
 function _createMemoryChannelPeer() {
-    let sendPackagePromise = resolvablePromise<SyncPackage>()
+    let sendPackagePromise = resolvablePromise<FastSyncPackage>()
     let receivePackagePromise = resolvablePromise()
 
     return {
-        async sendPackage(syncPackage: SyncPackage) {
+        async sendPackage(syncPackage: FastSyncPackage) {
             // console.log('sendPackage', syncPackage)
             sendPackagePromise.resolve(syncPackage)
             await receivePackagePromise.promise
         },
-        async receivePackage(): Promise<SyncPackage> {
+        async receivePackage(): Promise<FastSyncPackage> {
             const syncPackage = await sendPackagePromise.promise
-            sendPackagePromise = resolvablePromise<SyncPackage>()
+            sendPackagePromise = resolvablePromise<FastSyncPackage>()
             receivePackagePromise.resolve(null)
             receivePackagePromise = resolvablePromise()
             return syncPackage

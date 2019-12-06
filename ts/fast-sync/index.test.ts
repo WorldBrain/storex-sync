@@ -15,9 +15,9 @@ import {
     MemoryFastSyncChannel,
     WebRTCFastSyncChannel,
 } from './channels'
-import { FastSyncChannel } from './types'
+import { FastSyncChannel, FastSyncOrder } from './types'
 import { SignalTransport } from 'simple-signalling/lib/types'
-import { FAST_SYNC_TEST_DATA } from './index.test.data'
+import { TEST_DATA } from '../index.test.data'
 import { resolvablePromise } from './utils'
 
 interface TestOptions {
@@ -125,10 +125,10 @@ async function setupMinimalTest(options: TestOptions) {
     const device2 = await testSetup.createDevice()
     const { object: object1 } = await device1.storageManager
         .collection('test')
-        .createObject(FAST_SYNC_TEST_DATA.test1)
+        .createObject(TEST_DATA.test1)
     const { object: object2 } = await device1.storageManager
         .collection('test')
-        .createObject(FAST_SYNC_TEST_DATA.test2)
+        .createObject(TEST_DATA.test2)
 
     const channels = await testSetup.createChannels()
     const senderFastSync = new FastSync({
@@ -150,14 +150,18 @@ async function setupMinimalTest(options: TestOptions) {
     senderEventSpy.listen(senderFastSync.events as EventEmitter)
     receiverEventSpy.listen(receiverFastSync.events as EventEmitter)
 
-    const sync = async (options?: { bothWays?: boolean }) => {
+    const sync = async (options?: { bothWays?: FastSyncOrder }) => {
         const senderPromise = senderFastSync.execute({
             role: 'sender',
             ...options,
         })
         const receiverPromise = receiverFastSync.execute({
             role: 'receiver',
-            ...options,
+            bothWays:
+                options?.bothWays &&
+                (options.bothWays === 'receive-first'
+                    ? 'send-first'
+                    : 'receive-first'),
         })
 
         await receiverPromise
@@ -309,9 +313,9 @@ describe('Fast initial sync', () => {
 
             await setup.device2.storageManager
                 .collection('test')
-                .createObject(FAST_SYNC_TEST_DATA.test3)
+                .createObject(TEST_DATA.test3)
 
-            await setup.sync({ bothWays: true })
+            await setup.sync({ bothWays: 'receive-first' })
 
             expect({
                 device: 'two',
@@ -321,9 +325,9 @@ describe('Fast initial sync', () => {
             }).toEqual({
                 device: 'two',
                 objects: [
-                    (expect as any).objectContaining(FAST_SYNC_TEST_DATA.test1),
-                    (expect as any).objectContaining(FAST_SYNC_TEST_DATA.test2),
-                    (expect as any).objectContaining(FAST_SYNC_TEST_DATA.test3),
+                    (expect as any).objectContaining(TEST_DATA.test1),
+                    (expect as any).objectContaining(TEST_DATA.test2),
+                    (expect as any).objectContaining(TEST_DATA.test3),
                 ],
             })
 
@@ -335,9 +339,9 @@ describe('Fast initial sync', () => {
             }).toEqual({
                 device: 'one',
                 objects: [
-                    (expect as any).objectContaining(FAST_SYNC_TEST_DATA.test1),
-                    (expect as any).objectContaining(FAST_SYNC_TEST_DATA.test2),
-                    (expect as any).objectContaining(FAST_SYNC_TEST_DATA.test3),
+                    (expect as any).objectContaining(TEST_DATA.test1),
+                    (expect as any).objectContaining(TEST_DATA.test2),
+                    (expect as any).objectContaining(TEST_DATA.test3),
                 ],
             })
         })

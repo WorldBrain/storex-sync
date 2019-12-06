@@ -1,15 +1,10 @@
 import expect from 'expect'
 import * as graphqlModule from 'graphql'
-import fromPairs from 'lodash/fromPairs'
-import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
 import { setupStorexTest } from '@worldbrain/storex-pattern-modules/lib/index.tests'
 import { setupTestGraphQLStorexClient } from '@worldbrain/storex-graphql-client/lib/index.tests'
 import { TypeORMStorageBackend } from '@worldbrain/storex-backend-typeorm'
 import { withEmulatedFirestoreBackend } from '@worldbrain/storex-backend-firestore/lib/index.tests'
 import { SharedSyncLogStorage } from './shared-sync-log/storex'
-import { ClientSyncLogStorage } from './client-sync-log'
-import { CustomAutoPkMiddleware } from './custom-auto-pk'
-import { SyncLoggingMiddleware } from './logging-middleware'
 import {
     shareLogEntries,
     receiveLogEntries,
@@ -23,11 +18,14 @@ import { SharedSyncLog } from './shared-sync-log'
 import { PromiseContentType } from './types.test'
 import { inspect } from 'util'
 import { RegistryCollections } from '@worldbrain/storex/lib/registry'
-import StorageManager, { StorageBackend } from '@worldbrain/storex'
-import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
-import { registerModuleMapCollections } from '@worldbrain/storex-pattern-modules'
-import { SharedSyncLogEntry } from './shared-sync-log/types'
+import { StorageBackend } from '@worldbrain/storex'
 import { ClientSyncLogEntry } from './client-sync-log/types'
+import {
+    makeTestFactory,
+    setupSyncTestClient,
+    linearTimestampGenerator,
+    TestDependencyInjector,
+} from './index.tests'
 
 export type TestDependencies = {
     sharedSyncLog: SharedSyncLog
@@ -35,111 +33,16 @@ export type TestDependencies = {
     userId?: number | string
     getNow?: () => number | '$now'
 }
-export type TestRunnerOptions = { includeTimestampChecks?: boolean }
-type TestDependencyInjector = (
-    body: (dependencies: TestDependencies) => Promise<void>,
-    options?: TestRunnerOptions,
-) => Promise<void>
-type TestFunction = (dependencies: TestDependencies) => Promise<void>
-
-function makeTestFactory(withTestDependencies: TestDependencyInjector) {
-    return async function wrappedIt(
-        description: string,
-        test: TestFunction,
-        options?: TestRunnerOptions,
-    ) {
-        it(description, async () => {
-            await withTestDependencies(
-                async (dependencies: TestDependencies) => {
-                    await test(dependencies)
-                },
-                options,
-            )
-        })
-    }
+export interface TestRunnerOptions {
+    includeTimestampChecks?: boolean
 }
 
-function integrationTests(withTestDependencies: TestDependencyInjector) {
-    function createGetNow(options: { start: number; step?: number }) {
-        let now = options.start
-        return () => {
-            const oldNow = now
-            now += options.step || 1
-            return oldNow
-        }
-    }
-
-    async function setupClient(options: {
-        serverBackend: { modules: { sharedSyncLog: SharedSyncLog } }
-        clientName: string
-        createClientStorageBackend?: () => StorageBackend
-        getNow: () => number | '$now'
-        pkGenerator: () => string
-        collections?: RegistryCollections
-    }) {
-        const backend = options.createClientStorageBackend
-            ? options.createClientStorageBackend()
-            : ((new DexieStorageBackend({
-                  dbName: 'test',
-                  idbImplementation: inMemory(),
-              }) as any) as StorageBackend)
-        const storageManager = new StorageManager({ backend })
-        storageManager.registry.registerCollections(
-            options.collections || {
-                user: {
-                    version: new Date('2019-01-01'),
-                    fields: {
-                        displayName: { type: 'string' },
-                    },
-                },
-                email: {
-                    version: new Date('2019-01-01'),
-                    fields: {
-                        address: { type: 'string' },
-                    },
-                    relationships: [{ childOf: 'user' }],
-                },
-            },
-        )
-        const modules = {
-            clientSyncLog: new ClientSyncLogStorage({ storageManager }),
-        }
-        registerModuleMapCollections(storageManager.registry, modules)
-
-        const includeCollections = options.collections
-            ? Object.keys(options.collections)
-            : ['user', 'email']
-
-        const pkMiddleware = new CustomAutoPkMiddleware({
-            pkGenerator: options.pkGenerator,
-        })
-        pkMiddleware.setup({
-            storageRegistry: storageManager.registry,
-            collections: includeCollections,
-        })
-
-        await storageManager.finishInitialization()
-        await storageManager.backend.migrate()
-
-        const syncLoggingMiddleware = new SyncLoggingMiddleware({
-            storageManager,
-            clientSyncLog: modules.clientSyncLog,
-            includeCollections,
-        })
-        syncLoggingMiddleware._getNow = options.getNow
-
-        storageManager.setMiddleware([pkMiddleware, syncLoggingMiddleware])
-
-        const deviceId: number | string = null as any
-        return {
-            storageManager,
-            syncLoggingMiddleware,
-            modules,
-            deviceId,
-            objects: {},
-        }
-    }
-
+function integrationTests(
+    withTestDependencies: TestDependencyInjector<
+        TestDependencies,
+        TestRunnerOptions
+    >,
+) {
     async function setupTest(options: {
         dependencies: TestDependencies
         getNow: () => number | '$now'
@@ -163,14 +66,14 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
         })
 
         const clients: {
-            [name: string]: PromiseContentType<ReturnType<typeof setupClient>>
+            [name: string]: PromiseContentType<
+                ReturnType<typeof setupSyncTestClient>
+            >
         } = {}
         for (const { name } of options.clients || []) {
-            clients[name] = await setupClient({
-                serverBackend: backend,
+            clients[name] = await setupSyncTestClient({
                 createClientStorageBackend:
                     options.dependencies.createClientStorageBackend,
-                clientName: name,
                 getNow: options.getNow,
                 pkGenerator,
                 collections: options.collections,
@@ -194,7 +97,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             const { backend, clients, userId } = await setupTest({
                 dependencies,
                 clients: [{ name: 'one' }, { name: 'two' }],
-                getNow: createGetNow({ start: 2 }),
+                getNow: linearTimestampGenerator({ start: 2 }),
             })
             await clients.one.storageManager.collection('user').createObject({
                 displayName: 'Joe',
@@ -204,7 +107,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             const share = (options: { now: number }) =>
                 shareLogEntries({
                     sharedSyncLog: backend.modules.sharedSyncLog,
-                    clientSyncLog: clients.one.modules.clientSyncLog,
+                    clientSyncLog: clients.one.clientSyncLog,
                     userId,
                     deviceId: clients.one.deviceId,
                     now: options.now,
@@ -276,11 +179,11 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             const { backend, clients, userId } = await setupTest({
                 dependencies,
                 clients: [{ name: 'one' }, { name: 'two' }],
-                getNow: createGetNow({ start: 2 }),
+                getNow: linearTimestampGenerator({ start: 2 }),
             })
             const receive = async (options: { now: number }) => {
                 await receiveLogEntries({
-                    clientSyncLog: clients.one.modules.clientSyncLog,
+                    clientSyncLog: clients.one.clientSyncLog,
                     sharedSyncLog: backend.modules.sharedSyncLog,
                     userId,
                     deviceId: clients.one.deviceId,
@@ -319,9 +222,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
 
             await receive({ now: 60 })
             expect(
-                await clients.one.modules.clientSyncLog.getEntriesCreatedAfter(
-                    1,
-                ),
+                await clients.one.clientSyncLog.getEntriesCreatedAfter(1),
             ).toEqual([
                 (expect as any).objectContaining({
                     deviceId: 1,
@@ -369,7 +270,8 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             },
         ) {
             const getNow =
-                dependencies.getNow || createGetNow({ start: 50, step: 5 })
+                dependencies.getNow ||
+                linearTimestampGenerator({ start: 50, step: 5 })
             const { backend, clients, userId } = await setupTest({
                 dependencies,
                 clients: [{ name: 'one' }, { name: 'two' }],
@@ -386,7 +288,7 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             }) => {
                 const client = clients[options.clientName]
                 await doSync({
-                    clientSyncLog: client.modules.clientSyncLog,
+                    clientSyncLog: client.clientSyncLog,
                     sharedSyncLog: backend.modules.sharedSyncLog,
                     storageManager: client.storageManager,
                     reconciler: reconcileSyncLog,
@@ -406,11 +308,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             'should correctly sync createObject operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const user = (await clients.one.storageManager
-                    .collection('user')
-                    .createObject({
-                        displayName: 'Joe',
-                    })).object
+                const user = (
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject({
+                            displayName: 'Joe',
+                        })
+                ).object
 
                 await sync({ clientName: 'one' })
                 await sync({ clientName: 'two' })
@@ -428,11 +332,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             'should correctly sync updateObject operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const user = (await clients.one.storageManager
-                    .collection('user')
-                    .createObject({
-                        displayName: 'Joe',
-                    })).object
+                const user = (
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject({
+                            displayName: 'Joe',
+                        })
+                ).object
                 await clients.one.storageManager
                     .collection('user')
                     .updateOneObject(user, { displayName: 'Joe Black' })
@@ -453,11 +359,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             'should correctly sync deleteObject operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const orig = (await clients.one.storageManager
-                    .collection('user')
-                    .createObject({
-                        displayName: 'Joe',
-                    })).object
+                const orig = (
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject({
+                            displayName: 'Joe',
+                        })
+                ).object
                 await clients.one.storageManager
                     .collection('user')
                     .deleteOneObject(orig)
@@ -482,16 +390,20 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             'should correctly sync deleteObjects operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const user1 = (await clients.one.storageManager
-                    .collection('user')
-                    .createObject({
-                        displayName: 'Joe',
-                    })).object
-                const user2 = (await clients.one.storageManager
-                    .collection('user')
-                    .createObject({
-                        displayName: 'Jane',
-                    })).object
+                const user1 = (
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject({
+                            displayName: 'Joe',
+                        })
+                ).object
+                const user2 = (
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject({
+                            displayName: 'Jane',
+                        })
+                ).object
 
                 await clients.one.storageManager
                     .collection('user')
@@ -515,11 +427,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 const { clients, backend, userId, sync } = await setupSyncTest(
                     dependencies,
                 )
-                const orig = (await clients.one.storageManager
-                    .collection('user')
-                    .createObject({
-                        displayName: 'Joe',
-                    })).object
+                const orig = (
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject({
+                            displayName: 'Joe',
+                        })
+                ).object
                 const { emails, ...user } = orig
 
                 const serializer: SyncSerializer = {
@@ -575,11 +489,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             )
 
             const createdWhen = new Date()
-            const orig = (await clients.one.storageManager
-                .collection('entry')
-                .createObject({
-                    createdWhen,
-                })).object
+            const orig = (
+                await clients.one.storageManager
+                    .collection('entry')
+                    .createObject({
+                        createdWhen,
+                    })
+            ).object
             expect(orig.createdWhen).toEqual(createdWhen)
 
             await sync({ clientName: 'one' })
@@ -596,11 +512,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             'should correctly sync createObject operations with a few empty syncs in between',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const orig = (await clients.one.storageManager
-                    .collection('user')
-                    .createObject({
-                        displayName: 'Joe',
-                    })).object
+                const orig = (
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject({
+                            displayName: 'Joe',
+                        })
+                ).object
                 const { ...user } = orig
 
                 await sync({ clientName: 'one' })
@@ -624,11 +542,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 const users = []
                 for (const displayName of ['Jane', 'Joe', 'Jack']) {
                     users.push(
-                        (await clients.one.storageManager
-                            .collection('user')
-                            .createObject({
-                                displayName,
-                            })).object,
+                        (
+                            await clients.one.storageManager
+                                .collection('user')
+                                .createObject({
+                                    displayName,
+                                })
+                        ).object,
                     )
                 }
 
@@ -665,11 +585,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 const users = []
                 for (const displayName of ['Jane', 'Joe', 'Jack']) {
                     users.push(
-                        (await clients.one.storageManager
-                            .collection('user')
-                            .createObject({
-                                displayName,
-                            })).object,
+                        (
+                            await clients.one.storageManager
+                                .collection('user')
+                                .createObject({
+                                    displayName,
+                                })
+                        ).object,
                     )
                 }
 
@@ -714,11 +636,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 const users = []
                 for (const displayName of ['Jane', 'Joe', 'Jack']) {
                     users.push(
-                        (await clients.one.storageManager
-                            .collection('user')
-                            .createObject({
-                                displayName,
-                            })).object,
+                        (
+                            await clients.one.storageManager
+                                .collection('user')
+                                .createObject({
+                                    displayName,
+                                })
+                        ).object,
                     )
                 }
 
@@ -755,11 +679,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 const users = []
                 for (const displayName of ['Jane', 'Joe', 'Jack']) {
                     users.push(
-                        (await clients.one.storageManager
-                            .collection('user')
-                            .createObject({
-                                displayName,
-                            })).object,
+                        (
+                            await clients.one.storageManager
+                                .collection('user')
+                                .createObject({
+                                    displayName,
+                                })
+                        ).object,
                     )
                 }
 
@@ -808,11 +734,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
                 const users = []
                 for (const displayName of ['Jane', 'Joe', 'Jack']) {
                     users.push(
-                        (await clients.one.storageManager
-                            .collection('user')
-                            .createObject({
-                                displayName,
-                            })).object,
+                        (
+                            await clients.one.storageManager
+                                .collection('user')
+                                .createObject({
+                                    displayName,
+                                })
+                        ).object,
                     )
                 }
 
@@ -845,11 +773,13 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
             'should correctly sync createObject and updateObject operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const orig = (await clients.one.storageManager
-                    .collection('user')
-                    .createObject({
-                        displayName: 'Joe',
-                    })).object
+                const orig = (
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject({
+                            displayName: 'Joe',
+                        })
+                ).object
                 const { ...user } = orig
 
                 await sync({ clientName: 'one' })
@@ -883,17 +813,19 @@ function integrationTests(withTestDependencies: TestDependencyInjector) {
 
 describe('Storex Sync integration with in-memory Dexie Storex backend', () => {
     async function setupTestDependencies(): Promise<TestDependencies> {
-        return (await setupStorexTest<{ sharedSyncLog: SharedSyncLogStorage }>({
-            dbName: 'backend',
-            collections: {},
-            modules: {
-                sharedSyncLog: ({ storageManager }) =>
-                    new SharedSyncLogStorage({
-                        storageManager,
-                        autoPkType: 'int',
-                    }),
-            },
-        })).modules
+        return (
+            await setupStorexTest<{ sharedSyncLog: SharedSyncLogStorage }>({
+                dbName: 'backend',
+                collections: {},
+                modules: {
+                    sharedSyncLog: ({ storageManager }) =>
+                        new SharedSyncLogStorage({
+                            storageManager,
+                            autoPkType: 'int',
+                        }),
+                },
+            })
+        ).modules
     }
 
     integrationTests(
@@ -907,18 +839,20 @@ describe('Storex Sync integration with in-memory TypeORM Storex backend', () => 
     async function setupTestDependencies(
         createClientStorageBackend: () => StorageBackend,
     ): Promise<TestDependencies> {
-        const serverModules = (await setupStorexTest<{
-            sharedSyncLog: SharedSyncLogStorage
-        }>({
-            collections: {},
-            modules: {
-                sharedSyncLog: ({ storageManager }) =>
-                    new SharedSyncLogStorage({
-                        storageManager,
-                        autoPkType: 'int',
-                    }),
-            },
-        })).modules
+        const serverModules = (
+            await setupStorexTest<{
+                sharedSyncLog: SharedSyncLogStorage
+            }>({
+                collections: {},
+                modules: {
+                    sharedSyncLog: ({ storageManager }) =>
+                        new SharedSyncLogStorage({
+                            storageManager,
+                            autoPkType: 'int',
+                        }),
+                },
+            })
+        ).modules
 
         return {
             sharedSyncLog: serverModules.sharedSyncLog,
