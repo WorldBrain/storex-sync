@@ -104,13 +104,14 @@ function integrationTests(
                 emails: [{ address: 'joe@doe.com' }],
             })
 
-            const share = (options: { now: number }) =>
+            const share = (options: { now: number; batchSize?: number }) =>
                 shareLogEntries({
                     sharedSyncLog: backend.modules.sharedSyncLog,
                     clientSyncLog: clients.one.clientSyncLog,
                     userId,
                     deviceId: clients.one.deviceId,
                     now: options.now,
+                    batchSize: options.batchSize,
                 })
 
             return { backend, clients, userId, share }
@@ -170,6 +171,55 @@ function integrationTests(
                 memo: expect.any(Object),
             })
         })
+
+        it('should share log entries with limited batch sizes', async (dependencies: TestDependencies) => {
+            const { backend, userId, clients, share } = await setupShareTest(
+                dependencies,
+            )
+
+            await clients.one.storageManager.collection('user').createObject({
+                displayName: 'Jane',
+                emails: [{ address: 'jane@doe.com' }],
+            })
+            await share({ now: 55, batchSize: 2 })
+            const update = await backend.modules.sharedSyncLog.getUnsyncedEntries(
+                { userId, deviceId: clients.two.deviceId },
+            )
+            expect(update.entries).toEqual([
+                {
+                    createdOn: 2,
+                    data:
+                        '{"operation":"create","collection":"user","pk":"id-1","field":null,"value":{"displayName":"Joe"}}',
+                    sharedOn: 55,
+                    deviceId: 1,
+                    userId: 1,
+                },
+                {
+                    createdOn: 3,
+                    data:
+                        '{"operation":"create","collection":"email","pk":"id-2","field":null,"value":{"address":"joe@doe.com"}}',
+                    sharedOn: 55,
+                    deviceId: 1,
+                    userId: 1,
+                },
+                {
+                    createdOn: 4,
+                    data:
+                        '{"operation":"create","collection":"user","pk":"id-3","field":null,"value":{"displayName":"Jane"}}',
+                    sharedOn: 55,
+                    deviceId: 1,
+                    userId: 1,
+                },
+                {
+                    createdOn: 5,
+                    data:
+                        '{"operation":"create","collection":"email","pk":"id-4","field":null,"value":{"address":"jane@doe.com"}}',
+                    sharedOn: 55,
+                    deviceId: 1,
+                    userId: 1,
+                },
+            ])
+        })
     })
 
     describe('receiveLogEntries()', () => {
@@ -181,13 +231,17 @@ function integrationTests(
                 clients: [{ name: 'one' }, { name: 'two' }],
                 getNow: linearTimestampGenerator({ start: 2 }),
             })
-            const receive = async (options: { now: number }) => {
+            const receive = async (options: {
+                now: number
+                batchSize?: number
+            }) => {
                 await receiveLogEntries({
                     clientSyncLog: clients.one.clientSyncLog,
                     sharedSyncLog: backend.modules.sharedSyncLog,
                     userId,
                     deviceId: clients.one.deviceId,
                     now: options.now,
+                    batchSize: options.batchSize,
                 })
             }
             return { backend, clients, userId, receive }
@@ -255,6 +309,86 @@ function integrationTests(
                 },
             ])
         })
+        it('should receive log entries with limited batch sizes', async (dependencies: TestDependencies) => {
+            const {
+                backend,
+                clients,
+                userId,
+                receive,
+            } = await setupReceiveTest(dependencies)
+
+            await backend.modules.sharedSyncLog.writeEntries(
+                [
+                    {
+                        createdOn: 3,
+                        data:
+                            '{"operation":"create","collection":"user","pk":"id-1","field":null,"value":{"displayName":"Joe"}}',
+                    },
+                    {
+                        createdOn: 5,
+                        data:
+                            '{"operation":"create","collection":"email","pk":"id-2","field":null,"value":{"address":"joe@doe.com"}}',
+                    },
+                    {
+                        createdOn: 7,
+                        data:
+                            '{"operation":"create","collection":"user","pk":"id-3","field":null,"value":{"displayName":"Jane"}}',
+                    },
+                    {
+                        createdOn: 9,
+                        data:
+                            '{"operation":"create","collection":"email","pk":"id-4","field":null,"value":{"address":"jane@doe.com"}}',
+                    },
+                ],
+                { now: 55, userId, deviceId: clients.two.deviceId },
+            )
+
+            await receive({ now: 60, batchSize: 2 })
+            expect(
+                await clients.one.clientSyncLog.getEntriesCreatedAfter(1),
+            ).toEqual([
+                {
+                    deviceId: 2,
+                    createdOn: 3,
+                    sharedOn: 60,
+                    needsIntegration: true,
+                    collection: 'user',
+                    pk: 'id-1',
+                    operation: 'create',
+                    value: { displayName: 'Joe' },
+                },
+                {
+                    deviceId: 2,
+                    createdOn: 5,
+                    sharedOn: 60,
+                    needsIntegration: true,
+                    collection: 'email',
+                    pk: 'id-2',
+                    operation: 'create',
+                    value: { address: 'joe@doe.com' },
+                },
+                {
+                    deviceId: 2,
+                    createdOn: 7,
+                    sharedOn: 60,
+                    needsIntegration: true,
+                    collection: 'user',
+                    pk: 'id-3',
+                    operation: 'create',
+                    value: { displayName: 'Jane' },
+                },
+                {
+                    deviceId: 2,
+                    createdOn: 9,
+                    sharedOn: 60,
+                    needsIntegration: true,
+                    collection: 'email',
+                    pk: 'id-4',
+                    operation: 'create',
+                    value: { address: 'jane@doe.com' },
+                },
+            ])
+        })
     })
 
     describe('doSync()', () => {
@@ -285,6 +419,7 @@ function integrationTests(
                 preSend?: SyncPreSendProcessor
                 postReceive?: SyncPostReceiveProcessor
                 extraSentInfo?: any
+                batchSize?: number
             }) => {
                 const client = clients[options.clientName]
                 await doSync({
@@ -299,6 +434,7 @@ function integrationTests(
                     preSend: options.preSend,
                     postReceive: options.postReceive,
                     extraSentInfo: options.extraSentInfo,
+                    batchSize: options.batchSize,
                 })
             }
             return { clients, backend, sync, userId }
@@ -797,6 +933,43 @@ function integrationTests(
                         .collection('user')
                         .findObject({ id: user.id }),
                 ).toEqual({ ...user, ...userUpdate })
+            },
+            { includeTimestampChecks: true },
+        )
+
+        it(
+            'should correctly sync createObject and updateObject operations with limited batch sizes',
+            async (dependencies: TestDependencies) => {
+                const { clients, sync } = await setupSyncTest(dependencies)
+                const orig = (
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject({
+                            displayName: 'Joe',
+                        })
+                ).object
+                const { ...user } = orig
+
+                await clients.one.storageManager
+                    .collection('user')
+                    .updateObjects({ id: user.id }, { displayName: 'Bob' })
+                await clients.one.storageManager
+                    .collection('user')
+                    .updateObjects({ id: user.id }, { displayName: 'Jane' })
+
+                const lastUserUpdate = { displayName: 'John' }
+                await clients.one.storageManager
+                    .collection('user')
+                    .updateObjects({ id: user.id }, lastUserUpdate)
+
+                await sync({ clientName: 'one', batchSize: 2 })
+                await sync({ clientName: 'two', batchSize: 2 })
+
+                expect(
+                    await clients.two.storageManager
+                        .collection('user')
+                        .findObject({ id: user.id }),
+                ).toEqual({ ...user, ...lastUserUpdate })
             },
             { includeTimestampChecks: true },
         )

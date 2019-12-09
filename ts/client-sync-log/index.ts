@@ -62,6 +62,14 @@ export class ClientSyncLogStorage extends StorageModule {
                         sharedOn: { $eq: null },
                     },
                 },
+                findUnsharedEntryBatch: {
+                    operation: 'findObjects',
+                    collection: 'clientSyncLogEntry',
+                    args: [
+                        { sharedOn: { $eq: null } },
+                        { limit: '$limit:number' },
+                    ],
+                },
                 markAsIntegrated: {
                     operation: 'executeBatch',
                     args: ['$batch'],
@@ -158,11 +166,18 @@ export class ClientSyncLogStorage extends StorageModule {
         await this.operation('updateSharedUntil', { until, sharedOn })
     }
 
-    async getUnsharedEntries(): Promise<ClientSyncLogEntry[]> {
-        return sortBy(
-            await this.operation('findUnsharedEntries', {}),
-            'createdOn',
-        )
+    async getUnsharedEntries(options?: {
+        batchSize?: number
+    }): Promise<ClientSyncLogEntry[]> {
+        let entries: ClientSyncLogEntry[]
+        if (options && options.batchSize) {
+            entries = await this.operation('findUnsharedEntryBatch', {
+                limit: options.batchSize,
+            })
+        } else {
+            entries = await this.operation('findUnsharedEntries', {})
+        }
+        return sortBy(entries, 'createdOn')
     }
 
     async markAsIntegrated(entries: ClientSyncLogEntry[]) {

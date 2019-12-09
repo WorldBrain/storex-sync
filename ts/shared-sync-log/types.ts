@@ -27,6 +27,7 @@ export interface SharedSyncLog {
     getUnsyncedEntries(options: {
         userId: string | number
         deviceId: string | number
+        batchSize?: number
     }): Promise<SharedSyncLogUpdate>
     markAsSeen(
         update: Pick<SharedSyncLogUpdate, 'memo'>,
