@@ -15,7 +15,12 @@ import {
     MemoryFastSyncChannel,
     WebRTCFastSyncChannel,
 } from './channels'
-import { FastSyncChannel, FastSyncOrder } from './types'
+import {
+    FastSyncChannel,
+    FastSyncOrder,
+    FastSyncInfo,
+    FastSyncRole,
+} from './types'
 import { SignalTransport } from 'simple-signalling/lib/types'
 import { TEST_DATA } from '../index.test.data'
 import { resolvablePromise } from './utils'
@@ -230,15 +235,17 @@ describe('Fast initial sync', () => {
                 collectionCount: 1,
                 objectCount: 2,
             }
-            const allExpectedEvents = [
+            const allExpectedEvents = (role: FastSyncRole) => [
                 {
                     eventName: 'prepared',
+                    role,
                     syncInfo: {
                         ...expectedSyncInfo,
                     },
                 },
                 {
                     eventName: 'progress',
+                    role,
                     progress: {
                         ...expectedSyncInfo,
                         totalObjectsProcessed: 0,
@@ -246,6 +253,7 @@ describe('Fast initial sync', () => {
                 },
                 {
                     eventName: 'progress',
+                    role,
                     progress: {
                         ...expectedSyncInfo,
                         totalObjectsProcessed: 1,
@@ -253,15 +261,18 @@ describe('Fast initial sync', () => {
                 },
                 {
                     eventName: 'progress',
+                    role,
                     progress: {
                         ...expectedSyncInfo,
                         totalObjectsProcessed: 2,
                     },
                 },
             ]
-            expect(setup.senderEventSpy.popEvents()).toEqual(allExpectedEvents)
+            expect(setup.senderEventSpy.popEvents()).toEqual(
+                allExpectedEvents('sender'),
+            )
             expect(setup.receiverEventSpy.popEvents()).toEqual(
-                allExpectedEvents,
+                allExpectedEvents('receiver'),
             )
 
             expect(
@@ -344,6 +355,93 @@ describe('Fast initial sync', () => {
                     (expect as any).objectContaining(TEST_DATA.test3),
                 ],
             })
+
+            const expectedSyncInfoWhileReceiving: FastSyncInfo = {
+                collectionCount: 1,
+                objectCount: 1,
+            }
+            const expectedSyncInfoWhileSending: FastSyncInfo = {
+                collectionCount: 1,
+                objectCount: 3,
+            }
+            const allExpectedEvents = (
+                initialRole: FastSyncRole,
+                subsequentRole: FastSyncRole,
+            ) => [
+                {
+                    eventName: 'prepared',
+                    role: initialRole,
+                    syncInfo: {
+                        ...expectedSyncInfoWhileReceiving,
+                    },
+                },
+                {
+                    eventName: 'progress',
+                    role: initialRole,
+                    progress: {
+                        ...expectedSyncInfoWhileReceiving,
+                        totalObjectsProcessed: 0,
+                    },
+                },
+                {
+                    eventName: 'progress',
+                    role: initialRole,
+                    progress: {
+                        ...expectedSyncInfoWhileReceiving,
+                        totalObjectsProcessed: 1,
+                    },
+                },
+                {
+                    eventName: 'roleSwitch',
+                    before: initialRole,
+                    after: subsequentRole,
+                },
+                {
+                    eventName: 'prepared',
+                    role: subsequentRole,
+                    syncInfo: {
+                        ...expectedSyncInfoWhileSending,
+                    },
+                },
+                {
+                    eventName: 'progress',
+                    role: subsequentRole,
+                    progress: {
+                        ...expectedSyncInfoWhileSending,
+                        totalObjectsProcessed: 0,
+                    },
+                },
+                {
+                    eventName: 'progress',
+                    role: subsequentRole,
+                    progress: {
+                        ...expectedSyncInfoWhileSending,
+                        totalObjectsProcessed: 1,
+                    },
+                },
+                {
+                    eventName: 'progress',
+                    role: subsequentRole,
+                    progress: {
+                        ...expectedSyncInfoWhileSending,
+                        totalObjectsProcessed: 2,
+                    },
+                },
+                {
+                    eventName: 'progress',
+                    role: subsequentRole,
+                    progress: {
+                        ...expectedSyncInfoWhileSending,
+                        totalObjectsProcessed: 3,
+                    },
+                },
+            ]
+            expect(setup.senderEventSpy.popEvents()).toEqual(
+                allExpectedEvents('receiver', 'sender'),
+            )
+            expect(setup.receiverEventSpy.popEvents()).toEqual(
+                allExpectedEvents('sender', 'receiver'),
+            )
         })
 
         it('should be able to pause sending', async (options: TestOptions) => {

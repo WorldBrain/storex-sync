@@ -7,6 +7,7 @@ import {
     FastSyncChannel,
     FastSyncRole,
     FastSyncOrder,
+    flippedRole,
 } from './types'
 import Interruptable from './interruptable'
 import { getFastSyncInfo } from './utils'
@@ -28,8 +29,11 @@ export interface FastSyncPreSendProcessorParams {
 }
 
 export interface FastSyncEvents {
-    prepared: (event: { syncInfo: FastSyncInfo }) => void
-    progress: (event: { progress: FastSyncProgress }) => void
+    prepared: (event: { syncInfo: FastSyncInfo; role: FastSyncRole }) => void
+    progress: (event: {
+        progress: FastSyncProgress
+        role: FastSyncRole
+    }) => void
     stalled: () => void
     paused: () => void
     resumed: () => void
@@ -70,19 +74,22 @@ export class FastSync {
                 : 'sender'
             : options.role
         const subsequentRole: FastSyncRole | null = options.bothWays
-            ? options.bothWays === 'receive-first'
-                ? 'sender'
-                : 'receiver'
+            ? flippedRole(initialRole)
             : null
-        const execute = async (role: FastSyncRole) => {
+
+        const execute = async (
+            role: FastSyncRole,
+            fastSyncInfo?: FastSyncInfo,
+        ) => {
+            this.totalObjectsProcessed = 0
             if (role === 'sender') {
-                await this.send({ fastSyncInfo: options.fastSyncInfo })
+                await this.send({ role, fastSyncInfo })
             } else {
-                await this.receive()
+                await this.receive({ role })
             }
         }
 
-        await execute(initialRole)
+        await execute(initialRole, options.fastSyncInfo)
         if (subsequentRole) {
             this.events.emit('roleSwitch', {
                 before: initialRole,
@@ -92,7 +99,7 @@ export class FastSync {
         }
     }
 
-    async send(options: { fastSyncInfo?: FastSyncInfo }) {
+    async send(options: { role: FastSyncRole; fastSyncInfo?: FastSyncInfo }) {
         const { channel } = this.options
 
         channel.events.on('stalled', () => this.events.emit('stalled'))
@@ -102,12 +109,13 @@ export class FastSync {
             const syncInfo =
                 options.fastSyncInfo ||
                 (await getFastSyncInfo(this.options.storageManager))
-            this.events.emit('prepared', { syncInfo })
+            this.events.emit('prepared', { syncInfo, role: options.role })
             await channel.sendSyncInfo(syncInfo)
 
             try {
                 await interruptable.execute(async () => {
                     this.events.emit('progress', {
+                        role: options.role,
                         progress: {
                             ...syncInfo,
                             totalObjectsProcessed: this.totalObjectsProcessed,
@@ -120,6 +128,7 @@ export class FastSync {
                     async collection => {
                         await this.sendObjecsInCollection(collection, {
                             channel,
+                            role: options.role,
                             syncInfo,
                         })
                     },
@@ -138,7 +147,11 @@ export class FastSync {
 
     private async sendObjecsInCollection(
         collection: string,
-        options: { channel: FastSyncChannel<any>; syncInfo: FastSyncInfo },
+        options: {
+            channel: FastSyncChannel<any>
+            role: FastSyncRole
+            syncInfo: FastSyncInfo
+        },
     ) {
         await this.interruptable!.forOfLoop(
             streamObjectBatches(this.options.storageManager, collection),
@@ -155,6 +168,7 @@ export class FastSync {
                 }
                 this.totalObjectsProcessed += objects.length
                 this.events.emit('progress', {
+                    role: options.role,
                     progress: {
                         ...options.syncInfo,
                         totalObjectsProcessed: this.totalObjectsProcessed,
@@ -186,7 +200,7 @@ export class FastSync {
         return processedObjects
     }
 
-    async receive() {
+    async receive(options: { role: FastSyncRole }) {
         this._state = 'running'
         const stateChangeHandler = (state: 'paused' | 'resumed') => () => {
             this._state = state === 'paused' ? 'paused' : 'running'
@@ -199,10 +213,11 @@ export class FastSync {
         this.options.channel.events.on('resumed', stateChangeHandler('resumed'))
         try {
             const syncInfo = await this.options.channel.receiveSyncInfo()
-            this.events.emit('prepared', { syncInfo })
+            this.events.emit('prepared', { syncInfo, role: options.role })
 
             // console.log('recv: entering loop')
             this.events.emit('progress', {
+                role: options.role,
                 progress: {
                     ...syncInfo,
                     totalObjectsProcessed: this.totalObjectsProcessed,
@@ -218,6 +233,7 @@ export class FastSync {
                 }
                 this.totalObjectsProcessed += objectBatch.objects.length
                 this.events.emit('progress', {
+                    role: options.role,
                     progress: {
                         ...syncInfo,
                         totalObjectsProcessed: this.totalObjectsProcessed,

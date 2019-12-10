@@ -1,6 +1,8 @@
 import TypedEmitter from 'typed-emitter'
 
 export type FastSyncRole = 'sender' | 'receiver'
+export const flippedRole = (role: FastSyncRole): FastSyncRole =>
+    role === 'sender' ? 'receiver' : 'sender'
 export type FastSyncOrder = 'receive-first' | 'send-first'
 export type FastSyncPackage<UserPackageType = any> =
     | { type: 'batch'; batch: any }
