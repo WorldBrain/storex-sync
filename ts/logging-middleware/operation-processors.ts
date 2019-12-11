@@ -276,13 +276,13 @@ async function _deleteOperationQueryToLogEntry(args: {
         operation: ['findObjects', collection, args.where],
     })
 
-    return affectedObjects.map((object: any) =>
+    return Promise.all(affectedObjects.map((object: any) =>
         _deleteOperationToLogEntry({
             ...args,
             collection,
             pk: getObjectPk(object, collection, args.storageRegistry),
         }),
-    )
+    ))
 }
 
 async function _deleteOperationToLogEntry(args: {

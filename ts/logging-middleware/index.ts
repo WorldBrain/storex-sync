@@ -69,7 +69,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
             }
         }
 
-        const executeAndLog = (
+        const executeAndLog = async (
             originalOperation: any | any[],
             logEntries: ClientSyncLogEntry[],
         ) => {
@@ -85,7 +85,9 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
                     args: logEntry,
                 })
             }
-            return next.process({ operation: ['executeBatch', batch] })
+
+            const result = await next.process({ operation: ['executeBatch', batch] })
+            return result
         }
 
         const operationType = operation[0] as string
@@ -108,11 +110,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
     async _getNow(): Promise<number | '$now'> {
         let now = Date.now()
         while (now === this.lastSeenNow) {
-            await new Promise(resolve => {
-                setTimeout(() => {
-                    now = Date.now()
-                }, 0)
-            })
+            now = Date.now()
         }
         this.lastSeenNow = now
         return now
