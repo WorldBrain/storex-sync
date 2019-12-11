@@ -13,7 +13,7 @@ export type ExecuteAndLog = (
 export interface Next {
     process: (options: { operation: any[] }) => any
 }
-export type GetNow = () => number | '$now' | '$now'
+export type GetNow = () => Promise<number | '$now'>
 export interface OperationProcessorArgs {
     next: Next
     deviceId: string | number
@@ -53,29 +53,29 @@ async function _processCreateObject(args: OperationProcessorArgs) {
             args: value,
         },
         [
-            _logEntryForCreateObject({
+            (await _logEntryForCreateObject({
                 ...args,
                 collection,
                 value,
-            }) as ClientSyncLogEntry,
+            })) as ClientSyncLogEntry,
         ],
     )
     const object = result.info.object.object
     return { object }
 }
 
-function _logEntryForCreateObject(args: {
+async function _logEntryForCreateObject(args: {
     collection: string
     deviceId: number | string
     value: any
     getNow: GetNow
     storageRegistry: StorageRegistry
-}): ClientSyncLogEntry {
+}): Promise<ClientSyncLogEntry> {
     const { value, collection, storageRegistry } = args
 
     return {
         collection: args.collection,
-        createdOn: args.getNow(),
+        createdOn: await args.getNow(),
         deviceId: args.deviceId,
         needsIntegration: false,
         sharedOn: null,
@@ -100,7 +100,7 @@ async function _processUpdateObject(args: OperationProcessorArgs) {
     const logEntries: ClientSyncLogEntry[] = []
     for (const [fieldName, newValue] of Object.entries(updates)) {
         logEntries.push(
-            _updateOperationToLogEntry({
+            await _updateOperationToLogEntry({
                 ...args,
                 collection,
                 pk,
@@ -165,7 +165,7 @@ async function _updateOperationQueryToLogEntry(args: {
         const pk = getObjectPk(object, collection, args.storageRegistry)
         for (const [fieldName, newValue] of Object.entries(args.updates)) {
             logEntries.push(
-                _updateOperationToLogEntry({
+                await _updateOperationToLogEntry({
                     ...args,
                     pk,
                     fieldName,
@@ -178,16 +178,16 @@ async function _updateOperationQueryToLogEntry(args: {
     return logEntries
 }
 
-function _updateOperationToLogEntry(args: {
+async function _updateOperationToLogEntry(args: {
     getNow: GetNow
     deviceId: number | string
     collection: string
     pk: any
     fieldName: any
     newValue: any
-}): ClientSyncLogModificationEntry {
+}): Promise<ClientSyncLogModificationEntry> {
     return {
-        createdOn: args.getNow(),
+        createdOn: await args.getNow(),
         sharedOn: null,
         deviceId: args.deviceId,
         needsIntegration: false,
@@ -323,7 +323,7 @@ async function _processExecuteBatch({
 
         if (step.operation === 'createObject') {
             logEntries.push(
-                _logEntryForCreateObject({
+                await _logEntryForCreateObject({
                     collection: step.collection,
                     deviceId,
                     value: step.args,

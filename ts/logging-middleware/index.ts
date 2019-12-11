@@ -17,6 +17,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
     private includeCollections: Set<string>
     private enabled = false
     private deviceId: string | number | null = null
+    private lastSeenNow = 0
 
     constructor(
         private options: {
@@ -104,7 +105,16 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         }
     }
 
-    _getNow(): number | '$now' {
-        return Date.now()
+    async _getNow(): Promise<number | '$now'> {
+        let now = Date.now()
+        while (now === this.lastSeenNow) {
+            await new Promise(resolve => {
+                setTimeout(() => {
+                    now = Date.now()
+                }, 0)
+            })
+        }
+        this.lastSeenNow = now
+        return now
     }
 }
