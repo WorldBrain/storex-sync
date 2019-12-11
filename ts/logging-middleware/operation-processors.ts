@@ -219,7 +219,7 @@ async function _processDeleteObject({
     const pk = getObjectPk(where, collection, storageRegistry)
 
     const logEntries: ClientSyncLogEntry[] = [
-        _deleteOperationToLogEntry({ getNow, deviceId, collection, pk }),
+        await _deleteOperationToLogEntry({ getNow, deviceId, collection, pk }),
     ]
 
     await executeAndLog(
@@ -285,14 +285,14 @@ async function _deleteOperationQueryToLogEntry(args: {
     )
 }
 
-function _deleteOperationToLogEntry(args: {
-    getNow: any
+async function _deleteOperationToLogEntry(args: {
+    getNow: GetNow
     collection: string
     pk: any
     deviceId: string | number
-}): ClientSyncLogDeletionEntry {
+}): Promise<ClientSyncLogDeletionEntry> {
     return {
-        createdOn: args.getNow(),
+        createdOn: await args.getNow(),
         sharedOn: null,
         deviceId: args.deviceId,
         needsIntegration: false,
