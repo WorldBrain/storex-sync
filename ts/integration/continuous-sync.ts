@@ -21,11 +21,12 @@ export interface ContinuousSyncDependencies {
     getSharedSyncLog: () => Promise<SharedSyncLog>
     settingStore: SyncSettingsStore
     frequencyInMs?: number
+    batchSize?: number
+    debug?: boolean
     toggleSyncLogging: (
         ((enabled: true, deviceId: string | number) => void) &
         ((enabled: false) => void)
     )
-    debug?: boolean
 }
 
 export class ContinuousSync {
@@ -129,7 +130,7 @@ export class ContinuousSync {
 
     async maybeDoIncrementalSync(options?: { debug?: boolean }) {
         if (this.enabled) {
-            await this.doIncrementalSync(options)
+            return this.doIncrementalSync(options)
         }
     }
 
@@ -142,7 +143,7 @@ export class ContinuousSync {
                 return true
             }) as any
         }
-        await doSync(syncOptions)
+        return doSync(syncOptions)
     }
 
     async getSyncOptions(): Promise<SyncOptions> {
@@ -163,6 +164,8 @@ export class ContinuousSync {
             now: Date.now(),
             userId,
             deviceId: this.deviceId,
+            batchSize: this.dependencies.batchSize,
+            singleBatch: this.dependencies.batchSize != null,
             serializer: this.getSerializer() || undefined,
             preSend: this.getPreSendProcessor() || undefined,
             postReceive: this.getPostReceiveProcessor() || undefined,
