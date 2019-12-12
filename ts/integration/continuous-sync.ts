@@ -23,10 +23,8 @@ export interface ContinuousSyncDependencies {
     frequencyInMs?: number
     batchSize?: number
     debug?: boolean
-    toggleSyncLogging: (
-        ((enabled: true, deviceId: string | number) => void) &
+    toggleSyncLogging: ((enabled: true, deviceId: string | number) => void) &
         ((enabled: false) => void)
-    )
 }
 
 export class ContinuousSync {
@@ -62,11 +60,12 @@ export class ContinuousSync {
     setupRecurringTask() {
         if (this.dependencies.frequencyInMs) {
             this.recurringIncrementalSyncTask = new RecurringTask(
-                (options?: { debug: boolean }) =>
-                    this.maybeDoIncrementalSync(options),
+                async (options?: { debug: boolean }) => {
+                    this.maybeDoIncrementalSync(options)
+                },
                 {
                     intervalInMs: this.dependencies.frequencyInMs,
-                    onError: () => { },
+                    onError: () => {},
                 },
             )
         }
@@ -172,15 +171,15 @@ export class ContinuousSync {
         }
     }
 
-    getPreSendProcessor(): SyncPreSendProcessor | void { }
+    getPreSendProcessor(): SyncPreSendProcessor | void {}
 
-    getPostReceiveProcessor(): SyncPostReceiveProcessor | void { }
+    getPostReceiveProcessor(): SyncPostReceiveProcessor | void {}
 
-    getSerializer(): SyncSerializer | void { }
+    getSerializer(): SyncSerializer | void {}
 
     _debugLog(...args: any[]) {
         if (this.debug) {
-            console['log']("Initial Sync -", ...args)
+            console['log']('Initial Sync -', ...args)
         }
     }
 }
