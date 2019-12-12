@@ -95,7 +95,7 @@ export async function setupSyncTestClient(options: {
         clientSyncLog,
         includeCollections,
     })
-    syncLoggingMiddleware._getNow = options.getNow
+    syncLoggingMiddleware._getNow = async () => options.getNow()
     middleware.push(syncLoggingMiddleware)
 
     storageManager.setMiddleware(middleware)

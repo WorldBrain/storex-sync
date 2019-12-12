@@ -53,7 +53,7 @@ async function _processCreateObject(args: OperationProcessorArgs) {
             args: value,
         },
         [
-            (await _logEntryForCreateObject({
+            (await _createOperationQueryToLogEntry({
                 ...args,
                 collection,
                 value,
@@ -64,7 +64,7 @@ async function _processCreateObject(args: OperationProcessorArgs) {
     return { object }
 }
 
-async function _logEntryForCreateObject(args: {
+async function _createOperationQueryToLogEntry(args: {
     collection: string
     deviceId: number | string
     value: any
@@ -323,7 +323,7 @@ async function _processExecuteBatch({
 
         if (step.operation === 'createObject') {
             logEntries.push(
-                await _logEntryForCreateObject({
+                await _createOperationQueryToLogEntry({
                     collection: step.collection,
                     deviceId,
                     value: step.args,

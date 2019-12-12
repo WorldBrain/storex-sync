@@ -2,14 +2,17 @@ import { StorageRegistry, OperationBatch } from '@worldbrain/storex'
 import expect from 'expect'
 import { ClientSyncLogEntry } from '../client-sync-log/types'
 import { reconcileSyncLog } from './default'
+import { DoubleCreateBehaviour } from './types'
 
 function test({
     logEntries,
     expectedOperations,
+    doubleCreateBehaviour,
     debug,
 }: {
     logEntries: ClientSyncLogEntry[]
     expectedOperations?: OperationBatch
+    doubleCreateBehaviour?: DoubleCreateBehaviour
     debug?: boolean
 }) {
     const storageRegistry = new StorageRegistry()
@@ -29,7 +32,11 @@ function test({
         },
     })
 
-    const reconciled = reconcileSyncLog(logEntries, { storageRegistry, debug })
+    const reconciled = reconcileSyncLog(logEntries, {
+        storageRegistry,
+        debug,
+        doubleCreateBehaviour,
+    })
     if (expectedOperations) {
         expect(reconciled).toEqual(expectedOperations)
     }
@@ -53,6 +60,7 @@ const TEST_FLOWS: Array<Event[]> = [
     ['creation', 'modification'],
     ['creation', 'modification', 'deletion'],
     ['creation', 'modification', 'modification', 'deletion'],
+    ['creation', 'creation'],
     ['modification', 'modification'],
     ['creation', 'deletion', 'recreation'],
     ['deletion', 'recreation', 'redeletion'],
@@ -127,27 +135,31 @@ interface SyncFlowTestInfo {
 interface SyncFlowScenarioTestInfo {
     steps: Array<{ type: Event; needsIntegration: boolean }>
 }
+
+interface TestSuiteConfiguration {
+    doubleCreateBehaviour: DoubleCreateBehaviour
+}
+interface TestSuiteContext {
+    scenario: (
+        description: string,
+        test: (testContext: SyncTestContext) => void,
+    ) => void
+}
+type TestSuite = (suiteContext: TestSuiteContext) => void
 class TestCreator {
     tested: Array<SyncFlowTestInfo> = []
 
-    suite(
-        flow: Event[],
-        suite: (suiteContext: {
-            scenario: (
-                description: string,
-                test: (testContext: SyncTestContext) => void,
-            ) => void
-        }) => void,
-    ) {
+    suite(flow: Event[], suite: TestSuite) {
         describe('should correctly handle ' + flow.join(', '), () => {
             const flowInfo: SyncFlowTestInfo = { flow, scenarios: [] }
             this.tested.push(flowInfo)
 
+            let configuration: TestSuiteConfiguration = {
+                doubleCreateBehaviour: 'error',
+            }
+
             suite({
-                scenario: (
-                    description: string,
-                    scenario: (context: SyncTestContext) => void,
-                ) => {
+                scenario: (description, scenario) => {
                     const scenarioInfo: SyncFlowScenarioTestInfo = { steps: [] }
                     flowInfo.scenarios.push(scenarioInfo)
 
@@ -287,6 +299,64 @@ describe('Reconciliation', () => {
                         collection: 'customList',
                         where: { id: 'list-one' },
                         updates: { title: 'Second title update' },
+                    },
+                ],
+            })
+        })
+    })
+
+    TEST_CREATOR.suite(['creation', 'creation'], ({ scenario }) => {
+        scenario(
+            'with only the second update needing integration',
+            ({ entry }) => {
+                test({
+                    doubleCreateBehaviour: 'merge',
+                    logEntries: [
+                        entry('creation', {
+                            needsIntegration: false,
+                            value: {
+                                id: 'list-one',
+                                title: 'first entry title',
+                            },
+                        }),
+                        entry('creation', {
+                            needsIntegration: true,
+                            value: {
+                                id: 'list-one',
+                                title: 'second entry title',
+                            },
+                        }),
+                    ],
+                    expectedOperations: [
+                        {
+                            operation: 'updateObjects',
+                            collection: 'customList',
+                            where: { id: 'list-one' },
+                            updates: { title: 'second entry title' },
+                        },
+                    ],
+                })
+            },
+        )
+
+        scenario('with all entries needing integration', ({ entry }) => {
+            test({
+                doubleCreateBehaviour: 'merge',
+                logEntries: [
+                    entry('creation', {
+                        needsIntegration: true,
+                        value: { id: 'list-one', title: 'first entry title' },
+                    }),
+                    entry('creation', {
+                        needsIntegration: true,
+                        value: { id: 'list-one', title: 'second entry title' },
+                    }),
+                ],
+                expectedOperations: [
+                    {
+                        operation: 'createObject',
+                        collection: 'customList',
+                        args: { id: 'list-one', title: 'second entry title' },
                     },
                 ],
             })
@@ -948,66 +1018,6 @@ describe('Reconciliation', () => {
 
         expect(() => test({ logEntries })).toThrow(
             `Detected double create in collection 'customList', pk '"list-one"'`,
-        )
-    })
-
-    it('should complain about modifications made to an object before creation', () => {
-        const logEntries: ClientSyncLogEntry[] = [
-            {
-                deviceId: 'device-one',
-                operation: 'modify',
-                createdOn: 1,
-                sharedOn: 52525252,
-                needsIntegration: true,
-                collection: 'customList',
-                pk: 'list-one',
-                field: 'title',
-                value: 'second',
-            },
-            {
-                deviceId: 'device-one',
-                operation: 'create',
-                createdOn: 2,
-                sharedOn: 52525252,
-                needsIntegration: true,
-                collection: 'customList',
-                pk: 'list-one',
-                value: { pk: 'list-one', title: 'first', prio: 5 },
-            },
-        ]
-
-        expect(() => test({ logEntries })).toThrow(
-            `Detected modification to collection 'customList', pk '"list-one"' before it was created (likely pk collision)`,
-        )
-    })
-
-    it('should complain about modifications made to an object before creation even if received in the right order', () => {
-        const logEntries: ClientSyncLogEntry[] = [
-            {
-                deviceId: 'device-one',
-                operation: 'create',
-                createdOn: 2,
-                sharedOn: 52525252,
-                needsIntegration: true,
-                collection: 'customList',
-                pk: 'list-one',
-                value: { pk: 'list-one', title: 'first', prio: 5 },
-            },
-            {
-                deviceId: 'device-one',
-                operation: 'modify',
-                createdOn: 1,
-                sharedOn: 52525252,
-                needsIntegration: true,
-                collection: 'customList',
-                pk: 'list-one',
-                field: 'title',
-                value: 'second',
-            },
-        ]
-
-        expect(() => test({ logEntries })).toThrow(
-            `Detected modification to collection 'customList', pk '"list-one"' before it was created (likely pk collision)`,
         )
     })
 })

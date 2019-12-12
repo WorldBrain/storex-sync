@@ -8,7 +8,7 @@ import {
     ClientSyncLogModificationEntry,
 } from '../client-sync-log/types'
 import { setObjectPk } from '../utils'
-import { ReconcilerFunction } from './types'
+import { ReconcilerFunction, DoubleCreateBehaviour } from './types'
 
 type Modifications = { [collection: string]: CollectionModifications }
 type CollectionModifications = { [pk: string]: ObjectModifications }
@@ -24,18 +24,13 @@ type FieldModification = {
     value: any
 }
 
-function _throwModificationBeforeCreation(logEntry: ClientSyncLogEntry) {
-    throw new Error(
-        `Detected modification to collection '${logEntry.collection}', ` +
-        `pk '${JSON.stringify(
-            logEntry.pk,
-        )}' before it was created (likely pk collision)`,
-    )
-}
-
 export const reconcileSyncLog: ReconcilerFunction = (
     logEntries: ClientSyncLogEntry[],
-    options: { storageRegistry: StorageRegistry; debug?: boolean },
+    options: {
+        storageRegistry: StorageRegistry
+        doubleCreateBehaviour?: DoubleCreateBehaviour
+        debug?: boolean
+    },
 ): OperationBatch => {
     const modificationsByObject: Modifications = {}
     for (const logEntry of sortBy(logEntries, 'createdOn')) {
@@ -74,6 +69,7 @@ export const reconcileSyncLog: ReconcilerFunction = (
                 logEntry,
                 collectionModifications,
                 pkAsJson,
+                doubleCreateBehaviour: options.doubleCreateBehaviour,
             })
         }
         if (options.debug) {
@@ -112,11 +108,13 @@ export function _processCreationEntry({
     logEntry,
     collectionModifications,
     pkAsJson,
+    doubleCreateBehaviour,
 }: {
     objectModifications: ObjectModifications
     logEntry: ClientSyncLogCreationEntry
     collectionModifications: CollectionModifications
     pkAsJson: any
+    doubleCreateBehaviour?: DoubleCreateBehaviour
 }) {
     if (!objectModifications) {
         const fields = {}
@@ -129,7 +127,7 @@ export function _processCreationEntry({
         }
         if (logEntry.needsIntegration) {
             collectionModifications[pkAsJson] = {
-                actualState: 'present',
+                actualState: 'absent',
                 action: 'create',
                 createdOn: logEntry.createdOn,
                 fields,
@@ -144,31 +142,38 @@ export function _processCreationEntry({
         }
     } else {
         if (objectModifications.action === 'create') {
-            throw new Error(
-                `Detected double create in collection '${
-                logEntry.collection
-                }', pk '${JSON.stringify(logEntry.pk)}'`,
-            )
+            if (doubleCreateBehaviour !== 'merge') {
+                throw new Error(
+                    `Detected double create in collection '${
+                        logEntry.collection
+                    }', pk '${JSON.stringify(logEntry.pk)}'`,
+                )
+            }
         }
 
         const fields = objectModifications.fields
         for (const [key, value] of Object.entries(logEntry.value)) {
-            if (!fields[key]) {
-                fields[key] = {
-                    value,
-                    createdOn: logEntry.createdOn,
-                    // syncedOn: logEntry.sharedOn,
-                }
-            } else if (logEntry.createdOn > fields[key].createdOn) {
-                _throwModificationBeforeCreation(logEntry)
+            fields[key] = {
+                value,
+                createdOn: logEntry.createdOn,
+                // syncedOn: logEntry.sharedOn,
             }
         }
 
+        // console.log(objectModifications)
         if (
             objectModifications.action === 'delete' ||
             objectModifications.actualState === 'deleted'
         ) {
             objectModifications.action = 'recreate'
+        } else if (objectModifications.actualState === 'present') {
+            if (logEntry.needsIntegration) {
+                if (objectModifications.actualState === 'present') {
+                    objectModifications.action = 'update'
+                } else {
+                    objectModifications.action = 'create'
+                }
+            }
         } else {
             objectModifications.actualState = 'present'
             objectModifications.action = logEntry.needsIntegration
@@ -254,13 +259,6 @@ export function _processModificationEntry({
         }
         return
     }
-    if (
-        objectModifications.action === 'create' &&
-        objectModifications.createdOn &&
-        objectModifications.createdOn > logEntry.createdOn
-    ) {
-        _throwModificationBeforeCreation(logEntry)
-    }
 
     const fieldModifications = objectModifications.fields[logEntry.field]
     if (!fieldModifications) {
@@ -325,7 +323,7 @@ export function _processModifications({
         })
     } else if (objectModifications.action === 'update') {
         for (const [fieldName, fieldModification] of Object.entries(
-            objectModifications.fields
+            objectModifications.fields,
         )) {
             if (Object.keys(pkFields).includes(fieldName)) {
                 continue

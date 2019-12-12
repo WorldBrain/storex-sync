@@ -44,7 +44,7 @@ async function setupTest(options: {
                 : 'device-one',
         )
     }
-    loggingMiddleware._getNow = options.now
+    loggingMiddleware._getNow = async () => options.now()
     storageManager.setMiddleware([loggingMiddleware])
     return { storageManager, clientSyncLog, loggingMiddleware }
 }
