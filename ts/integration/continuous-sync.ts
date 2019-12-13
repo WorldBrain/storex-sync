@@ -21,11 +21,11 @@ export interface ContinuousSyncDependencies {
     getSharedSyncLog: () => Promise<SharedSyncLog>
     settingStore: SyncSettingsStore
     frequencyInMs?: number
-    toggleSyncLogging: (
-        ((enabled: true, deviceId: string | number) => void) &
-        ((enabled: false) => void)
-    )
+    batchSize?: number
+    singleBatch?: boolean
     debug?: boolean
+    toggleSyncLogging: ((enabled: true, deviceId: string | number) => void) &
+        ((enabled: false) => void)
 }
 
 export class ContinuousSync {
@@ -61,11 +61,12 @@ export class ContinuousSync {
     setupRecurringTask() {
         if (this.dependencies.frequencyInMs) {
             this.recurringIncrementalSyncTask = new RecurringTask(
-                (options?: { debug: boolean }) =>
-                    this.maybeDoIncrementalSync(options),
+                async (options?: { debug: boolean }) => {
+                    this.maybeDoIncrementalSync(options)
+                },
                 {
                     intervalInMs: this.dependencies.frequencyInMs,
-                    onError: () => { },
+                    onError: () => {},
                 },
             )
         }
@@ -129,7 +130,7 @@ export class ContinuousSync {
 
     async maybeDoIncrementalSync(options?: { debug?: boolean }) {
         if (this.enabled) {
-            await this.doIncrementalSync(options)
+            return this.doIncrementalSync(options)
         }
     }
 
@@ -142,7 +143,7 @@ export class ContinuousSync {
                 return true
             }) as any
         }
-        await doSync(syncOptions)
+        return doSync(syncOptions)
     }
 
     async getSyncOptions(): Promise<SyncOptions> {
@@ -163,21 +164,23 @@ export class ContinuousSync {
             now: Date.now(),
             userId,
             deviceId: this.deviceId,
+            batchSize: this.dependencies.batchSize,
+            singleBatch: this.dependencies.singleBatch,
             serializer: this.getSerializer() || undefined,
             preSend: this.getPreSendProcessor() || undefined,
             postReceive: this.getPostReceiveProcessor() || undefined,
         }
     }
 
-    getPreSendProcessor(): SyncPreSendProcessor | void { }
+    getPreSendProcessor(): SyncPreSendProcessor | void {}
 
-    getPostReceiveProcessor(): SyncPostReceiveProcessor | void { }
+    getPostReceiveProcessor(): SyncPostReceiveProcessor | void {}
 
-    getSerializer(): SyncSerializer | void { }
+    getSerializer(): SyncSerializer | void {}
 
     _debugLog(...args: any[]) {
         if (this.debug) {
-            console['log']("Initial Sync -", ...args)
+            console['log']('Initial Sync -', ...args)
         }
     }
 }
