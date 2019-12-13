@@ -23,10 +23,6 @@ export interface SyncSerializer {
 
 export type SyncEvents = TypedEmitter<SyncEventMap>
 export interface SyncEventMap {
-    unsharedClientEntries: (event: {
-        entries: ClientSyncLogEntry[]
-        deviceId: number | string
-    }) => void
     sendingSharedEntries: (event: {
         entries: Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[]
         deviceId: number | string
@@ -46,7 +42,6 @@ export interface SyncEventMap {
     }) => void
 }
 export const SYNC_EVENTS: { [Key in keyof SyncEventMap]: {} } = {
-    unsharedClientEntries: {},
     sendingSharedEntries: {},
     receivedSharedEntries: {},
     reconcilingEntries: {},
@@ -93,13 +88,6 @@ export async function shareLogEntries(
         })
         if (!entries.length) {
             return { finished: true }
-        }
-
-        if (args.syncEvents) {
-            args.syncEvents.emit('unsharedClientEntries', {
-                entries,
-                deviceId: args.deviceId,
-            })
         }
 
         const processedEntries = (
@@ -149,7 +137,7 @@ export async function receiveLogEntries(
     const serializeEntryData = args.serializer
         ? args.serializer.serializeSharedSyncLogEntryData
         : async (deserialized: SharedSyncLogEntryData) =>
-              JSON.stringify(deserialized)
+            JSON.stringify(deserialized)
 
     while (true) {
         const logUpdate = await args.sharedSyncLog.getUnsyncedEntries({

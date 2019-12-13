@@ -134,7 +134,7 @@ export class ContinuousSync {
         }
     }
 
-    private async doIncrementalSync(options?: { debug?: boolean }) {
+    async doIncrementalSync(options?: { debug?: boolean }) {
         const syncOptions = await this.getSyncOptions()
         if (options && options.debug) {
             syncOptions.syncEvents = new EventEmitter() as SyncEvents
