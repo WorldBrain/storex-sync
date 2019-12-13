@@ -22,6 +22,7 @@ export interface ContinuousSyncDependencies {
     settingStore: SyncSettingsStore
     frequencyInMs?: number
     batchSize?: number
+    singleBatch?: boolean
     debug?: boolean
     toggleSyncLogging: ((enabled: true, deviceId: string | number) => void) &
         ((enabled: false) => void)
@@ -164,7 +165,7 @@ export class ContinuousSync {
             userId,
             deviceId: this.deviceId,
             batchSize: this.dependencies.batchSize,
-            singleBatch: this.dependencies.batchSize != null,
+            singleBatch: this.dependencies.singleBatch,
             serializer: this.getSerializer() || undefined,
             preSend: this.getPreSendProcessor() || undefined,
             postReceive: this.getPostReceiveProcessor() || undefined,
