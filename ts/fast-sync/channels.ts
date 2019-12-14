@@ -9,7 +9,12 @@ import {
     FastSyncChannelEvents,
     FastSyncChannel,
 } from './types'
-import { ResolvablePromise, resolvablePromise } from './utils'
+import { ResolvablePromise, resolvablePromise, splitWithTail } from './utils'
+import {
+    calculateStringChunkCount,
+    getStringChunk,
+    receiveInChucks,
+} from './chunking'
 
 abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     events = new EventEmitter() as TypedEmitter<FastSyncChannelEvents>
@@ -159,30 +164,72 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
         await this.options.peer.destroy()
     }
 
-    async _sendPackage(syncPackage: FastSyncPackage) {
-        this.options.peer.send(JSON.stringify(syncPackage))
+    async _sendPackage(
+        syncPackage: FastSyncPackage,
+        options?: { noChunking?: boolean },
+    ) {
+        const sendAndConfirm = async (data: string) => {
+            this.options.peer.send(data)
 
-        const response = await this._receivePackage(false)
+            const response = await this._receivePackage({
+                noChunking: true,
+                noConfirm: true,
+            })
 
-        if (response.type !== 'confirm') {
-            console.error(`Invalid confirmation received:`, response)
-            throw new Error(`Invalid confirmation received`)
+            if (response.type !== 'confirm') {
+                console.error(`Invalid confirmation received:`, response)
+                throw new Error(`Invalid confirmation received`)
+            }
+        }
+
+        const serialized = JSON.stringify(syncPackage)
+        if (options?.noChunking) {
+            return sendAndConfirm(serialized)
+        }
+
+        const chunkSize = 10000
+        const chunkCount = calculateStringChunkCount(serialized, { chunkSize })
+        for (let chunkIndex = 0; chunkIndex < chunkCount; ++chunkIndex) {
+            const chunkContent = getStringChunk(serialized, chunkIndex, {
+                chunkSize,
+            })
+            await sendAndConfirm(
+                `chunk:${chunkIndex}:${chunkCount}:${chunkContent}`,
+            )
         }
     }
 
-    async _receivePackage(confirm = true): Promise<FastSyncPackage> {
-        const data = await this.dataReceived.promise
-        this.dataReceived = resolvablePromise()
-
-        const syncPackage: FastSyncPackage = JSON.parse(data, jsonDateParser)
-
-        if (confirm) {
-            const confirmationPackage: FastSyncPackage = {
-                type: 'confirm',
+    async _receivePackage(options?: {
+        noChunking?: boolean
+        noConfirm?: boolean
+    }): Promise<FastSyncPackage> {
+        const receive = async () => {
+            const data = await this.dataReceived.promise
+            this.dataReceived = resolvablePromise()
+            return data
+        }
+        const maybeConfirm = async () => {
+            if (!options?.noConfirm) {
+                const confirmationPackage: FastSyncPackage = {
+                    type: 'confirm',
+                }
+                this.options.peer.send(JSON.stringify(confirmationPackage))
             }
-            this.options.peer.send(JSON.stringify(confirmationPackage))
+        }
+        const receiveAndMaybeConfirm = async () => {
+            const data = await receive()
+            await maybeConfirm()
+            return data
         }
 
+        const serialized = options?.noChunking
+            ? await receiveAndMaybeConfirm()
+            : await receiveInChucks(receiveAndMaybeConfirm)
+
+        const syncPackage: FastSyncPackage = JSON.parse(
+            serialized,
+            jsonDateParser,
+        )
         return syncPackage
     }
 }

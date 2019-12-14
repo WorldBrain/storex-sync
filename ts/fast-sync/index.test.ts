@@ -319,6 +319,32 @@ describe('Fast initial sync', () => {
             ])
         })
 
+        it('should support big objects', async (options: TestOptions) => {
+            const setup = await setupMinimalTest(options)
+
+            const bigLabel = 'abcd'.repeat(20000)
+            const bigObject: typeof TEST_DATA.test3 = {
+                key: 'big',
+                label: bigLabel,
+                createdWhen: new Date(2019, 1, 1),
+            }
+            await setup.device1.storageManager
+                .collection('test')
+                .createObject(bigObject)
+
+            await setup.sync()
+
+            expect(
+                await setup.device2.storageManager
+                    .collection('test')
+                    .findObjects({}, { order: [['createdWhen', 'asc']] }),
+            ).toEqual([
+                expect.objectContaining(bigObject),
+                expect.objectContaining(TEST_DATA.test1),
+                expect.objectContaining(TEST_DATA.test2),
+            ])
+        })
+
         it('should support two way sync', async (options: TestOptions) => {
             const setup = await setupMinimalTest(options)
 
@@ -336,9 +362,9 @@ describe('Fast initial sync', () => {
             }).toEqual({
                 device: 'two',
                 objects: [
-                    (expect as any).objectContaining(TEST_DATA.test1),
-                    (expect as any).objectContaining(TEST_DATA.test2),
-                    (expect as any).objectContaining(TEST_DATA.test3),
+                    expect.objectContaining(TEST_DATA.test1),
+                    expect.objectContaining(TEST_DATA.test2),
+                    expect.objectContaining(TEST_DATA.test3),
                 ],
             })
 
@@ -350,9 +376,9 @@ describe('Fast initial sync', () => {
             }).toEqual({
                 device: 'one',
                 objects: [
-                    (expect as any).objectContaining(TEST_DATA.test1),
-                    (expect as any).objectContaining(TEST_DATA.test2),
-                    (expect as any).objectContaining(TEST_DATA.test3),
+                    expect.objectContaining(TEST_DATA.test1),
+                    expect.objectContaining(TEST_DATA.test2),
+                    expect.objectContaining(TEST_DATA.test3),
                 ],
             })
 
@@ -458,19 +484,19 @@ describe('Fast initial sync', () => {
 
             await firstObjectSent.promise
             expect(setup.senderEventSpy.popEvents()).toEqual([
-                (expect as any).objectContaining({ eventName: 'prepared' }),
-                (expect as any).objectContaining({ eventName: 'progress' }),
-                (expect as any).objectContaining({ eventName: 'progress' }),
-                (expect as any).objectContaining({ eventName: 'paused' }),
+                expect.objectContaining({ eventName: 'prepared' }),
+                expect.objectContaining({ eventName: 'progress' }),
+                expect.objectContaining({ eventName: 'progress' }),
+                expect.objectContaining({ eventName: 'paused' }),
             ])
             expect(setup.senderFastSync.state).toBe('paused')
             await new Promise(resolve => setTimeout(resolve, 200))
             expect(setup.receiverFastSync.state).toBe('paused')
             expect(setup.receiverEventSpy.popEvents()).toEqual([
-                (expect as any).objectContaining({ eventName: 'prepared' }),
-                (expect as any).objectContaining({ eventName: 'progress' }),
-                (expect as any).objectContaining({ eventName: 'progress' }),
-                (expect as any).objectContaining({ eventName: 'paused' }),
+                expect.objectContaining({ eventName: 'prepared' }),
+                expect.objectContaining({ eventName: 'progress' }),
+                expect.objectContaining({ eventName: 'progress' }),
+                expect.objectContaining({ eventName: 'paused' }),
             ])
             expect(
                 await setup.device2.storageManager
@@ -537,10 +563,10 @@ describe('Fast initial sync', () => {
             await new Promise(resolve => setTimeout(resolve, 1000))
             try {
                 expect(setup.receiverEventSpy.popEvents()).toEqual([
-                    (expect as any).objectContaining({ eventName: 'stalled' }),
-                    (expect as any).objectContaining({ eventName: 'prepared' }),
-                    (expect as any).objectContaining({ eventName: 'progress' }),
-                    (expect as any).objectContaining({ eventName: 'stalled' }),
+                    expect.objectContaining({ eventName: 'stalled' }),
+                    expect.objectContaining({ eventName: 'prepared' }),
+                    expect.objectContaining({ eventName: 'progress' }),
+                    expect.objectContaining({ eventName: 'stalled' }),
                 ])
             } finally {
                 await setup.senderFastSync.cancel()
@@ -558,13 +584,13 @@ describe('Fast initial sync', () => {
             await new Promise(resolve => setTimeout(resolve, 1000))
             try {
                 expect(setup.senderEventSpy.popEvents()).toEqual([
-                    (expect as any).objectContaining({ eventName: 'prepared' }),
-                    (expect as any).objectContaining({ eventName: 'progress' }),
-                    (expect as any).objectContaining({ eventName: 'stalled' }),
-                    (expect as any).objectContaining({ eventName: 'progress' }),
-                    (expect as any).objectContaining({ eventName: 'stalled' }),
-                    (expect as any).objectContaining({ eventName: 'progress' }),
-                    (expect as any).objectContaining({ eventName: 'stalled' }),
+                    expect.objectContaining({ eventName: 'prepared' }),
+                    expect.objectContaining({ eventName: 'progress' }),
+                    expect.objectContaining({ eventName: 'stalled' }),
+                    expect.objectContaining({ eventName: 'progress' }),
+                    expect.objectContaining({ eventName: 'stalled' }),
+                    expect.objectContaining({ eventName: 'progress' }),
+                    expect.objectContaining({ eventName: 'stalled' }),
                 ])
             } finally {
                 await setup.senderFastSync.cancel()

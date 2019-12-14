@@ -29,3 +29,41 @@ export async function getFastSyncInfo(
     }
     return { collectionCount, objectCount }
 }
+
+export function splitWithTail(
+    s: string,
+    delimiter: string,
+    limit: number,
+): Array<string> {
+    if (delimiter.length > 1) {
+        throw new Error(`splitWithTail() doesn't support multi-char delimiters`)
+    }
+
+    const result: string[] = []
+
+    let prevIndex: number | null = null
+    let delimitersExhausted = false
+    while (result.length < limit - 1) {
+        const nextIndex = s.indexOf(
+            delimiter,
+            prevIndex === null ? 0 : prevIndex + 1,
+        )
+        const nextSlice = s.substring(
+            prevIndex === null ? 0 : prevIndex + 1,
+            nextIndex !== -1 ? nextIndex : undefined,
+        )
+        result.push(nextSlice)
+
+        if (nextIndex === -1) {
+            delimitersExhausted = true
+            break
+        }
+
+        prevIndex = nextIndex
+    }
+    if (!delimitersExhausted) {
+        result.push(s.substr(prevIndex === null ? 0 : prevIndex + 1))
+    }
+
+    return result
+}
