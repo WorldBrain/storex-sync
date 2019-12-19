@@ -1,3 +1,4 @@
+import combinatorics from 'js-combinatorics'
 import { StorageRegistry, OperationBatch } from '@worldbrain/storex'
 import expect from 'expect'
 import { ClientSyncLogEntry } from '../client-sync-log/types'
@@ -136,12 +137,9 @@ interface SyncFlowScenarioTestInfo {
     steps: Array<{ type: Event; needsIntegration: boolean }>
 }
 
-interface TestSuiteConfiguration {
-    doubleCreateBehaviour: DoubleCreateBehaviour
-}
 interface TestSuiteContext {
     scenario: (
-        description: string,
+        description: string | boolean[],
         test: (testContext: SyncTestContext) => void,
     ) => void
 }
@@ -154,14 +152,26 @@ class TestCreator {
             const flowInfo: SyncFlowTestInfo = { flow, scenarios: [] }
             this.tested.push(flowInfo)
 
-            let configuration: TestSuiteConfiguration = {
-                doubleCreateBehaviour: 'error',
-            }
-
             suite({
                 scenario: (description, scenario) => {
                     const scenarioInfo: SyncFlowScenarioTestInfo = { steps: [] }
                     flowInfo.scenarios.push(scenarioInfo)
+
+                    if (typeof description !== 'string') {
+                        const entriesNeedingIntegration: number[] = []
+                        description.forEach((needsIntegration, index) => {
+                            if (needsIntegration) {
+                                entriesNeedingIntegration.push(index)
+                            }
+                        })
+                        if (entriesNeedingIntegration.length) {
+                            description = `with entries ${entriesNeedingIntegration.join(
+                                ', ',
+                            )} needing integration`
+                        } else {
+                            description = `with no entries needing integration`
+                        }
+                    }
 
                     it(description, () => {
                         let now = 1
@@ -194,6 +204,16 @@ class TestCreator {
 describe('Reconciliation', () => {
     const TEST_CREATOR = new TestCreator()
 
+    it('should blahahaha', () => {
+        const combinations = combinatorics.baseN([true, false], 3)
+        while (true) {
+            const combination = combinations.next()
+            if (!combination) {
+                break
+            }
+        }
+    })
+
     if (process.env.SKIP_SYNC_FLOW_CHECKS !== 'true') {
         after('we should have tested all necessary flows', () => {
             const testedFlows = new Set(
@@ -210,36 +230,72 @@ describe('Reconciliation', () => {
             expect({ missingFlows }).toEqual({ missingFlows: new Set() })
 
             for (const testedFlow of TEST_CREATOR.tested) {
-                const expected: SyncFlowTestInfo = {
-                    flow: testedFlow.flow,
-                    scenarios: [],
-                }
-                for (
-                    let scenarioIndex = 1;
-                    scenarioIndex <= testedFlow.flow.length;
-                    ++scenarioIndex
-                ) {
-                    const scenario: SyncFlowScenarioTestInfo = { steps: [] }
-                    expected.scenarios.push(scenario)
+                const combinations = combinatorics.baseN(
+                    [true, false],
+                    testedFlow.flow.length,
+                )
+                const expectedScenarios = combinations.map(combination =>
+                    combination
+                        .map((needsIntegration, stepIndex) => {
+                            return `${testedFlow.flow[stepIndex]} (needsIntegration: ${needsIntegration})`
+                        })
+                        .join(', '),
+                )
+                const actualScenarios = testedFlow.scenarios.map(({ steps }) =>
+                    steps
+                        .map(step => {
+                            return `${step.type} (needsIntegration: ${step.needsIntegration})`
+                        })
+                        .join(', '),
+                )
 
-                    for (
-                        let stepIndex = 0;
-                        stepIndex < testedFlow.flow.length;
-                        ++stepIndex
-                    ) {
-                        scenario.steps.unshift(
-                            (expect as any).objectContaining({
-                                needsIntegration: stepIndex < scenarioIndex,
-                            } as any),
-                        )
-                    }
-                }
-                expect(testedFlow).toEqual(expected)
+                expectedScenarios.sort()
+                actualScenarios.sort()
+
+                expect({
+                    flow: testedFlow.flow,
+                    scenarios: actualScenarios,
+                }).toEqual({
+                    flow: testedFlow.flow,
+                    scenarios: expectedScenarios,
+                })
+
+                // expect(testedFlow).toEqual(expected)
+
+                // for (
+                //     let scenarioIndex = 1;
+                //     scenarioIndex <= testedFlow.flow.length;
+                //     ++scenarioIndex
+                // ) {
+                //     const scenario: SyncFlowScenarioTestInfo = { steps: [] }
+                //     expected.scenarios.push(scenario)
+
+                //     for (
+                //         let stepIndex = 0;
+                //         stepIndex < testedFlow.flow.length;
+                //         ++stepIndex
+                //     ) {
+                //         scenario.steps.unshift(
+                //             (expect as any).objectContaining({
+                //                 needsIntegration: stepIndex < scenarioIndex,
+                //             } as any),
+                //         )
+                //     }
+                // }
+
+                // expect(testedFlow).toEqual(expected)
             }
         })
     }
 
     TEST_CREATOR.suite(['creation'], ({ scenario }) => {
+        scenario('with no entries needing integration', ({ entry }) => {
+            test({
+                logEntries: [entry('creation', { needsIntegration: false })],
+                expectedOperations: [],
+            })
+        })
+
         scenario('with all entries needing integration', ({ entry }) => {
             test({
                 logEntries: [entry('creation', { needsIntegration: true })],
@@ -255,6 +311,48 @@ describe('Reconciliation', () => {
     })
 
     TEST_CREATOR.suite(['modification', 'modification'], ({ scenario }) => {
+        scenario('with no entries needing integration', ({ entry }) => {
+            test({
+                logEntries: [
+                    entry('modification', {
+                        needsIntegration: false,
+                        value: 'First title update',
+                    }),
+                    entry('modification', {
+                        needsIntegration: false,
+                        value: 'Second title update',
+                    }),
+                ],
+                expectedOperations: [],
+            })
+        })
+
+        scenario(
+            'with only the first update needing integration',
+            ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('modification', {
+                            needsIntegration: true,
+                            value: 'First title update',
+                        }),
+                        entry('modification', {
+                            needsIntegration: false,
+                            value: 'Second title update',
+                        }),
+                    ],
+                    expectedOperations: [
+                        {
+                            operation: 'updateObjects',
+                            collection: 'customList',
+                            where: { id: 'list-one' },
+                            updates: { title: 'Second title update' },
+                        },
+                    ],
+                })
+            },
+        )
+
         scenario(
             'with only the second update needing integration',
             ({ entry }) => {
@@ -306,8 +404,65 @@ describe('Reconciliation', () => {
     })
 
     TEST_CREATOR.suite(['creation', 'creation'], ({ scenario }) => {
+        scenario('with no entry needing integration', ({ entry }) => {
+            test({
+                doubleCreateBehaviour: 'merge',
+                logEntries: [
+                    entry('creation', {
+                        needsIntegration: false,
+                        value: {
+                            id: 'list-one',
+                            title: 'first entry title',
+                        },
+                    }),
+                    entry('creation', {
+                        needsIntegration: false,
+                        value: {
+                            id: 'list-one',
+                            title: 'second entry title',
+                        },
+                    }),
+                ],
+                expectedOperations: [],
+            })
+        })
+
         scenario(
-            'with only the second update needing integration',
+            'with only the first entry needing integration',
+            ({ entry }) => {
+                test({
+                    doubleCreateBehaviour: 'merge',
+                    debug: true,
+                    logEntries: [
+                        entry('creation', {
+                            needsIntegration: true,
+                            value: {
+                                id: 'list-one',
+                                title: 'first entry title',
+                            },
+                        }),
+                        entry('creation', {
+                            needsIntegration: false,
+                            value: {
+                                id: 'list-one',
+                                title: 'second entry title',
+                            },
+                        }),
+                    ],
+                    expectedOperations: [
+                        {
+                            operation: 'updateObjects',
+                            collection: 'customList',
+                            where: { id: 'list-one' },
+                            updates: { title: 'second entry title' },
+                        },
+                    ],
+                })
+            },
+        )
+
+        scenario(
+            'with only the second entry needing integration',
             ({ entry }) => {
                 test({
                     doubleCreateBehaviour: 'merge',
@@ -342,6 +497,7 @@ describe('Reconciliation', () => {
         scenario('with all entries needing integration', ({ entry }) => {
             test({
                 doubleCreateBehaviour: 'merge',
+                debug: true,
                 logEntries: [
                     entry('creation', {
                         needsIntegration: true,
@@ -366,6 +522,16 @@ describe('Reconciliation', () => {
     TEST_CREATOR.suite(
         ['creation', 'modification', 'deletion'],
         ({ scenario }) => {
+            scenario('with no entry needing integration', ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('creation', { needsIntegration: false }),
+                        entry('modification', { needsIntegration: false }),
+                        entry('deletion', { needsIntegration: false }),
+                    ],
+                    expectedOperations: [],
+                })
+            })
             scenario('with only deletion needing integration', ({ entry }) => {
                 test({
                     logEntries: [
@@ -380,6 +546,65 @@ describe('Reconciliation', () => {
                             where: { id: 'list-one' },
                         },
                     ],
+                })
+            })
+
+            scenario(
+                'with only modification needing integration',
+                ({ entry }) => {
+                    test({
+                        logEntries: [
+                            entry('creation', { needsIntegration: false }),
+                            entry('modification', { needsIntegration: true }),
+                            entry('deletion', { needsIntegration: false }),
+                        ],
+                        expectedOperations: [
+                            {
+                                operation: 'deleteObjects',
+                                collection: 'customList',
+                                where: { id: 'list-one' },
+                            },
+                        ],
+                    })
+                },
+            )
+
+            scenario(
+                'with only creation and deletion needing integration',
+                ({ entry }) => {
+                    test({
+                        logEntries: [
+                            entry('creation', { needsIntegration: true }),
+                            entry('modification', { needsIntegration: false }),
+                            entry('deletion', { needsIntegration: true }),
+                        ],
+                        expectedOperations: [],
+                    })
+                },
+            )
+
+            scenario(
+                'with only creation and modification needing integration',
+                ({ entry }) => {
+                    test({
+                        logEntries: [
+                            entry('creation', { needsIntegration: true }),
+                            entry('modification', { needsIntegration: true }),
+                            entry('deletion', { needsIntegration: false }),
+                        ],
+                        expectedOperations: [],
+                    })
+                },
+            )
+
+            scenario('with only creation needing integration', ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('creation', { needsIntegration: true }),
+                        entry('modification', { needsIntegration: false }),
+                        entry('deletion', { needsIntegration: false }),
+                    ],
+                    expectedOperations: [],
                 })
             })
 
@@ -419,6 +644,42 @@ describe('Reconciliation', () => {
     TEST_CREATOR.suite(
         ['creation', 'modification', 'modification', 'deletion'],
         ({ scenario }) => {
+            scenario('with no entries needing integration', ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('creation', { needsIntegration: false }),
+                        entry('modification', {
+                            needsIntegration: false,
+                            value: 'first',
+                        }),
+                        entry('modification', {
+                            needsIntegration: false,
+                            value: 'second',
+                        }),
+                        entry('deletion', { needsIntegration: false }),
+                    ],
+                    expectedOperations: [],
+                })
+            })
+
+            scenario('with only creation needing integration', ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('creation', { needsIntegration: true }),
+                        entry('modification', {
+                            needsIntegration: false,
+                            value: 'first',
+                        }),
+                        entry('modification', {
+                            needsIntegration: false,
+                            value: 'second',
+                        }),
+                        entry('deletion', { needsIntegration: false }),
+                    ],
+                    expectedOperations: [],
+                })
+            })
+
             scenario('with only deletion needing integration', ({ entry }) => {
                 test({
                     logEntries: [
@@ -455,6 +716,222 @@ describe('Reconciliation', () => {
                             }),
                             entry('modification', {
                                 needsIntegration: true,
+                                value: 'second',
+                            }),
+                            entry('deletion', { needsIntegration: true }),
+                        ],
+                        expectedOperations: [
+                            {
+                                operation: 'deleteObjects',
+                                collection: 'customList',
+                                where: { id: 'list-one' },
+                            },
+                        ],
+                    })
+                },
+            )
+
+            scenario(
+                'with only the first modification needing integration',
+                ({ entry }) => {
+                    test({
+                        logEntries: [
+                            entry('creation', { needsIntegration: false }),
+                            entry('modification', {
+                                needsIntegration: true,
+                                value: 'first',
+                            }),
+                            entry('modification', {
+                                needsIntegration: false,
+                                value: 'second',
+                            }),
+                            entry('deletion', { needsIntegration: false }),
+                        ],
+                        expectedOperations: [],
+                    })
+                },
+            )
+
+            scenario(
+                'with only the second modification needing integration',
+                ({ entry }) => {
+                    test({
+                        logEntries: [
+                            entry('creation', { needsIntegration: false }),
+                            entry('modification', {
+                                needsIntegration: false,
+                                value: 'first',
+                            }),
+                            entry('modification', {
+                                needsIntegration: true,
+                                value: 'second',
+                            }),
+                            entry('deletion', { needsIntegration: false }),
+                        ],
+                        expectedOperations: [],
+                    })
+                },
+            )
+
+            scenario(
+                'with only the both modifications needing integration',
+                ({ entry }) => {
+                    test({
+                        logEntries: [
+                            entry('creation', { needsIntegration: false }),
+                            entry('modification', {
+                                needsIntegration: true,
+                                value: 'first',
+                            }),
+                            entry('modification', {
+                                needsIntegration: true,
+                                value: 'second',
+                            }),
+                            entry('deletion', { needsIntegration: false }),
+                        ],
+                        expectedOperations: [],
+                    })
+                },
+            )
+
+            scenario(
+                'with creation and the first modification needing integration',
+                ({ entry }) => {
+                    test({
+                        logEntries: [
+                            entry('creation', { needsIntegration: true }),
+                            entry('modification', {
+                                needsIntegration: true,
+                                value: 'first',
+                            }),
+                            entry('modification', {
+                                needsIntegration: false,
+                                value: 'second',
+                            }),
+                            entry('deletion', { needsIntegration: false }),
+                        ],
+                        expectedOperations: [],
+                    })
+                },
+            )
+
+            scenario(
+                'with everything needing integration except the first modification',
+                ({ entry }) => {
+                    test({
+                        logEntries: [
+                            entry('creation', { needsIntegration: true }),
+                            entry('modification', {
+                                needsIntegration: false,
+                                value: 'first',
+                            }),
+                            entry('modification', {
+                                needsIntegration: true,
+                                value: 'second',
+                            }),
+                            entry('deletion', { needsIntegration: true }),
+                        ],
+                        expectedOperations: [],
+                    })
+                },
+            )
+
+            scenario(
+                'with everything needing integration except the second modification',
+                ({ entry }) => {
+                    test({
+                        logEntries: [
+                            entry('creation', { needsIntegration: true }),
+                            entry('modification', {
+                                needsIntegration: true,
+                                value: 'first',
+                            }),
+                            entry('modification', {
+                                needsIntegration: false,
+                                value: 'second',
+                            }),
+                            entry('deletion', { needsIntegration: true }),
+                        ],
+                        expectedOperations: [],
+                    })
+                },
+            )
+
+            scenario(
+                'with everything needing integration except the deletion',
+                ({ entry }) => {
+                    test({
+                        logEntries: [
+                            entry('creation', { needsIntegration: true }),
+                            entry('modification', {
+                                needsIntegration: true,
+                                value: 'first',
+                            }),
+                            entry('modification', {
+                                needsIntegration: true,
+                                value: 'second',
+                            }),
+                            entry('deletion', { needsIntegration: false }),
+                        ],
+                        expectedOperations: [],
+                    })
+                },
+            )
+
+            scenario(
+                'with creation and the second modification needing integration',
+                ({ entry }) => {
+                    test({
+                        logEntries: [
+                            entry('creation', { needsIntegration: true }),
+                            entry('modification', {
+                                needsIntegration: false,
+                                value: 'first',
+                            }),
+                            entry('modification', {
+                                needsIntegration: true,
+                                value: 'second',
+                            }),
+                            entry('deletion', { needsIntegration: false }),
+                        ],
+                        expectedOperations: [],
+                    })
+                },
+            )
+
+            scenario(
+                'with only creation and deletion needing integration',
+                ({ entry }) => {
+                    test({
+                        logEntries: [
+                            entry('creation', { needsIntegration: true }),
+                            entry('modification', {
+                                needsIntegration: false,
+                                value: 'first',
+                            }),
+                            entry('modification', {
+                                needsIntegration: false,
+                                value: 'second',
+                            }),
+                            entry('deletion', { needsIntegration: true }),
+                        ],
+                        expectedOperations: [],
+                    })
+                },
+            )
+
+            scenario(
+                'with only the first modification and deletion needing integration',
+                ({ entry }) => {
+                    test({
+                        logEntries: [
+                            entry('creation', { needsIntegration: false }),
+                            entry('modification', {
+                                needsIntegration: true,
+                                value: 'first',
+                            }),
+                            entry('modification', {
+                                needsIntegration: false,
                                 value: 'second',
                             }),
                             entry('deletion', { needsIntegration: true }),
@@ -724,6 +1201,40 @@ describe('Reconciliation', () => {
     })
 
     TEST_CREATOR.suite(['creation', 'modification'], ({ scenario }) => {
+        scenario([false, false], ({ entry }) => {
+            test({
+                logEntries: [
+                    entry('creation', { needsIntegration: false }),
+                    entry('modification', { needsIntegration: false }),
+                ],
+                expectedOperations: [
+                    {
+                        operation: 'updateObjects',
+                        collection: 'customList',
+                        where: { id: 'list-one' },
+                        updates: { title: 'List (updated)' },
+                    },
+                ],
+            })
+        })
+
+        scenario([true, false], ({ entry }) => {
+            test({
+                logEntries: [
+                    entry('creation', { needsIntegration: true }),
+                    entry('modification', { needsIntegration: false }),
+                ],
+                expectedOperations: [
+                    {
+                        operation: 'updateObjects',
+                        collection: 'customList',
+                        where: { id: 'list-one' },
+                        updates: { title: 'List (updated)' },
+                    },
+                ],
+            })
+        })
+
         scenario('with only modification needing integration', ({ entry }) => {
             test({
                 logEntries: [
@@ -798,6 +1309,81 @@ describe('Reconciliation', () => {
     TEST_CREATOR.suite(
         ['creation', 'deletion', 'recreation'],
         ({ scenario }) => {
+            scenario([false, false, false], ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('creation', { needsIntegration: false }),
+                        entry('deletion', { needsIntegration: false }),
+                        entry('recreation', { needsIntegration: false }),
+                    ],
+                    expectedOperations: [
+                        {
+                            operation: 'createObject',
+                            collection: 'customList',
+                            args: {
+                                id: 'list-one',
+                                title: 'List one recreated',
+                            },
+                        },
+                    ],
+                })
+            })
+
+            scenario([false, true, false], ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('creation', { needsIntegration: false }),
+                        entry('deletion', { needsIntegration: true }),
+                        entry('recreation', { needsIntegration: false }),
+                    ],
+                    expectedOperations: [
+                        {
+                            operation: 'updateObjects',
+                            collection: 'customList',
+                            where: {
+                                id: 'list-one',
+                            },
+                            updates: {
+                                title: 'List one recreated',
+                            },
+                        },
+                    ],
+                })
+            })
+
+            scenario([true, false, false], ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('creation', { needsIntegration: true }),
+                        entry('deletion', { needsIntegration: false }),
+                        entry('recreation', { needsIntegration: false }),
+                    ],
+                    expectedOperations: [],
+                })
+            })
+
+            scenario([true, false, true], ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('creation', { needsIntegration: true }),
+                        entry('deletion', { needsIntegration: false }),
+                        entry('recreation', { needsIntegration: true }),
+                    ],
+                    expectedOperations: [],
+                })
+            })
+
+            scenario([true, true, false], ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('creation', { needsIntegration: true }),
+                        entry('deletion', { needsIntegration: true }),
+                        entry('recreation', { needsIntegration: false }),
+                    ],
+                    expectedOperations: [],
+                })
+            })
+
             scenario(
                 'with only recreation needing integration',
                 ({ entry }) => {
@@ -874,6 +1460,61 @@ describe('Reconciliation', () => {
     TEST_CREATOR.suite(
         ['deletion', 'recreation', 'redeletion'],
         ({ scenario }) => {
+            scenario([false, false, false], ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('deletion', { needsIntegration: false }),
+                        entry('recreation', { needsIntegration: false }),
+                        entry('redeletion', { needsIntegration: false }),
+                    ],
+                    expectedOperations: [],
+                })
+            })
+
+            scenario([false, true, false], ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('deletion', { needsIntegration: false }),
+                        entry('recreation', { needsIntegration: true }),
+                        entry('redeletion', { needsIntegration: false }),
+                    ],
+                    expectedOperations: [],
+                })
+            })
+
+            scenario([true, false, false], ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('deletion', { needsIntegration: true }),
+                        entry('recreation', { needsIntegration: false }),
+                        entry('redeletion', { needsIntegration: false }),
+                    ],
+                    expectedOperations: [],
+                })
+            })
+
+            scenario([true, false, true], ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('deletion', { needsIntegration: true }),
+                        entry('recreation', { needsIntegration: false }),
+                        entry('redeletion', { needsIntegration: true }),
+                    ],
+                    expectedOperations: [],
+                })
+            })
+
+            scenario([true, true, false], ({ entry }) => {
+                test({
+                    logEntries: [
+                        entry('deletion', { needsIntegration: true }),
+                        entry('recreation', { needsIntegration: true }),
+                        entry('redeletion', { needsIntegration: false }),
+                    ],
+                    expectedOperations: [],
+                })
+            })
+
             scenario('with only redelete needing integration', ({ entry }) => {
                 test({
                     logEntries: [
@@ -925,6 +1566,32 @@ describe('Reconciliation', () => {
     )
 
     TEST_CREATOR.suite(['deletion', 'modification'], ({ scenario }) => {
+        scenario([false, false], ({ entry }) => {
+            test({
+                logEntries: [
+                    entry('deletion', { needsIntegration: false }),
+                    entry('modification', { needsIntegration: false }),
+                ],
+                expectedOperations: [],
+            })
+        })
+
+        scenario([true, false], ({ entry }) => {
+            test({
+                logEntries: [
+                    entry('deletion', { needsIntegration: true }),
+                    entry('modification', { needsIntegration: false }),
+                ],
+                expectedOperations: [
+                    {
+                        operation: 'deleteObjects',
+                        collection: 'customList',
+                        where: { id: 'list-one' },
+                    },
+                ],
+            })
+        })
+
         scenario('with only modification needing integration', ({ entry }) => {
             test({
                 logEntries: [

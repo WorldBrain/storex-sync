@@ -40,7 +40,9 @@ export const reconcileSyncLog: ReconcilerFunction = (
         const pkAsJson = JSON.stringify(logEntry.pk)
         const objectModifications = collectionModifications[pkAsJson]
 
-        const readableLogEntryState = logEntry.needsIntegration ? 'new' : 'old'
+        const readableLogEntryState = logEntry.needsIntegration
+            ? 'new'
+            : 'integrated'
         if (options.debug) {
             console.log(
                 `before %s (%s): %o`,
@@ -175,10 +177,11 @@ export function _processCreationEntry({
                 }
             }
         } else {
-            objectModifications.actualState = 'present'
-            objectModifications.action = logEntry.needsIntegration
-                ? 'create'
-                : 'ignore'
+            if (logEntry.needsIntegration) {
+                objectModifications.action = 'create'
+            } else {
+                objectModifications.action = 'ignore'
+            }
         }
         objectModifications.createdOn = logEntry.createdOn
     }
@@ -251,10 +254,11 @@ export function _processModificationEntry({
         // syncedOn: logEntry.sharedOn,
         value: logEntry.value,
     }
+
     if (!objectModifications) {
         collectionModifications[pkAsJson] = {
             actualState: 'present',
-            action: 'update',
+            action: logEntry.needsIntegration ? 'update' : 'ignore',
             fields: { [logEntry.field]: updates },
         }
         return
@@ -271,7 +275,9 @@ export function _processModificationEntry({
         objectModifications.actualState === 'present' &&
         objectModifications.action === 'ignore'
     ) {
-        objectModifications.action = 'update'
+        objectModifications.action = logEntry.needsIntegration
+            ? 'update'
+            : 'ignore'
     }
 }
 
