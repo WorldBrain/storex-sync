@@ -91,7 +91,7 @@ export class ContinuousSync {
         const sharedSyncLog = await this.dependencies.getSharedSyncLog()
         const newDeviceId = await sharedSyncLog.createDeviceId({
             userId,
-            sharedUntil: 1,
+            sharedUntil: Date.now(),
         })
         await this.dependencies.settingStore.storeSetting(
             'deviceId',
