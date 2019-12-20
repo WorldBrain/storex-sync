@@ -49,7 +49,7 @@ export class ContinuousSync {
         this.deviceId = (await this.dependencies.settingStore.retrieveSetting(
             'deviceId',
         )) as string | number
-        this.setupContinuousSync()
+        await this.setupContinuousSync()
     }
 
     async tearDown() {
