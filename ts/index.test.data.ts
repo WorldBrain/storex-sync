@@ -14,4 +14,9 @@ export const TEST_DATA = {
         label: 'spam',
         createdWhen: new Date('2019-09-11 01:23:45'),
     },
+    test4: {
+        key: 'four',
+        label: 'eggs',
+        createdWhen: new Date('2019-09-12 01:23:45'),
+    },
 }

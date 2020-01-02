@@ -11,6 +11,7 @@ import {
 } from './types'
 import Interruptable from './interruptable'
 import { getFastSyncInfo } from './utils'
+import e = require('express')
 
 export interface FastSyncOptions {
     storageManager: StorageManager
@@ -47,7 +48,7 @@ export class FastSync {
     > = new EventEmitter() as TypedEmitter<FastSyncEvents>
 
     private totalObjectsProcessed: number
-    private interruptable: Interruptable | null = null
+    private interruptable = new Interruptable()
     private _state:
         | 'pristine'
         | 'running'
@@ -58,6 +59,23 @@ export class FastSync {
 
     constructor(private options: FastSyncOptions) {
         this.totalObjectsProcessed = 0
+        this._setupEventHandlers()
+    }
+
+    _setupEventHandlers() {
+        const stateChangeHandler = (state: 'paused' | 'resumed') => () => {
+            if (state === 'paused') {
+                this.pause({ dontSendStateChange: true })
+            } else {
+                this.resume({ dontSendStateChange: true })
+            }
+            this.events.emit(state)
+        }
+        this.options.channel.events.on('stalled', () =>
+            this.events.emit('stalled'),
+        )
+        this.options.channel.events.on('paused', stateChangeHandler('paused'))
+        this.options.channel.events.on('resumed', stateChangeHandler('resumed'))
     }
 
     get state() {
@@ -77,6 +95,8 @@ export class FastSync {
         const subsequentRole: FastSyncRole | null = options.bothWays
             ? flippedRole(initialRole)
             : null
+
+        this._state = 'running'
 
         const execute = async (
             role: FastSyncRole,
@@ -103,8 +123,6 @@ export class FastSync {
     async send(options: { role: FastSyncRole; fastSyncInfo?: FastSyncInfo }) {
         const { channel } = this.options
 
-        channel.events.on('stalled', () => this.events.emit('stalled'))
-        const interruptable = (this.interruptable = new Interruptable())
         this._state = 'running'
         try {
             const syncInfo =
@@ -114,7 +132,7 @@ export class FastSync {
             await channel.sendSyncInfo(syncInfo)
 
             try {
-                await interruptable.execute(async () => {
+                await this.interruptable.execute(async () => {
                     this.events.emit('progress', {
                         role: options.role,
                         progress: {
@@ -124,7 +142,7 @@ export class FastSync {
                     })
                 })
 
-                await interruptable.forOfLoop(
+                await this.interruptable.forOfLoop(
                     this.options.collections,
                     async collection => {
                         await this.sendObjecsInCollection(collection, {
@@ -141,8 +159,6 @@ export class FastSync {
         } catch (e) {
             this._state = 'error'
             throw e
-        } finally {
-            this.interruptable = null
         }
     }
 
@@ -204,16 +220,6 @@ export class FastSync {
     }
 
     async receive(options: { role: FastSyncRole }) {
-        this._state = 'running'
-        const stateChangeHandler = (state: 'paused' | 'resumed') => () => {
-            this._state = state === 'paused' ? 'paused' : 'running'
-            this.events.emit(state)
-        }
-        this.options.channel.events.on('stalled', () =>
-            this.events.emit('stalled'),
-        )
-        this.options.channel.events.on('paused', stateChangeHandler('paused'))
-        this.options.channel.events.on('resumed', stateChangeHandler('resumed'))
         try {
             const syncInfo = await this.options.channel.receiveSyncInfo()
             this.events.emit('prepared', { syncInfo, role: options.role })
@@ -226,24 +232,27 @@ export class FastSync {
                     totalObjectsProcessed: this.totalObjectsProcessed,
                 },
             })
-            for await (const objectBatch of this.options.channel.streamObjectBatches()) {
-                // console.log('recv: start iter')
-                for (const object of objectBatch.objects) {
-                    await this.options.storageManager.backend.createObject(
-                        objectBatch.collection,
-                        object,
-                    )
-                }
-                this.totalObjectsProcessed += objectBatch.objects.length
-                this.events.emit('progress', {
-                    role: options.role,
-                    progress: {
-                        ...syncInfo,
-                        totalObjectsProcessed: this.totalObjectsProcessed,
-                    },
-                })
-                // console.log('recv: end iter')
-            }
+            await this.interruptable.forOfLoop(
+                this.options.channel.streamObjectBatches(),
+                async objectBatch => {
+                    // console.log('recv: start iter')
+                    for (const object of objectBatch.objects) {
+                        await this.options.storageManager.backend.createObject(
+                            objectBatch.collection,
+                            object,
+                        )
+                    }
+                    this.totalObjectsProcessed += objectBatch.objects.length
+                    this.events.emit('progress', {
+                        role: options.role,
+                        progress: {
+                            ...syncInfo,
+                            totalObjectsProcessed: this.totalObjectsProcessed,
+                        },
+                    })
+                    // console.log('recv: end iter')
+                },
+            )
             this._state = 'done'
         } catch (e) {
             this._state = 'error'
@@ -251,29 +260,35 @@ export class FastSync {
         }
     }
 
-    async pause() {
-        if (this.interruptable) {
-            this._state = 'paused'
-            this.events.emit('paused')
-            await this.interruptable.pause()
+    async pause(options?: { dontSendStateChange?: boolean }) {
+        if (this._state !== 'running') {
+            return
+        }
+
+        this._state = 'paused'
+        this.events.emit('paused')
+        await this.interruptable.pause()
+        if (!options?.dontSendStateChange) {
             await this.options.channel.sendStateChange('paused')
         }
     }
 
-    async resume() {
-        if (this.interruptable) {
-            this._state = 'running'
-            this.events.emit('resumed')
-            await this.options.channel.sendStateChange('running')
-            await this.interruptable.resume()
+    async resume(options?: { dontSendStateChange?: boolean }) {
+        if (this._state !== 'paused') {
+            return
         }
+
+        this._state = 'running'
+        this.events.emit('resumed')
+        if (!options?.dontSendStateChange) {
+            await this.options.channel.sendStateChange('running')
+        }
+        await this.interruptable.resume()
     }
 
     async cancel() {
-        if (this.interruptable) {
-            this._state = 'cancelled'
-            await this.interruptable.cancel()
-        }
+        this._state = 'cancelled'
+        await this.interruptable.cancel()
     }
 
     async abort() {

@@ -531,6 +531,69 @@ describe('Fast initial sync', () => {
             ])
         })
 
+        // it('should be able to pause during receiving phase of two way sync', async (options: TestOptions) => {
+        //     const setup = await setupMinimalTest(options)
+
+        //     await setup.device2.storageManager.collection('test').createObject(TEST_DATA.test3)
+        //     await setup.device2.storageManager.collection('test').createObject(TEST_DATA.test4)
+
+        //     const firstObjectSent = resolvablePromise<void>()
+        //     setup.senderFastSync.events.on('progress', ({ role, progress }) => {
+        //         if (role === 'receiver' && progress.totalObjectsProcessed === 1) {
+        //             setup.senderFastSync.pause()
+        //             firstObjectSent.resolve()
+        //         }
+        //     })
+        //     const syncPromise = setup.sync({ bothWays: 'receive-first' })
+
+        //     await firstObjectSent.promise
+        //     expect(setup.senderEventSpy.popEvents()).toEqual([
+        //         expect.objectContaining({ eventName: 'prepared' }),
+        //         expect.objectContaining({ eventName: 'progress' }),
+        //         expect.objectContaining({ eventName: 'progress' }),
+        //         expect.objectContaining({ eventName: 'paused' }),
+        //     ])
+        //     expect(setup.senderFastSync.state).toBe('paused')
+        //     await new Promise(resolve => setTimeout(resolve, 200))
+        //     expect(setup.receiverFastSync.state).toBe('paused')
+        //     expect(setup.receiverEventSpy.popEvents()).toEqual([
+        //         expect.objectContaining({ eventName: 'prepared' }),
+        //         expect.objectContaining({ eventName: 'progress' }),
+        //         expect.objectContaining({ eventName: 'progress' }),
+        //         expect.objectContaining({ eventName: 'paused' }),
+        //     ])
+        //     expect(
+        //         await setup.device2.storageManager
+        //             .collection('test')
+        //             .findObjects({}),
+        //     ).toEqual([
+        //         {
+        //             key: 'one',
+        //             label: 'Foo',
+        //             createdWhen: setup.object1.createdWhen,
+        //         },
+        //     ])
+
+        //     setup.senderFastSync.resume()
+        //     await syncPromise
+        //     expect(
+        //         await setup.device2.storageManager
+        //             .collection('test')
+        //             .findObjects({}),
+        //     ).toEqual([
+        //         {
+        //             key: 'one',
+        //             label: 'Foo',
+        //             createdWhen: setup.object1.createdWhen,
+        //         },
+        //         {
+        //             key: 'two',
+        //             label: 'Bar',
+        //             createdWhen: setup.object2.createdWhen,
+        //         },
+        //     ])
+        // })
+
         it('should be able to cancel sending', async (options: TestOptions) => {
             const setup = await setupMinimalTest(options)
             setup.senderFastSync.events.on('progress', ({ progress }) => {
