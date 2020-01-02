@@ -16,6 +16,7 @@ export interface FastSyncOptions {
     storageManager: StorageManager
     channel: FastSyncChannel
     collections: string[]
+    batchSize?: number
     preSendProcessor?: FastSyncPreSendProcessor
     postReceiveProcessor?: FastSyncPreSendProcessor
 }
@@ -153,29 +154,31 @@ export class FastSync {
             syncInfo: FastSyncInfo
         },
     ) {
-        await this.interruptable!.forOfLoop(
-            streamObjectBatches(this.options.storageManager, collection),
-            async objects => {
-                const processedObjects = await this._preproccesObjects({
-                    collection,
-                    objects,
-                })
-                if (processedObjects.length) {
-                    await options.channel.sendObjectBatch({
-                        collection,
-                        objects: processedObjects,
-                    })
-                }
-                this.totalObjectsProcessed += objects.length
-                this.events.emit('progress', {
-                    role: options.role,
-                    progress: {
-                        ...options.syncInfo,
-                        totalObjectsProcessed: this.totalObjectsProcessed,
-                    },
-                })
-            },
+        const batchStream = streamObjectBatches(
+            this.options.storageManager,
+            collection,
+            { batchSize: this.options.batchSize || 100 },
         )
+        await this.interruptable!.forOfLoop(batchStream, async objects => {
+            const processedObjects = await this._preproccesObjects({
+                collection,
+                objects,
+            })
+            if (processedObjects.length) {
+                await options.channel.sendObjectBatch({
+                    collection,
+                    objects: processedObjects,
+                })
+            }
+            this.totalObjectsProcessed += objects.length
+            this.events.emit('progress', {
+                role: options.role,
+                progress: {
+                    ...options.syncInfo,
+                    totalObjectsProcessed: this.totalObjectsProcessed,
+                },
+            })
+        })
     }
 
     async _preproccesObjects(params: { collection: string; objects: any[] }) {
@@ -277,15 +280,35 @@ export class FastSync {
 async function* streamObjectBatches(
     storageManager: StorageManager,
     collection: string,
+    options: { batchSize: number },
 ): AsyncIterableIterator<any[]> {
     // const pkIndex = storageManager.registry.collections[collection]
     // if (typeof pkIndex !== 'string') {
     //     throw new Error(`Only simple PK indices are supported for now (colllection: ${collection})`)
     // }
 
-    for (const object of await storageManager
-        .collection(collection)
-        .findObjects({})) {
-        yield [object]
+    if (storageManager.backend.supports('streamObjects')) {
+        let objects: any[] = []
+
+        const objectStream = await storageManager.operation(
+            'streamObjects',
+            collection,
+        )
+        for await (const object of objectStream) {
+            objects.push(object)
+            if (objects.length >= options.batchSize) {
+                yield objects
+                objects = []
+            }
+        }
+        if (objects.length > 0) {
+            yield objects
+        }
+    } else {
+        for (const object of await storageManager
+            .collection(collection)
+            .findObjects({})) {
+            yield [object]
+        }
     }
 }

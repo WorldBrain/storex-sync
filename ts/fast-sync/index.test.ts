@@ -139,6 +139,7 @@ async function setupMinimalTest(options: TestOptions) {
     const senderFastSync = new FastSync({
         storageManager: device1.storageManager,
         channel: channels.senderChannel,
+        batchSize: 1,
         collections: ['test'],
         preSendProcessor: options.preSendProcessor,
     })
