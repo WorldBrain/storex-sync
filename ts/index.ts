@@ -156,6 +156,9 @@ export async function receiveLogEntries(
                         ...entry,
                         data: await deserializeEntryData(entry.data),
                     }
+                    if (!deserializedEntry.data) {
+                        return null
+                    }
 
                     const postProcessed = await postReceive({
                         entry: deserializedEntry,
