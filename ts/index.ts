@@ -67,11 +67,16 @@ export interface CommonSyncOptions {
     syncEvents?: SyncEvents
     batchSize?: number
     singleBatch?: boolean
+    continueSync?: (info: { stage: SyncStage }) => boolean
 }
+export type SyncStage = 'receive' | 'share' | 'integrate'
 export interface SyncOptions extends CommonSyncOptions {
     storageManager: StorageManager
     reconciler: ReconcilerFunction
     extraSentInfo?: any
+}
+export interface SyncReturnValue {
+    finished: boolean
 }
 
 export async function shareLogEntries(
@@ -187,7 +192,7 @@ export async function receiveLogEntries(
             deviceId: args.deviceId,
         })
 
-        if (args.singleBatch) {
+        if (!continueSync('receive', args)) {
             return { finished: false }
         }
     }
@@ -212,14 +217,7 @@ export async function writeReconcilation(args: {
     )
 }
 
-export async function reconcileStorage(options: {
-    storageManager: StorageManager
-    reconciler: ReconcilerFunction
-    clientSyncLog: ClientSyncLogStorage
-    deviceId: number | string
-    syncEvents?: SyncEvents
-    singleStep?: boolean
-}): Promise<{ finished: boolean }> {
+export async function reconcileStorage(options: SyncOptions): Promise<{ finished: boolean }> {
     while (true) {
         const entries = await options.clientSyncLog.getNextEntriesToIntgrate()
         if (!entries) {
@@ -245,7 +243,7 @@ export async function reconcileStorage(options: {
             reconciliation,
         })
 
-        if (options.singleStep) {
+        if (!continueSync('integrate', options)) {
             return { finished: false }
         }
     }
@@ -253,18 +251,25 @@ export async function reconcileStorage(options: {
 
 export async function doSync(
     options: SyncOptions,
-): Promise<{ finished: boolean }> {
+): Promise<SyncReturnValue> {
     const { finished: receiveFinished } = await receiveLogEntries(options)
-    if (!receiveFinished) {
+    if (!receiveFinished || !continueSync('share', options)) {
         return { finished: false }
     }
 
     const { finished: shareFinished } = await shareLogEntries(options)
-    if (!shareFinished) {
+    if (!shareFinished || !continueSync('integrate', options)) {
         return { finished: false }
     }
 
-    await reconcileStorage(options)
+    const { finished: reconciliationFinished } = await reconcileStorage(options)
+    if (!reconciliationFinished) {
+        return { finished: false }
+    }
 
     return { finished: true }
+}
+
+function continueSync(stage: SyncStage, options: Pick<SyncOptions, 'continueSync' | 'singleBatch'>): boolean {
+    return options.continueSync ? options.continueSync({ stage }) : !options.singleBatch
 }

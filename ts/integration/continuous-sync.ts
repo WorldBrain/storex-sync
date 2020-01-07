@@ -9,6 +9,7 @@ import {
     SyncEvents,
     SyncPostReceiveProcessor,
     SyncOptions,
+    SyncReturnValue,
 } from '../'
 import { ClientSyncLogStorage } from '../client-sync-log'
 import { RecurringTask } from '../utils/recurring-task'
@@ -29,7 +30,7 @@ export interface ContinuousSyncDependencies {
 }
 
 export class ContinuousSync {
-    public recurringIncrementalSyncTask?: RecurringTask
+    public recurringIncrementalSyncTask?: RecurringTask<Partial<SyncOptions>, SyncReturnValue | void>
     public deviceId?: number | string
     public enabled = false
     public debug: boolean
@@ -61,8 +62,8 @@ export class ContinuousSync {
     setupRecurringTask() {
         if (this.dependencies.frequencyInMs) {
             this.recurringIncrementalSyncTask = new RecurringTask(
-                async (options?: { debug: boolean }) => {
-                    await this.maybeDoIncrementalSync(options)
+                async (options?: Partial<SyncOptions> & { debug?: boolean }) => {
+                    return this.maybeDoIncrementalSync(options)
                 },
                 {
                     intervalInMs: this.dependencies.frequencyInMs,
@@ -118,12 +119,12 @@ export class ContinuousSync {
         this.setupRecurringTask()
     }
 
-    async forceIncrementalSync(options?: { debug?: boolean }) {
+    async forceIncrementalSync(options?: { debug?: boolean } & Partial<SyncOptions>): Promise<SyncReturnValue | void> {
         if (this.enabled) {
             if (this.recurringIncrementalSyncTask) {
-                await this.recurringIncrementalSyncTask.forceRun()
+                return this.recurringIncrementalSyncTask.forceRun(options)
             } else {
-                await this.doIncrementalSync(options)
+                return this.doIncrementalSync(options)
             }
         }
     }
@@ -134,8 +135,12 @@ export class ContinuousSync {
         }
     }
 
-    async doIncrementalSync(options?: { debug?: boolean }) {
-        const syncOptions = await this.getSyncOptions()
+    async doIncrementalSync(options?: Partial<SyncOptions> & { debug?: boolean }) {
+        options = options || {}
+        const syncOptions = {
+            ...await this.getSyncOptions(),
+            ...options,
+        }
         if (options && options.debug) {
             syncOptions.syncEvents = new EventEmitter() as SyncEvents
             syncOptions.syncEvents.emit = ((name: string, event: any) => {

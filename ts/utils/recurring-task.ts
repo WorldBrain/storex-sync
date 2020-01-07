@@ -1,10 +1,10 @@
-export class RecurringTask {
+export class RecurringTask<TaskOptions = void, TaskReturnType = void> {
     // taskRunning = false // TODO: Write tests before introducing this feature
     aproximateNextRun: number | null = null
     private timeoutId: ReturnType<typeof setTimeout> | null = null
 
     constructor(
-        private task: () => Promise<void>,
+        private task: (options?: TaskOptions) => Promise<TaskReturnType>,
         private options: {
             intervalInMs: number
             onError: (error: Error) => void
@@ -22,10 +22,11 @@ export class RecurringTask {
         this.aproximateNextRun = null
     }
 
-    async forceRun() {
+    async forceRun(options?: TaskOptions) {
         this.clearTimeout()
         try {
-            await this.run()
+            const result = await this.run(options)
+            return result
         } catch (e) {
             this.options.onError(e)
             throw e
@@ -47,10 +48,10 @@ export class RecurringTask {
         }, intervalInMs)
     }
 
-    private async run() {
+    private async run(options?: TaskOptions) {
         // this.taskRunning = true
         try {
-            await this.task()
+            return this.task(options)
         } finally {
             // this.taskRunning = false
         }
