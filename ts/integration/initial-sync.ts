@@ -44,6 +44,7 @@ export interface InitialSyncDependencies {
     storageManager: StorageManager
     signalTransportFactory: SignalTransportFactory
     syncedCollections: string[]
+    batchSize?: number
     debug?: boolean
 }
 
@@ -58,6 +59,11 @@ export class InitialSync {
 
     constructor(protected dependencies: InitialSyncDependencies) {
         this.debug = !!dependencies.debug
+        const origEmit = this.events.emit.bind(this.events) as any
+        this.events.emit = ((eventName: string, event: any) => {
+            this._debugLog(`Event '${eventName}':`, event)
+            return origEmit(eventName, event)
+        }) as any
     }
 
     async requestInitialSync(options?: {
@@ -115,6 +121,37 @@ export class InitialSync {
         }
     }
 
+    async abortInitialSync(): Promise<void> {
+        if (!this.fastSyncInfo) {
+            return
+        }
+
+        await this.fastSyncInfo.fastSync.abort()
+        await this.cleanupInitialSync()
+    }
+
+    async cleanupInitialSync() {
+        if (!this.fastSyncInfo) {
+            return
+        }
+
+        const info = this.fastSyncInfo
+        delete this.fastSyncInfo
+        info.events.emit = () => false
+        await Promise.race([
+            new Promise(resolve => setTimeout(resolve, 1000)),
+            info.fastSyncChannel.destroy(),
+        ])
+    }
+
+    async cancelInitialSync() {
+        if (!this.fastSyncInfo) {
+            return
+        }
+
+        await this.fastSyncInfo.fastSync.cancel()
+    }
+
     _createSignalTransport(
         role: 'sender',
     ): Promise<{ signalTransport: SignalTransport; initialMessage: string }>
@@ -144,6 +181,8 @@ export class InitialSync {
         deviceId: 'first' | 'second'
         preserveChannel?: boolean
     }): Promise<InitialSyncInfo> {
+        await this.cleanupInitialSync()
+
         const signalChannel = await options.signalTransport.openChannel(
             pick(options, 'initialMessage', 'deviceId'),
         )
@@ -157,6 +196,7 @@ export class InitialSync {
             channel: fastSyncChannel.channel,
             collections: this.dependencies.syncedCollections,
             preSendProcessor: this.getPreSendProcessor() || undefined,
+            batchSize: this.dependencies.batchSize,
         })
         fastSync.events.emit = ((eventName: any, event: any) => {
             return this.events.emit(eventName, event)
@@ -174,12 +214,6 @@ export class InitialSync {
         }
 
         const finishPromise: Promise<void> = (async () => {
-            const origEmit = this.events.emit.bind(this.events) as any
-            this.events.emit = ((eventName: string, event: any) => {
-                this._debugLog(`Event '${eventName}':`, event)
-                return origEmit(eventName, event)
-            }) as any
-
             this.events.emit('connecting', {})
             await fastSyncChannel.setup()
             this.events.emit('connected', {})
@@ -194,15 +228,21 @@ export class InitialSync {
                 channel: fastSyncChannel.channel,
                 fastSyncInfo,
             })
-            await fastSync.execute({
-                role: options.role,
-                bothWays: syncOrder,
-                fastSyncInfo,
-            })
+            try {
+                await fastSync.execute({
+                    role: options.role,
+                    bothWays: syncOrder,
+                    fastSyncInfo,
+                })
+            } catch (e) {
+                if (e.name !== 'ChannelDestroyedError') {
+                    throw e
+                }
+            }
             this.events.emit('finished', {})
 
             if (!options.preserveChannel) {
-                await fastSyncChannel.channel.destroy()
+                await this.cleanupInitialSync()
             }
         })()
 

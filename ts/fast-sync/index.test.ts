@@ -601,7 +601,11 @@ describe('Fast initial sync', () => {
     }
 
     describe('in-memory data channel', () => {
-        runTests(async test => {
+        runTests(async (test, options) => {
+            if (process.env.SKIP_IN_MEMORY_TESTS === 'true') {
+                options.skip()
+            }
+
             await test({
                 createChannels: async () => createMemoryChannel(),
             })

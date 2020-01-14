@@ -275,6 +275,10 @@ export class FastSync {
             await this.interruptable.cancel()
         }
     }
+
+    async abort() {
+        await this.cancel()
+    }
 }
 
 async function* streamObjectBatches(

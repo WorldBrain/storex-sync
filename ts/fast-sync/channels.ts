@@ -16,6 +16,10 @@ import {
     receiveInChucks,
 } from './chunking'
 
+export class ChannelDestroyedError extends Error {
+    name = 'ChannelDestroyedError'
+}
+
 abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     events = new EventEmitter() as TypedEmitter<FastSyncChannelEvents>
 
@@ -148,6 +152,8 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
     dataReceived = resolvablePromise<string>()
     dataHandler: (data: any) => void
 
+    private destroyed = false
+
     constructor(private options: { peer: SimplePeer.Instance }) {
         super()
 
@@ -160,14 +166,25 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
     }
 
     async destroy() {
+        if (this.destroyed) {
+            return
+        }
+
         this.options.peer.removeListener('data', this.dataHandler)
         await this.options.peer.destroy()
+        this.destroyed = true
     }
 
     async _sendPackage(
         syncPackage: FastSyncPackage,
         options?: { noChunking?: boolean },
     ) {
+        if (this.destroyed) {
+            throw new ChannelDestroyedError(
+                'Cannot send package through destroyed channel',
+            )
+        }
+
         const sendAndConfirm = async (data: string) => {
             this.options.peer.send(data)
 
@@ -203,6 +220,12 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
         noChunking?: boolean
         noConfirm?: boolean
     }): Promise<FastSyncPackage> {
+        if (this.destroyed) {
+            throw new ChannelDestroyedError(
+                'Cannot receive package from destroyed channel',
+            )
+        }
+
         const receive = async () => {
             const data = await this.dataReceived.promise
             this.dataReceived = resolvablePromise()

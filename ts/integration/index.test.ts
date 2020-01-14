@@ -37,6 +37,7 @@ describe('Integration helpers', () => {
                 storageManager: client.storageManager,
                 signalTransportFactory,
                 syncedCollections: Object.keys(options.collections),
+                batchSize: 1,
             })
             initialSync.wrtc = wrtc
 
@@ -205,5 +206,51 @@ describe('Integration helpers', () => {
             },
             expectNoData: true,
         })
+    })
+
+    it('should not crash if trying to abort the sync without notifying the other side', async () => {
+        const { clients, integration, sync } = await setupTest({
+            collections: {
+                test: {
+                    version: new Date(),
+                    fields: {
+                        key: { type: 'string' },
+                        label: { type: 'string' },
+                        createWhen: { type: 'datetime' },
+                    },
+                    indices: [{ field: 'key', pk: true }],
+                },
+            },
+        })
+
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test1)
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test2)
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test3)
+
+        integration[0].initialSync.events.on('progress', ({ progress }) => {
+            if (progress.totalObjectsProcessed === 1) {
+                integration[0].initialSync.abortInitialSync()
+            }
+        })
+
+        const {
+            initialMessage,
+        } = await integration[0].initialSync.requestInitialSync()
+        await integration[1].initialSync.answerInitialSync({
+            initialMessage,
+        })
+        await integration[0].initialSync.waitForInitialSync()
+
+        expect(
+            await clients[1].storageManager
+                .collection('test')
+                .findObjects({}, { order: [['createdWhen', 'asc']] }),
+        ).toEqual([(expect as any).objectContaining(TEST_DATA.test1)])
     })
 })
