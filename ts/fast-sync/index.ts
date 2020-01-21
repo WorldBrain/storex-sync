@@ -39,6 +39,7 @@ export interface FastSyncEvents {
     paused: () => void
     resumed: () => void
     roleSwitch: (event: { before: FastSyncRole; after: FastSyncRole }) => void
+    error: (event: {error: string}) => void
 }
 
 export class FastSync {
@@ -140,6 +141,7 @@ export class FastSync {
             }
         } catch (e) {
             this._state = 'error'
+            this.events.emit('error', { error:`${e}` })
             throw e
         } finally {
             this.interruptable = null
