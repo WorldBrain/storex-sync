@@ -135,16 +135,16 @@ export class ContinuousSync {
         }
     }
 
-    async doIncrementalSync(options?: Partial<SyncOptions> & { debug?: boolean }) {
+    async doIncrementalSync(options?: { debug?: boolean, prettifier?: (object: any) => string }) {
         options = options || {}
         const syncOptions = {
             ...await this.getSyncOptions(),
             ...options,
         }
-        if (options && options.debug) {
+        if (options?.debug) {
             syncOptions.syncEvents = new EventEmitter() as SyncEvents
             syncOptions.syncEvents.emit = ((name: string, event: any) => {
-                console.log(`SYNC EVENT '${name}':`, event)
+                console.log(`SYNC EVENT '${name}':`, options?.prettifier ? options.prettifier(event) : event)
                 return true
             }) as any
         }
