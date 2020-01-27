@@ -74,6 +74,9 @@ export interface SyncOptions extends CommonSyncOptions {
     storageManager: StorageManager
     reconciler: ReconcilerFunction
     extraSentInfo?: any
+    reconciliationProcessor?: (
+        reconciliation: OperationBatch,
+    ) => Promise<OperationBatch>
 }
 export interface SyncReturnValue {
     finished: boolean
@@ -142,7 +145,7 @@ export async function receiveLogEntries(
     const serializeEntryData = args.serializer
         ? args.serializer.serializeSharedSyncLogEntryData
         : async (deserialized: SharedSyncLogEntryData) =>
-            JSON.stringify(deserialized)
+              JSON.stringify(deserialized)
 
     while (true) {
         const logUpdate = await args.sharedSyncLog.getUnsyncedEntries({
@@ -217,16 +220,23 @@ export async function writeReconcilation(args: {
     )
 }
 
-export async function reconcileStorage(options: SyncOptions): Promise<{ finished: boolean }> {
+export async function reconcileStorage(
+    options: SyncOptions,
+): Promise<{ finished: boolean }> {
     while (true) {
         const entries = await options.clientSyncLog.getNextEntriesToIntgrate()
         if (!entries) {
             return { finished: true }
         }
 
-        const reconciliation = await options.reconciler(entries, {
+        let reconciliation = await options.reconciler(entries, {
             storageRegistry: options.storageManager.registry,
         })
+        if (options.reconciliationProcessor) {
+            reconciliation = await options.reconciliationProcessor(
+                reconciliation,
+            )
+        }
 
         if (options.syncEvents) {
             options.syncEvents.emit('reconciledEntries', {
@@ -249,9 +259,7 @@ export async function reconcileStorage(options: SyncOptions): Promise<{ finished
     }
 }
 
-export async function doSync(
-    options: SyncOptions,
-): Promise<SyncReturnValue> {
+export async function doSync(options: SyncOptions): Promise<SyncReturnValue> {
     const { finished: receiveFinished } = await receiveLogEntries(options)
     if (!receiveFinished || !continueSync('share', options)) {
         return { finished: false }
@@ -270,6 +278,11 @@ export async function doSync(
     return { finished: true }
 }
 
-function continueSync(stage: SyncStage, options: Pick<SyncOptions, 'continueSync' | 'singleBatch'>): boolean {
-    return options.continueSync ? options.continueSync({ stage }) : !options.singleBatch
+function continueSync(
+    stage: SyncStage,
+    options: Pick<SyncOptions, 'continueSync' | 'singleBatch'>,
+): boolean {
+    return options.continueSync
+        ? options.continueSync({ stage })
+        : !options.singleBatch
 }
