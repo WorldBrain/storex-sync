@@ -36,6 +36,7 @@ async function setupTest(options: {
         clientSyncLog,
         storageManager,
         includeCollections: ['user'],
+        mergeModifications: true,
     })
     if (options.deviceId !== null) {
         loggingMiddleware.enable(
@@ -101,8 +102,7 @@ describe('Sync logging middleware', () => {
                 collection: 'user',
                 pk: 53,
                 operation: 'modify',
-                field: 'displayName',
-                value: 'Jack Doe',
+                value: { displayName: 'Jack Doe' },
             },
         ])
     })
@@ -123,7 +123,7 @@ describe('Sync logging middleware', () => {
             .collection('user')
             .updateOneObject(
                 { id: 53 },
-                { firstName: 'Jack', lastName: 'Trump' },
+                { firstName: 'Jack', lastName: 'Johnson' },
             )
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
@@ -144,19 +144,7 @@ describe('Sync logging middleware', () => {
                 collection: 'user',
                 pk: 53,
                 operation: 'modify',
-                field: 'firstName',
-                value: 'Jack',
-            },
-            {
-                deviceId: 'device-one',
-                createdOn: 5,
-                sharedOn: null,
-                needsIntegration: false,
-                collection: 'user',
-                pk: 53,
-                operation: 'modify',
-                field: 'lastName',
-                value: 'Trump',
+                value: { firstName: 'Jack', lastName: 'Johnson' },
             },
         ])
     })
@@ -181,7 +169,7 @@ describe('Sync logging middleware', () => {
             .createObject({ id: 55, firstName: 'Jack', lastName: 'Daniels' })
         await storageManager
             .collection('user')
-            .updateObjects({ lastName: 'Doe' }, { lastName: 'Trump' })
+            .updateObjects({ lastName: 'Doe' }, { lastName: 'Johnson' })
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 deviceId: 'device-one',
@@ -221,8 +209,7 @@ describe('Sync logging middleware', () => {
                 collection: 'user',
                 pk: 53,
                 operation: 'modify',
-                field: 'lastName',
-                value: 'Trump',
+                value: { lastName: 'Johnson' },
             },
             {
                 deviceId: 'device-one',
@@ -232,8 +219,7 @@ describe('Sync logging middleware', () => {
                 collection: 'user',
                 pk: 54,
                 operation: 'modify',
-                field: 'lastName',
-                value: 'Trump',
+                value: { lastName: 'Johnson' },
             },
         ])
     })
@@ -260,7 +246,7 @@ describe('Sync logging middleware', () => {
             .collection('user')
             .updateObjects(
                 { lastName: 'Doe' },
-                { firstName: 'Pinata', lastName: 'Trump' },
+                { firstName: 'Pinata', lastName: 'Johnson' },
             )
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
@@ -301,8 +287,7 @@ describe('Sync logging middleware', () => {
                 collection: 'user',
                 pk: 53,
                 operation: 'modify',
-                field: 'firstName',
-                value: 'Pinata',
+                value: { firstName: 'Pinata', lastName: 'Johnson' },
             },
             {
                 deviceId: 'device-one',
@@ -310,32 +295,9 @@ describe('Sync logging middleware', () => {
                 sharedOn: null,
                 needsIntegration: false,
                 collection: 'user',
-                pk: 53,
-                operation: 'modify',
-                field: 'lastName',
-                value: 'Trump',
-            },
-            {
-                deviceId: 'device-one',
-                createdOn: 8,
-                sharedOn: null,
-                needsIntegration: false,
-                collection: 'user',
                 pk: 54,
                 operation: 'modify',
-                field: 'firstName',
-                value: 'Pinata',
-            },
-            {
-                deviceId: 'device-one',
-                createdOn: 9,
-                sharedOn: null,
-                needsIntegration: false,
-                collection: 'user',
-                pk: 54,
-                operation: 'modify',
-                field: 'lastName',
-                value: 'Trump',
+                value: { firstName: 'Pinata', lastName: 'Johnson' },
             },
         ])
     })

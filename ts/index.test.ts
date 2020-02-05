@@ -37,11 +37,12 @@ export interface TestRunnerOptions {
     includeTimestampChecks?: boolean
 }
 
-function integrationTests(
+function integrationTestSuite(
     withTestDependencies: TestDependencyInjector<
         TestDependencies,
         TestRunnerOptions
     >,
+    suiteOptions: { withModificationMerging?: boolean },
 ) {
     async function setupTest(options: {
         dependencies: TestDependencies
@@ -77,6 +78,7 @@ function integrationTests(
                 getNow: options.getNow,
                 pkGenerator,
                 collections: options.collections,
+                withModificationMerging: suiteOptions.withModificationMerging,
             })
             clients[
                 name
@@ -981,6 +983,24 @@ function integrationTests(
         //     })).object
         //     const { emails, ...user } = orig
         // }, { includeTimestampChecks: true })
+    })
+}
+
+function integrationTests(
+    withTestDependencies: TestDependencyInjector<
+        TestDependencies,
+        TestRunnerOptions
+    >,
+) {
+    describe('With modification merging', () => {
+        integrationTestSuite(withTestDependencies, {
+            withModificationMerging: true,
+        })
+    })
+    describe('Without modification merging', () => {
+        integrationTestSuite(withTestDependencies, {
+            withModificationMerging: false,
+        })
     })
 }
 

@@ -246,26 +246,58 @@ export function _processModificationEntry({
     collectionModifications: CollectionModifications
     pkAsJson: any
 }) {
-    const updates = {
-        createdOn: logEntry.createdOn,
-        // syncedOn: logEntry.sharedOn,
-        value: logEntry.value,
+    const updateField = (
+        objectModifications: ObjectModifications,
+        fieldName: string,
+        value: any,
+        createdOn: number,
+    ) => {
+        if (objectModifications.fields[fieldName]) {
+            if (
+                logEntry.createdOn >
+                objectModifications.fields[fieldName].createdOn
+            ) {
+                objectModifications.fields[fieldName].value = value
+            }
+        } else {
+            objectModifications.fields[fieldName] = {
+                createdOn,
+                value,
+            }
+        }
     }
+    const updateFields = (objectModifications: ObjectModifications) => {
+        if ('field' in logEntry && logEntry.field) {
+            // old format, single field per entry
+            updateField(
+                objectModifications,
+                logEntry.field,
+                logEntry.value,
+                logEntry.createdOn as number,
+            )
+        } else {
+            for (const [fieldName, value] of Object.entries(logEntry.value)) {
+                updateField(
+                    objectModifications,
+                    fieldName,
+                    value,
+                    logEntry.createdOn as number,
+                )
+            }
+        }
+    }
+
     if (!objectModifications) {
         collectionModifications[pkAsJson] = {
             actualState: 'present',
             action: 'update',
-            fields: { [logEntry.field]: updates },
+            fields: {},
         }
+        updateFields(collectionModifications[pkAsJson])
         return
     }
 
-    const fieldModifications = objectModifications.fields[logEntry.field]
-    if (!fieldModifications) {
-        objectModifications[logEntry.field] = updates
-    } else if (logEntry.createdOn > fieldModifications.createdOn) {
-        Object.assign(fieldModifications, updates)
-    }
+    updateFields(objectModifications)
 
     if (
         objectModifications.actualState === 'present' &&

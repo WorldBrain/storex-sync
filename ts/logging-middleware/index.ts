@@ -24,6 +24,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
             clientSyncLog: ClientSyncLogStorage
             storageManager: StorageManager
             includeCollections: string[]
+            mergeModifications?: boolean
         },
     ) {
         this.includeCollections = new Set(options.includeCollections)
@@ -86,7 +87,9 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
                 })
             }
 
-            const result = await next.process({ operation: ['executeBatch', batch] })
+            const result = await next.process({
+                operation: ['executeBatch', batch],
+            })
             return result
         }
 
@@ -101,6 +104,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
                 getNow: () => this._getNow(),
                 includeCollections: this.includeCollections,
                 storageRegistry: this.options.storageManager.registry,
+                mergeModifications: this.options.mergeModifications,
             })
         } else {
             return next.process({ operation })

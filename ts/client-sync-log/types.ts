@@ -1,5 +1,3 @@
-import { Omit } from '../types'
-
 interface ClientSyncLogEntryBase {
     id?: any
     createdOn: number | '$now'
@@ -16,12 +14,10 @@ export interface ClientSyncLogCreationEntry extends ClientSyncLogEntryBase {
     value: any
 }
 
-export interface ClientSyncLogModificationEntry extends ClientSyncLogEntryBase {
+export type ClientSyncLogModificationEntry = ClientSyncLogEntryBase & {
     operation: 'modify'
-    pk: any
-    field: string
-    value: any
-}
+    pk: string | number
+} & ({ field: string; value: any } | { value: { [key: string]: any } })
 
 export interface ClientSyncLogDeletionEntry extends ClientSyncLogEntryBase {
     operation: 'delete'

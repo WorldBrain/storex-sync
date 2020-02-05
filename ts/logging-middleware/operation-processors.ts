@@ -21,6 +21,7 @@ export interface OperationProcessorArgs {
     executeAndLog: ExecuteAndLog
     getNow: GetNow
     storageRegistry: StorageRegistry
+    mergeModifications?: boolean
     includeCollections: Set<string>
 }
 export type OperationProcessor = (args: OperationProcessorArgs) => Promise<any>
@@ -97,18 +98,15 @@ async function _processUpdateObject(args: OperationProcessorArgs) {
     }
 
     const pk = getObjectPk(where, collection, args.storageRegistry)
-    const logEntries: ClientSyncLogEntry[] = []
-    for (const [fieldName, newValue] of Object.entries(updates)) {
-        logEntries.push(
-            await _updateOperationToLogEntry({
-                ...args,
-                collection,
-                pk,
-                fieldName,
-                newValue,
-            }),
-        )
-    }
+    const logEntries: ClientSyncLogEntry[] = [
+        await _updateOperationToLogEntry({
+            ...args,
+            collection,
+            pk,
+            value: updates,
+        }),
+    ]
+
     await args.executeAndLog(
         {
             placeholder: 'object',
@@ -152,6 +150,7 @@ async function _updateOperationQueryToLogEntry(args: {
     where: any
     updates: any
     getNow: GetNow
+    mergeModifications?: boolean
     storageRegistry: StorageRegistry
 }): Promise<ClientSyncLogModificationEntry[]> {
     const { next, collection } = args
@@ -163,15 +162,25 @@ async function _updateOperationQueryToLogEntry(args: {
     const logEntries: ClientSyncLogModificationEntry[] = []
     for (const object of affectedObjects) {
         const pk = getObjectPk(object, collection, args.storageRegistry)
-        for (const [fieldName, newValue] of Object.entries(args.updates)) {
+        if (args.mergeModifications) {
             logEntries.push(
                 await _updateOperationToLogEntry({
                     ...args,
                     pk,
-                    fieldName,
-                    newValue,
+                    value: args.updates,
                 }),
             )
+        } else {
+            for (const [field, value] of Object.entries(args.updates)) {
+                logEntries.push(
+                    await _updateOperationToLogEntry({
+                        ...args,
+                        pk,
+                        field,
+                        value,
+                    }),
+                )
+            }
         }
     }
 
@@ -183,8 +192,8 @@ async function _updateOperationToLogEntry(args: {
     deviceId: number | string
     collection: string
     pk: any
-    fieldName: any
-    newValue: any
+    value: any
+    field?: string
 }): Promise<ClientSyncLogModificationEntry> {
     return {
         createdOn: await args.getNow(),
@@ -194,8 +203,8 @@ async function _updateOperationToLogEntry(args: {
         collection: args.collection,
         operation: 'modify',
         pk: args.pk,
-        field: args.fieldName,
-        value: args.newValue,
+        value: args.value,
+        ...(args.field ? { field: args.field } : {}),
     } as ClientSyncLogModificationEntry
 }
 
@@ -276,13 +285,15 @@ async function _deleteOperationQueryToLogEntry(args: {
         operation: ['findObjects', collection, args.where],
     })
 
-    return Promise.all(affectedObjects.map((object: any) =>
-        _deleteOperationToLogEntry({
-            ...args,
-            collection,
-            pk: getObjectPk(object, collection, args.storageRegistry),
-        }),
-    ))
+    return Promise.all(
+        affectedObjects.map((object: any) =>
+            _deleteOperationToLogEntry({
+                ...args,
+                collection,
+                pk: getObjectPk(object, collection, args.storageRegistry),
+            }),
+        ),
+    )
 }
 
 async function _deleteOperationToLogEntry(args: {

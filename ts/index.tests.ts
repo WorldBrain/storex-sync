@@ -43,6 +43,7 @@ export function makeTestFactory<TestDependencies, TestRunnerOptions = never>(
 export async function setupSyncTestClient(options: {
     getNow: () => number | '$now'
     createClientStorageBackend?: () => StorageBackend
+    withModificationMerging?: boolean
     pkGenerator?: () => string
     collections?: RegistryCollections
     dontFinishInitialization?: boolean
@@ -94,6 +95,7 @@ export async function setupSyncTestClient(options: {
         storageManager,
         clientSyncLog,
         includeCollections,
+        mergeModifications: options.withModificationMerging,
     })
     syncLoggingMiddleware._getNow = async () => options.getNow()
     middleware.push(syncLoggingMiddleware)

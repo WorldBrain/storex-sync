@@ -64,7 +64,7 @@ export interface SharedSyncLogEntryData {
     operation: ClientSyncLogEntry['operation']
     collection: ClientSyncLogEntry['collection']
     pk: ClientSyncLogEntry['pk']
-    field: ClientSyncLogModificationEntry['field'] | null
+    field: string | null
     value: ClientSyncLogModificationEntry['value'] | null
 }
 
