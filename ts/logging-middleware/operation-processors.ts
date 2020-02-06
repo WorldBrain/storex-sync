@@ -18,6 +18,7 @@ export interface OperationProcessorArgs {
     next: Next
     deviceId: string | number
     operation: any[]
+    loggedOperation: any[]
     executeAndLog: ExecuteAndLog
     getNow: GetNow
     storageRegistry: StorageRegistry
@@ -57,7 +58,7 @@ async function _processCreateObject(args: OperationProcessorArgs) {
             (await _createOperationQueryToLogEntry({
                 ...args,
                 collection,
-                value,
+                value: args.loggedOperation[2],
             })) as ClientSyncLogEntry,
         ],
     )
@@ -103,7 +104,7 @@ async function _processUpdateObject(args: OperationProcessorArgs) {
             ...args,
             collection,
             pk,
-            value: updates,
+            value: args.loggedOperation[3],
         }),
     ]
 
@@ -128,7 +129,7 @@ async function _processUpdateObjects(args: OperationProcessorArgs) {
     }
 
     const logEntries: ClientSyncLogModificationEntry[] = await _updateOperationQueryToLogEntry(
-        { collection, where, updates, ...args },
+        { collection, where, updates: args.loggedOperation[3], ...args },
     )
 
     await args.executeAndLog(

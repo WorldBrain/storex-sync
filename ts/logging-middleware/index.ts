@@ -9,7 +9,7 @@ import {
 
 export type SyncLoggingOperationPreprocessor = (args: {
     operation: any[]
-}) => Promise<{ operation: any[] | null }>
+}) => Promise<{ operation: any[] | null, loggedOperation?: any[] | null }>
 export class SyncLoggingMiddleware implements StorageMiddleware {
     public operationPreprocessor: SyncLoggingOperationPreprocessor | null = null
 
@@ -61,10 +61,12 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
                 `Cannot log sync operations without setting a device ID first`,
             )
         }
+        let loggedOperation = operation
         if (this.operationPreprocessor) {
             const result = await this.operationPreprocessor({ operation })
             if (result.operation) {
                 operation = result.operation
+                loggedOperation = result.loggedOperation || loggedOperation
             } else {
                 return next.process({ operation })
             }
@@ -99,6 +101,7 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
             return operationProcessor({
                 next,
                 operation,
+                loggedOperation,
                 executeAndLog,
                 deviceId: this.deviceId,
                 getNow: () => this._getNow(),
