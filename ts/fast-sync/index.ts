@@ -39,7 +39,7 @@ export interface FastSyncEvents {
     paused: () => void
     resumed: () => void
     roleSwitch: (event: { before: FastSyncRole; after: FastSyncRole }) => void
-    error: (event: {error: string}) => void
+    error: (event: { error: string }) => void
 }
 
 export class FastSync {
@@ -110,7 +110,9 @@ export class FastSync {
         try {
             const syncInfo =
                 options.fastSyncInfo ||
-                (await getFastSyncInfo(this.options.storageManager))
+                (await getFastSyncInfo(this.options.storageManager, {
+                    collections: this.options.collections,
+                }))
             this.events.emit('prepared', { syncInfo, role: options.role })
             await channel.sendSyncInfo(syncInfo)
 
@@ -141,7 +143,7 @@ export class FastSync {
             }
         } catch (e) {
             this._state = 'error'
-            this.events.emit('error', { error:`${e}` })
+            this.events.emit('error', { error: `${e}` })
             throw e
         } finally {
             this.interruptable = null

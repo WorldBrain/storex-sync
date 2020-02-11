@@ -222,6 +222,7 @@ export class InitialSync {
             this.events.emit('preSyncSuccess', {})
             const fastSyncInfo = await getFastSyncInfo(
                 this.dependencies.storageManager,
+                { collections: this.dependencies.syncedCollections },
             )
             const syncOrder = await this.negiotiateSyncOrder({
                 role: options.role,

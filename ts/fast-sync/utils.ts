@@ -16,12 +16,11 @@ export function resolvablePromise<ReturnType>(): ResolvablePromise<ReturnType> {
 
 export async function getFastSyncInfo(
     storageManager: StorageManager,
+    options: { collections: string[] },
 ): Promise<FastSyncInfo> {
     let collectionCount = 0
     let objectCount = 0
-    for (const collectionName of Object.keys(
-        storageManager.registry.collections,
-    )) {
+    for (const collectionName of options.collections) {
         collectionCount += 1
         objectCount += await storageManager
             .collection(collectionName)
