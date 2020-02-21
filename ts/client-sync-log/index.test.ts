@@ -283,6 +283,7 @@ describe('Client sync log with in-memory Dexie IndexedDB backend', () => {
             return (new DexieStorageBackend({
                 idbImplementation: inMemory(),
                 dbName: 'unittest',
+                legacyMemexCompatibility: true,
             }) as any) as StorageBackend
         },
     })

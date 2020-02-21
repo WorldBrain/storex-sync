@@ -1,9 +1,12 @@
-interface ClientSyncLogEntryBase {
-    id?: any
+export interface ClientSyncLogEntryMetadata {
     createdOn: number | '$now'
     sharedOn: number | null
     deviceId: number | string
     needsIntegration: boolean
+}
+
+export interface ClientSyncLogEntryBase extends ClientSyncLogEntryMetadata {
+    id?: any
     collection: string
     pk: any
 }

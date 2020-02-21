@@ -1,17 +1,23 @@
-import { StorageMiddleware } from '@worldbrain/storex/lib/types/middleware'
-import { ClientSyncLogStorage } from '../client-sync-log'
 import StorageManager from '@worldbrain/storex'
+import {
+    StorageMiddleware,
+    StorageMiddlewareContext,
+} from '@worldbrain/storex/lib/types/middleware'
+import { ChangeWatchMiddleware } from '@worldbrain/storex-middleware-change-watcher'
+import { StorageOperationChangeInfo } from '@worldbrain/storex-middleware-change-watcher/lib/types'
+import { ClientSyncLogStorage } from '../client-sync-log'
 import { ClientSyncLogEntry } from '../client-sync-log/types'
 import {
     OperationProcessorMap,
     DEFAULT_OPERATION_PROCESSORS,
-} from './operation-processors'
+} from './operation-processing'
+import { convertChangeInfoToClientSyncLogEntries } from './change-processing'
 
-export type SyncLoggingOperationPreprocessor = (args: {
-    operation: any[]
-}) => Promise<{ operation: any[] | null, loggedOperation?: any[] | null }>
+export type SyncChangeInfoPreprocessor = (
+    changeInfo: StorageOperationChangeInfo<'pre'>,
+) => Promise<StorageOperationChangeInfo<'pre'> | void>
 export class SyncLoggingMiddleware implements StorageMiddleware {
-    public operationPreprocessor: SyncLoggingOperationPreprocessor | null = null
+    public changeInfoPreprocessor: SyncChangeInfoPreprocessor | null = null
 
     private operationProcessors: OperationProcessorMap = DEFAULT_OPERATION_PROCESSORS
     private includeCollections: Set<string>
@@ -46,13 +52,40 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         this.enabled = false
     }
 
-    async process({
+    async process(context: StorageMiddlewareContext) {
+        if (typeof context.extraData.changeInfo === 'undefined') {
+            const changeWatcher = new ChangeWatchMiddleware({
+                storageManager: this.options.storageManager,
+                shouldWatchCollection: collection =>
+                    this.includeCollections.has(collection),
+            })
+            return changeWatcher.process({
+                operation: context.operation,
+                extraData: context.extraData,
+                next: {
+                    process: async incoming => {
+                        const extraData = {
+                            ...context.extraData,
+                            ...incoming.extraData,
+                        }
+                        return this.processWithChangeInfo({
+                            operation: incoming.operation,
+                            next: context.next,
+                            extraData,
+                        })
+                    },
+                },
+            })
+        } else {
+            return this.processWithChangeInfo(context)
+        }
+    }
+
+    async processWithChangeInfo({
         next,
         operation,
-    }: {
-        next: { process: (options: { operation: any[] }) => any }
-        operation: any[]
-    }) {
+        extraData,
+    }: StorageMiddlewareContext) {
         if (!this.enabled) {
             return next.process({ operation })
         }
@@ -61,16 +94,46 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
                 `Cannot log sync operations without setting a device ID first`,
             )
         }
-        let loggedOperation = operation
-        if (this.operationPreprocessor) {
-            const result = await this.operationPreprocessor({ operation })
-            if (result.operation) {
-                operation = result.operation
-                loggedOperation = result.loggedOperation || loggedOperation
-            } else {
+        let changeInfo: StorageOperationChangeInfo<'pre'> = extraData.changeInfo
+        if (typeof changeInfo === 'undefined') {
+            throw new Error(
+                `Sync logging middleware didn't receive any change info`,
+            )
+        }
+        if (!changeInfo.changes.length) {
+            return next.process({ operation })
+        }
+
+        const operationType = operation[0] as string
+        const operationProcessor = this.operationProcessors[operationType]
+        if (!operationProcessor) {
+            return next.process({ operation })
+        }
+
+        if (this.changeInfoPreprocessor) {
+            const modifiedChangeInfo = await this.changeInfoPreprocessor(
+                changeInfo,
+            )
+            if (modifiedChangeInfo) {
+                changeInfo = modifiedChangeInfo
+            }
+            if (!changeInfo.changes.length) {
                 return next.process({ operation })
             }
         }
+
+        const logEntries = await convertChangeInfoToClientSyncLogEntries(
+            changeInfo,
+            {
+                createMetadata: async () => ({
+                    createdOn: await this._getNow(),
+                    sharedOn: null,
+                    deviceId: this.deviceId!,
+                    needsIntegration: false,
+                }),
+                storageRegistry: this.options.storageManager.registry,
+            },
+        )
 
         const executeAndLog = async (
             originalOperation: any | any[],
@@ -80,9 +143,13 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
                 originalOperation instanceof Array
                     ? originalOperation
                     : [originalOperation]
+
+            let operationIndex = -1
             for (const logEntry of logEntries) {
+                operationIndex += 1
+
                 batch.push({
-                    placeholder: 'logEntry',
+                    placeholder: `logEntry-${operationIndex}`,
                     operation: 'createObject',
                     collection: 'clientSyncLogEntry',
                     args: logEntry,
@@ -95,23 +162,14 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
             return result
         }
 
-        const operationType = operation[0] as string
-        const operationProcessor = this.operationProcessors[operationType]
-        if (operationProcessor) {
-            return operationProcessor({
-                next,
-                operation,
-                loggedOperation,
-                executeAndLog,
-                deviceId: this.deviceId,
-                getNow: () => this._getNow(),
-                includeCollections: this.includeCollections,
-                storageRegistry: this.options.storageManager.registry,
-                mergeModifications: this.options.mergeModifications,
-            })
-        } else {
-            return next.process({ operation })
-        }
+        return operationProcessor({
+            operation,
+            changeInfo,
+            logEntries,
+            // loggedOperation,
+            executeAndLog,
+            mergeModifications: this.options.mergeModifications,
+        })
     }
 
     async _getNow(): Promise<number | '$now'> {

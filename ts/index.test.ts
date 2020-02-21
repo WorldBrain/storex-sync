@@ -101,10 +101,16 @@ function integrationTestSuite(
                 clients: [{ name: 'one' }, { name: 'two' }],
                 getNow: linearTimestampGenerator({ start: 2 }),
             })
-            await clients.one.storageManager.collection('user').createObject({
-                displayName: 'Joe',
-                emails: [{ address: 'joe@doe.com' }],
-            })
+            const {
+                object: user,
+            } = await clients.one.storageManager
+                .collection('user')
+                .createObject({
+                    displayName: 'Joe',
+                })
+            await clients.one.storageManager
+                .collection('email')
+                .createObject({ user: user.id, address: 'joe@doe.com' })
 
             const share = (options: { now: number; batchSize?: number }) =>
                 shareLogEntries({
@@ -126,31 +132,43 @@ function integrationTestSuite(
 
             await share({ now: 55 })
             expect(
-                await backend.modules.sharedSyncLog.getUnsyncedEntries({
+                (
+                    await backend.modules.sharedSyncLog.getUnsyncedEntries({
+                        userId,
+                        deviceId: clients.two.deviceId,
+                    })
+                ).entries.map(entry => ({
+                    ...entry,
+                    data: JSON.parse(entry.data),
+                })),
+            ).toEqual([
+                (expect as any).objectContaining({
                     userId,
-                    deviceId: clients.two.deviceId,
+                    deviceId: clients.one.deviceId,
+                    createdOn: 2,
+                    sharedOn: 55,
+                    data: {
+                        operation: 'create',
+                        collection: 'user',
+                        pk: 'id-1',
+                        field: null,
+                        value: { displayName: 'Joe' },
+                    },
                 }),
-            ).toEqual({
-                entries: [
-                    (expect as any).objectContaining({
-                        userId,
-                        deviceId: clients.one.deviceId,
-                        createdOn: 2,
-                        sharedOn: 55,
-                        data:
-                            '{"operation":"create","collection":"user","pk":"id-1","field":null,"value":{"displayName":"Joe"}}',
-                    }),
-                    (expect as any).objectContaining({
-                        userId,
-                        deviceId: clients.one.deviceId,
-                        createdOn: 3,
-                        sharedOn: 55,
-                        data:
-                            '{"operation":"create","collection":"email","pk":"id-2","field":null,"value":{"address":"joe@doe.com"}}',
-                    }),
-                ],
-                memo: expect.any(Object),
-            })
+                (expect as any).objectContaining({
+                    userId,
+                    deviceId: clients.one.deviceId,
+                    createdOn: 3,
+                    sharedOn: 55,
+                    data: {
+                        operation: 'create',
+                        collection: 'email',
+                        pk: 'id-2',
+                        field: null,
+                        value: { user: 'id-1', address: 'joe@doe.com' },
+                    },
+                }),
+            ])
         })
 
         it('should not reshare entries that are already shared', async (dependencies: TestDependencies) => {
@@ -179,43 +197,75 @@ function integrationTestSuite(
                 dependencies,
             )
 
-            await clients.one.storageManager.collection('user').createObject({
-                displayName: 'Jane',
-                emails: [{ address: 'jane@doe.com' }],
+            const {
+                object: user2,
+            } = await clients.one.storageManager
+                .collection('user')
+                .createObject({
+                    displayName: 'Jane',
+                })
+            await clients.one.storageManager.collection('email').createObject({
+                user: user2.id,
+                address: 'jane@doe.com',
             })
             await share({ now: 55, batchSize: 2 })
             const update = await backend.modules.sharedSyncLog.getUnsyncedEntries(
                 { userId, deviceId: clients.two.deviceId },
             )
-            expect(update.entries).toEqual([
+            expect(
+                update.entries.map(entry => ({
+                    ...entry,
+                    data: JSON.parse(entry.data),
+                })),
+            ).toEqual([
                 {
                     createdOn: 2,
-                    data:
-                        '{"operation":"create","collection":"user","pk":"id-1","field":null,"value":{"displayName":"Joe"}}',
+                    data: {
+                        operation: 'create',
+                        collection: 'user',
+                        pk: 'id-1',
+                        field: null,
+                        value: { displayName: 'Joe' },
+                    },
                     sharedOn: 55,
                     deviceId: 1,
                     userId: 1,
                 },
                 {
                     createdOn: 3,
-                    data:
-                        '{"operation":"create","collection":"email","pk":"id-2","field":null,"value":{"address":"joe@doe.com"}}',
+                    data: {
+                        operation: 'create',
+                        collection: 'email',
+                        pk: 'id-2',
+                        field: null,
+                        value: { user: 'id-1', address: 'joe@doe.com' },
+                    },
                     sharedOn: 55,
                     deviceId: 1,
                     userId: 1,
                 },
                 {
                     createdOn: 4,
-                    data:
-                        '{"operation":"create","collection":"user","pk":"id-3","field":null,"value":{"displayName":"Jane"}}',
+                    data: {
+                        operation: 'create',
+                        collection: 'user',
+                        pk: 'id-3',
+                        field: null,
+                        value: { displayName: 'Jane' },
+                    },
                     sharedOn: 55,
                     deviceId: 1,
                     userId: 1,
                 },
                 {
                     createdOn: 5,
-                    data:
-                        '{"operation":"create","collection":"email","pk":"id-4","field":null,"value":{"address":"jane@doe.com"}}',
+                    data: {
+                        operation: 'create',
+                        collection: 'email',
+                        pk: 'id-4',
+                        field: null,
+                        value: { user: 'id-3', address: 'jane@doe.com' },
+                    },
                     sharedOn: 55,
                     deviceId: 1,
                     userId: 1,
@@ -287,6 +337,7 @@ function integrationTestSuite(
                     collection: 'user',
                     pk: 'id-1',
                     operation: 'create',
+                    field: null,
                     value: { displayName: 'Bob' },
                 }),
                 {
@@ -297,6 +348,7 @@ function integrationTestSuite(
                     collection: 'user',
                     pk: 'id-2',
                     operation: 'create',
+                    field: null,
                     value: { displayName: 'Joe' },
                 },
                 {
@@ -307,6 +359,7 @@ function integrationTestSuite(
                     collection: 'email',
                     pk: 'id-3',
                     operation: 'create',
+                    field: null,
                     value: { address: 'joe@doe.com' },
                 },
             ])
@@ -357,6 +410,7 @@ function integrationTestSuite(
                     collection: 'user',
                     pk: 'id-1',
                     operation: 'create',
+                    field: null,
                     value: { displayName: 'Joe' },
                 },
                 {
@@ -367,6 +421,7 @@ function integrationTestSuite(
                     collection: 'email',
                     pk: 'id-2',
                     operation: 'create',
+                    field: null,
                     value: { address: 'joe@doe.com' },
                 },
                 {
@@ -377,6 +432,7 @@ function integrationTestSuite(
                     collection: 'user',
                     pk: 'id-3',
                     operation: 'create',
+                    field: null,
                     value: { displayName: 'Jane' },
                 },
                 {
@@ -387,6 +443,7 @@ function integrationTestSuite(
                     collection: 'email',
                     pk: 'id-4',
                     operation: 'create',
+                    field: null,
                     value: { address: 'jane@doe.com' },
                 },
             ])

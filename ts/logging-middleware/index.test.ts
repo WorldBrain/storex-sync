@@ -18,6 +18,7 @@ async function setupTest(options: {
     const backend = new DexieStorageBackend({
         idbImplementation: inMemory(),
         dbName: 'unittest',
+        legacyMemexCompatibility: true,
     })
     const storageManager = new StorageManager({ backend: backend as any })
     storageManager.registry.registerCollections({
@@ -58,6 +59,9 @@ describe('Sync logging middleware', () => {
         await storageManager
             .collection('user')
             .createObject({ id: 53, displayName: 'John Doe' })
+        expect(
+            await storageManager.collection('user').findObjects({}),
+        ).toEqual([{ id: 53, displayName: 'John Doe' }])
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 deviceId: 'device-one',
@@ -657,13 +661,18 @@ describe('Sync logging middleware', () => {
         } = await setupTest({
             now: () => ++now,
         })
-        loggingMiddleware.operationPreprocessor = async args => {
-            const { operation } = args
-            if (operation[0] === 'createObject' && operation[1] === 'user') {
-                operation[2]['displayName'] += '!!!'
+        loggingMiddleware.changeInfoPreprocessor = async args => {
+            return {
+                changes: args.changes.map(change => {
+                    if (
+                        change.type === 'create' &&
+                        change.collection === 'user'
+                    ) {
+                        change.values['displayName'] += '!!!'
+                    }
+                    return change
+                }),
             }
-
-            return args
         }
 
         await storageManager
@@ -683,7 +692,7 @@ describe('Sync logging middleware', () => {
         ])
     })
 
-    it('should be able to exlude operations from being logged', async () => {
+    it('should be able to exclude operations from being logged', async () => {
         let now = 2
         const {
             storageManager,
@@ -692,13 +701,14 @@ describe('Sync logging middleware', () => {
         } = await setupTest({
             now: () => ++now,
         })
-        loggingMiddleware.operationPreprocessor = async args => {
-            const { operation } = args
-            if (operation[0] === 'updateObjects' && operation[1] === 'user') {
-                return { operation: null }
+        loggingMiddleware.changeInfoPreprocessor = async args => {
+            return {
+                changes: args.changes.filter(change => {
+                    return !(
+                        change.type === 'modify' && change.collection === 'user'
+                    )
+                }),
             }
-
-            return args
         }
 
         await storageManager
