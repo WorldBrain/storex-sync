@@ -34,6 +34,8 @@ export class ContinuousSync {
     public deviceId?: number | string
     public enabled = false
     public debug: boolean
+    public runningSync: Promise<void> | null = null
+
 
     constructor(private dependencies: ContinuousSyncDependencies) {
         this.debug = !!dependencies.debug
@@ -136,20 +138,31 @@ export class ContinuousSync {
     }
 
     async doIncrementalSync(options?: Partial<SyncOptions> & { debug?: boolean }) {
-        options = options || {}
-        const syncOptions = {
-            ...await this.getSyncOptions(),
-            ...options,
-        }
-        if (options && options.debug) {
-            syncOptions.syncEvents = new EventEmitter() as SyncEvents
-            syncOptions.syncEvents.emit = ((name: string, event: any) => {
-                console.log(`SYNC EVENT '${name}':`, event)
-                return true
-            }) as any
+        if (this.runningSync) {
+            return
         }
 
-        return doSync(syncOptions)
+        let resolveRunningSync: () => void
+        this.runningSync = new Promise(resolve => resolveRunningSync = resolve)
+        try {
+            options = options || {}
+            const syncOptions = {
+                ...await this.getSyncOptions(),
+                ...options,
+            }
+            if (options && options.debug) {
+                syncOptions.syncEvents = new EventEmitter() as SyncEvents
+                syncOptions.syncEvents.emit = ((name: string, event: any) => {
+                    console.log(`SYNC EVENT '${name}':`, event)
+                    return true
+                }) as any
+            }
+
+            return doSync(syncOptions)
+        } finally {
+            this.runningSync = null
+            resolveRunningSync!()
+        }
     }
 
     async getSyncOptions(): Promise<SyncOptions> {
