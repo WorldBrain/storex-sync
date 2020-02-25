@@ -74,6 +74,7 @@ export interface SyncOptions extends CommonSyncOptions {
     storageManager: StorageManager
     reconciler: ReconcilerFunction
     extraSentInfo?: any
+    stages?: { receive?: boolean, share?: boolean, reconcile?: boolean }
     reconciliationProcessor?: (
         reconciliation: OperationBatch,
     ) => Promise<OperationBatch>
@@ -145,7 +146,7 @@ export async function receiveLogEntries(
     const serializeEntryData = args.serializer
         ? args.serializer.serializeSharedSyncLogEntryData
         : async (deserialized: SharedSyncLogEntryData) =>
-              JSON.stringify(deserialized)
+            JSON.stringify(deserialized)
 
     while (true) {
         const logUpdate = await args.sharedSyncLog.getUnsyncedEntries({
@@ -260,19 +261,25 @@ export async function reconcileStorage(
 }
 
 export async function doSync(options: SyncOptions): Promise<SyncReturnValue> {
-    const { finished: receiveFinished } = await receiveLogEntries(options)
-    if (!receiveFinished || !continueSync('share', options)) {
-        return { finished: false }
+    if (options.stages?.receive ?? true) {
+        const { finished: receiveFinished } = await receiveLogEntries(options)
+        if (!receiveFinished || !continueSync('share', options)) {
+            return { finished: false }
+        }
     }
 
-    const { finished: shareFinished } = await shareLogEntries(options)
-    if (!shareFinished || !continueSync('integrate', options)) {
-        return { finished: false }
+    if (options.stages?.share ?? true) {
+        const { finished: shareFinished } = await shareLogEntries(options)
+        if (!shareFinished || !continueSync('integrate', options)) {
+            return { finished: false }
+        }
     }
 
-    const { finished: reconciliationFinished } = await reconcileStorage(options)
-    if (!reconciliationFinished) {
-        return { finished: false }
+    if (options.stages?.reconcile ?? true) {
+        const { finished: reconciliationFinished } = await reconcileStorage(options)
+        if (!reconciliationFinished) {
+            return { finished: false }
+        }
     }
 
     return { finished: true }
