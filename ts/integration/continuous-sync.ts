@@ -14,6 +14,7 @@ import {
 import { ClientSyncLogStorage } from '../client-sync-log'
 import { RecurringTask } from '../utils/recurring-task'
 import { SyncSettingsStore } from './settings'
+import TypedEventEmitter from 'typed-emitter'
 
 export interface ContinuousSyncDependencies {
     auth: { getUserId(): Promise<number | string | null> }
@@ -28,8 +29,13 @@ export interface ContinuousSyncDependencies {
     toggleSyncLogging: ((enabled: true, deviceId: string | number) => void) &
     ((enabled: false) => void)
 }
+export interface ContinuousSyncEvents {
+    syncStarted(): void
+    syncFinished(event: { hasChanges: boolean }): void
+}
 
 export class ContinuousSync {
+    public events = new EventEmitter() as TypedEventEmitter<ContinuousSyncEvents>
     public recurringIncrementalSyncTask?: RecurringTask<Partial<SyncOptions>, SyncReturnValue | void>
     public deviceId?: number | string
     public enabled = false
@@ -146,19 +152,33 @@ export class ContinuousSync {
         let resolveRunningSync: () => void
         this.runningSync = new Promise(resolve => resolveRunningSync = resolve)
         try {
+            this.events.emit('syncStarted')
             const syncOptions = {
                 ...await this.getSyncOptions(),
                 ...options,
             }
-            if (options?.debug) {
+            if (!syncOptions.syncEvents) {
                 syncOptions.syncEvents = new EventEmitter() as SyncEvents
+            }
+            if (options?.debug) {
+                const originalEmit = syncOptions.syncEvents.emit.bind(syncOptions.syncEvents)
                 syncOptions.syncEvents.emit = ((name: string, event: any) => {
                     console.log(`SYNC EVENT '${name}':`, options?.prettifier ? options.prettifier(event) : event)
-                    return true
+                    return originalEmit(name as any, event)
                 }) as any
             }
 
-            return doSync(syncOptions)
+            let hasChanges = false
+            syncOptions.syncEvents.addListener('reconciledEntries', () => hasChanges = true)
+            try {
+                const syncResult = await doSync(syncOptions)
+                this.events.emit('syncFinished', { hasChanges })
+                return syncResult
+            } finally {
+                syncOptions.syncEvents.removeAllListeners('reconciledEntries')
+            }
+        } catch (e) {
+            this.events.emit('syncFinished', { hasChanges: false })
         } finally {
             this.runningSync = null
             resolveRunningSync!()
