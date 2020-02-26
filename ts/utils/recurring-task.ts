@@ -30,12 +30,14 @@ export class RecurringTask<TaskOptions = void, TaskReturnType = void> {
         } catch (e) {
             this.options.onError(e)
             throw e
-        } finally {
-            this.schedule()
         }
     }
 
     private schedule() {
+        if (this.timeoutId) {
+            this.clearTimeout()
+        }
+
         const { intervalInMs } = this.options
         const now = Date.now()
         this.aproximateNextRun = now + intervalInMs
@@ -53,6 +55,7 @@ export class RecurringTask<TaskOptions = void, TaskReturnType = void> {
         try {
             return this.task(options)
         } finally {
+            this.schedule()
             // this.taskRunning = false
         }
     }
