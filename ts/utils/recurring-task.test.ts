@@ -145,10 +145,14 @@ describe('Recurring task', () => {
                 expect(
                     setup.recurringTask.aproximateNextRun! -
                         (setup.nowBefore + setup.intervalInMs),
-                ).toBeLessThan(50)
+                ).toBeLessThan(350)
                 setup.recurringTask.stop()
                 expect(setup.testTask.runs.length).toEqual(1)
                 expect(setup.testSetTimeout.calls).toEqual([
+                    {
+                        f: expect.any(Function),
+                        miliseconds: setup.intervalInMs,
+                    },
                     {
                         f: expect.any(Function),
                         miliseconds: setup.intervalInMs,
