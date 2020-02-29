@@ -38,7 +38,7 @@ async function _processCreateObject(args: OperationProcessorArgs) {
                 placeholder: 'object',
                 operation: 'createObject',
                 collection: change.collection,
-                args: change.values,
+                args: args.operation[2],
             },
         ],
         args.logEntries,

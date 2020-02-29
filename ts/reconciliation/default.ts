@@ -1,4 +1,3 @@
-import omit from 'lodash/omit'
 import sortBy from 'lodash/sortBy'
 import { StorageRegistry, OperationBatch } from '@worldbrain/storex'
 import {
@@ -145,7 +144,7 @@ export function _processCreationEntry({
             if (doubleCreateBehaviour !== 'merge') {
                 throw new Error(
                     `Detected double create in collection '${
-                        logEntry.collection
+                    logEntry.collection
                     }', pk '${JSON.stringify(logEntry.pk)}'`,
                 )
             }
@@ -321,10 +320,6 @@ export function _processModifications({
     const pkFields = setObjectPk({}, pk, collection, storageRegistry)
 
     const operations: OperationBatch = []
-    // console.log({
-    //     shouldBeDeleted: objectModifications.shouldBeDeleted,
-
-    // })
     if (
         objectModifications.action === 'delete' ||
         objectModifications.action === 'recreate'
