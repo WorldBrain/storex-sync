@@ -179,6 +179,7 @@ export class ContinuousSync {
             }
         } catch (e) {
             this.events.emit('syncFinished', { hasChanges: false })
+            throw e
         } finally {
             this.runningSync = null
             resolveRunningSync!()
