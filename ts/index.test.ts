@@ -1158,6 +1158,55 @@ function integrationTestSuite(
             { includeTimestampChecks: true },
         )
 
+        it('should correctly share the sync status of each device during a sync, even if no changes were made', async (dependencies: TestDependencies) => {
+            const { clients, sync, userId } = await setupSyncTest(dependencies)
+            expect(
+                await dependencies.sharedSyncLog.getDeviceInfo({
+                    userId,
+                    deviceId: clients.one.deviceId,
+                }),
+            ).toEqual(
+                expect.objectContaining({
+                    sharedUntil: null,
+                }),
+            )
+            expect(
+                await dependencies.sharedSyncLog.getDeviceInfo({
+                    userId,
+                    deviceId: clients.two.deviceId,
+                }),
+            ).toEqual(
+                expect.objectContaining({
+                    sharedUntil: null,
+                }),
+            )
+
+            await sync({ clientName: 'one' })
+            const firstInfo = await dependencies.sharedSyncLog.getDeviceInfo({
+                userId,
+                deviceId: clients.one.deviceId,
+            })
+            expect(firstInfo).toEqual(
+                expect.objectContaining({
+                    sharedUntil: expect.any(Number),
+                }),
+            )
+
+            await sync({ clientName: 'one' })
+            const secondInfo = await dependencies.sharedSyncLog.getDeviceInfo({
+                userId,
+                deviceId: clients.one.deviceId,
+            })
+            expect(secondInfo).toEqual(
+                expect.objectContaining({
+                    sharedUntil: expect.any(Number),
+                }),
+            )
+            expect(secondInfo?.sharedUntil).toBeGreaterThan(
+                firstInfo?.sharedUntil!,
+            )
+        })
+
         // it('should correctly continue sync even if one time we cannot signal seen entries in between', async (dependencies : TestDependencies) => {
         //     const { clients, sync } = await setupSyncTest(dependencies)
         //     const orig = (await clients.one.storageManager.collection('user').createObject({

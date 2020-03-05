@@ -145,6 +145,25 @@ export class SharedSyncLogStorage extends StorageModule
         return (await this.operation('createDeviceInfo', options)).object.id
     }
 
+    async getDeviceInfo(options: {
+        userId: number | string
+        deviceId: number | string
+    }): Promise<{ sharedUntil: number | null } | null> {
+        const deviceInfo: { sharedUntil: number | null } = await this.operation(
+            'getDeviceInfo',
+            options,
+        )
+        if (!deviceInfo) {
+            return null
+        }
+
+        if (!deviceInfo.sharedUntil) {
+            deviceInfo.sharedUntil = null
+        }
+
+        return deviceInfo
+    }
+
     async writeEntries(
         entries: Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[],
         options: {
