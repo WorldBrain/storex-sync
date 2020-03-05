@@ -145,7 +145,7 @@ export async function receiveLogEntries(
     const serializeEntryData = args.serializer
         ? args.serializer.serializeSharedSyncLogEntryData
         : async (deserialized: SharedSyncLogEntryData) =>
-              JSON.stringify(deserialized)
+            JSON.stringify(deserialized)
 
     while (true) {
         const logUpdate = await args.sharedSyncLog.getUnsyncedEntries({
@@ -154,6 +154,10 @@ export async function receiveLogEntries(
             batchSize: args.batchSize,
         })
         if (!logUpdate.entries.length) {
+            await args.sharedSyncLog.markAsSeen(logUpdate, {
+                userId: args.userId,
+                deviceId: args.deviceId,
+            })
             return { finished: true }
         }
 
