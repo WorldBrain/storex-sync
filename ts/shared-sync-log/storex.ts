@@ -222,10 +222,9 @@ export class SharedSyncLogStorage extends StorageModule
             now?: number | '$now'
         },
     ): Promise<void> {
-        const { entries } = update
-        if (!entries.length) {
-            return
-        }
+        const sharedUntil = update.entries.length
+            ? update.memo.lastBatchTime
+            : options.now ?? Date.now()
 
         // await this.operation('insertSeenEntries', {
         //     operations: entries.map(entry => ({
@@ -240,10 +239,11 @@ export class SharedSyncLogStorage extends StorageModule
         //         },
         //     })),
         // })
+
         await this.operation('updateSharedUntil', {
             userId: options.userId,
             deviceId: options.deviceId,
-            sharedUntil: update.memo.lastBatchTime,
+            sharedUntil,
         })
     }
 }
