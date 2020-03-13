@@ -1229,12 +1229,12 @@ function integrationTests(
             withModificationMerging: true,
         })
     })
-    describe('With compound primary keys', () => {
-        integrationTestSuite(withTestDependencies, {
-            withCompoundPks: true,
-            withModificationMerging: true,
-        })
-    })
+    // describe('With compound primary keys', () => {
+    //     integrationTestSuite(withTestDependencies, {
+    //         withCompoundPks: true,
+    //         withModificationMerging: true,
+    //     })
+    // })
 }
 
 describe('Storex Sync integration with in-memory Dexie Storex backend', () => {
@@ -1261,64 +1261,64 @@ describe('Storex Sync integration with in-memory Dexie Storex backend', () => {
     )
 })
 
-describe('Storex Sync integration with in-memory TypeORM Storex backend', () => {
-    async function setupTestDependencies(
-        createClientStorageBackend: () => StorageBackend,
-    ): Promise<TestDependencies> {
-        const serverModules = (
-            await setupStorexTest<{
-                sharedSyncLog: SharedSyncLogStorage
-            }>({
-                collections: {},
-                modules: {
-                    sharedSyncLog: ({ storageManager }) =>
-                        new SharedSyncLogStorage({
-                            storageManager,
-                            autoPkType: 'int',
-                        }),
-                },
-            })
-        ).modules
+// describe('Storex Sync integration with in-memory TypeORM Storex backend', () => {
+//     async function setupTestDependencies(
+//         createClientStorageBackend: () => StorageBackend,
+//     ): Promise<TestDependencies> {
+//         const serverModules = (
+//             await setupStorexTest<{
+//                 sharedSyncLog: SharedSyncLogStorage
+//             }>({
+//                 collections: {},
+//                 modules: {
+//                     sharedSyncLog: ({ storageManager }) =>
+//                         new SharedSyncLogStorage({
+//                             storageManager,
+//                             autoPkType: 'int',
+//                         }),
+//                 },
+//             })
+//         ).modules
 
-        return {
-            sharedSyncLog: serverModules.sharedSyncLog,
-            createClientStorageBackend,
-        }
-    }
+//         return {
+//             sharedSyncLog: serverModules.sharedSyncLog,
+//             createClientStorageBackend,
+//         }
+//     }
 
-    integrationTests(
-        async (body: (dependencies: TestDependencies) => Promise<void>) => {
-            let clientStorageBackends: TypeORMStorageBackend[] = []
-            const createClientStorageBackend = (): StorageBackend => {
-                const backend = new TypeORMStorageBackend({
-                    connectionOptions: {
-                        type: 'sqlite',
-                        database: ':memory:',
-                        name: `connection-${clientStorageBackends.length}`,
-                    },
-                    // connectionOptions: { type: 'sqlite', database: ':memory:', logging: true },
-                    // connectionOptions: { type: 'sqlite', database: '/tmp/test.sqlite', logging: true },
-                })
-                clientStorageBackends.push(backend)
-                return backend as any
-            }
-            try {
-                const dependencies = await setupTestDependencies(
-                    createClientStorageBackend,
-                )
-                await body(dependencies)
-            } finally {
-                await Promise.all(
-                    clientStorageBackends.map(async backend => {
-                        if (backend.connection) {
-                            await backend.connection.close()
-                        }
-                    }),
-                )
-            }
-        },
-    )
-})
+//     integrationTests(
+//         async (body: (dependencies: TestDependencies) => Promise<void>) => {
+//             let clientStorageBackends: TypeORMStorageBackend[] = []
+//             const createClientStorageBackend = (): StorageBackend => {
+//                 const backend = new TypeORMStorageBackend({
+//                     connectionOptions: {
+//                         type: 'sqlite',
+//                         database: ':memory:',
+//                         name: `connection-${clientStorageBackends.length}`,
+//                     },
+//                     // connectionOptions: { type: 'sqlite', database: ':memory:', logging: true },
+//                     // connectionOptions: { type: 'sqlite', database: '/tmp/test.sqlite', logging: true },
+//                 })
+//                 clientStorageBackends.push(backend)
+//                 return backend as any
+//             }
+//             try {
+//                 const dependencies = await setupTestDependencies(
+//                     createClientStorageBackend,
+//                 )
+//                 await body(dependencies)
+//             } finally {
+//                 await Promise.all(
+//                     clientStorageBackends.map(async backend => {
+//                         if (backend.connection) {
+//                             await backend.connection.close()
+//                         }
+//                     }),
+//                 )
+//             }
+//         },
+//     )
+// })
 
 if (process.env.TEST_SYNC_GRAPHQL === 'true') {
     describe('Storex Sync integration with Storex backend over GraphQL', () => {

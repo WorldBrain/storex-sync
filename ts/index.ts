@@ -158,6 +158,7 @@ export async function receiveLogEntries(
             await args.sharedSyncLog.markAsSeen(logUpdate, {
                 userId: args.userId,
                 deviceId: args.deviceId,
+                now: args.now,
             })
             return { finished: true }
         }
@@ -198,6 +199,7 @@ export async function receiveLogEntries(
         await args.sharedSyncLog.markAsSeen(logUpdate, {
             userId: args.userId,
             deviceId: args.deviceId,
+            now: args.now,
         })
 
         if (!continueSync('receive', args)) {

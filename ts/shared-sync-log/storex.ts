@@ -246,20 +246,6 @@ export class SharedSyncLogStorage extends StorageModule
             ? update.memo.lastBatchTime
             : options.now ?? Date.now()
 
-        // await this.operation('insertSeenEntries', {
-        //     operations: entries.map(entry => ({
-        //         placeholder: 'seenEntry',
-        //         operation: 'createObject',
-        //         collection: 'sharedSyncLogSeenEntry',
-        //         args: {
-        //             userId: options.userId,
-        //             creatorDeviceId: entry.deviceId,
-        //             createdOn: entry.createdOn,
-        //             retrieverDeviceId: options.deviceId,
-        //         },
-        //     })),
-        // })
-
         await this.operation('updateSharedUntil', {
             userId: options.userId,
             deviceId: options.deviceId,
