@@ -47,6 +47,7 @@ export async function setupSyncTestClient(options: {
     pkGenerator?: () => string
     collections?: RegistryCollections
     dontFinishInitialization?: boolean
+    withCompoundPks?: boolean
 }) {
     const backend = options.createClientStorageBackend
         ? options.createClientStorageBackend()
@@ -59,16 +60,28 @@ export async function setupSyncTestClient(options: {
         options.collections || {
             user: {
                 version: new Date('2019-01-01'),
-                fields: {
-                    displayName: { type: 'string' },
-                },
+                fields: options.withCompoundPks
+                    ? {
+                          firstName: { type: 'string' },
+                          lastName: { type: 'string' },
+                          test: { type: 'string', optional: true },
+                      }
+                    : { displayName: { type: 'string' } },
+                indices: options.withCompoundPks
+                    ? [
+                          { field: ['firstName', 'lastName'], pk: true },
+                          { field: 'lastName' },
+                      ]
+                    : undefined,
             },
             email: {
                 version: new Date('2019-01-01'),
                 fields: {
                     address: { type: 'string' },
                 },
-                relationships: [{ childOf: 'user' }],
+                relationships: options.withCompoundPks
+                    ? []
+                    : [{ childOf: 'user' }],
             },
         },
     )
@@ -80,7 +93,10 @@ export async function setupSyncTestClient(options: {
         : ['user', 'email']
 
     const middleware: StorageMiddleware[] = []
-    if (options.pkGenerator) {
+    if (
+        options.pkGenerator &&
+        (options.collections || !options.withCompoundPks)
+    ) {
         const pkMiddleware = new CustomAutoPkMiddleware({
             pkGenerator: options.pkGenerator,
         })

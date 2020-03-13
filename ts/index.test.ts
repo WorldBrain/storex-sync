@@ -1,5 +1,7 @@
 import expect from 'expect'
 import * as graphqlModule from 'graphql'
+import update from 'immutability-helper'
+import sortBy from 'lodash/sortBy'
 import { setupStorexTest } from '@worldbrain/storex-pattern-modules/lib/index.tests'
 import { setupTestGraphQLStorexClient } from '@worldbrain/storex-graphql-client/lib/index.tests'
 import { TypeORMStorageBackend } from '@worldbrain/storex-backend-typeorm'
@@ -18,7 +20,7 @@ import { SharedSyncLog } from './shared-sync-log'
 import { PromiseContentType } from './types.test'
 import { inspect } from 'util'
 import { RegistryCollections } from '@worldbrain/storex/lib/registry'
-import { StorageBackend } from '@worldbrain/storex'
+import StorageManager, { StorageBackend } from '@worldbrain/storex'
 import { ClientSyncLogEntry } from './client-sync-log/types'
 import {
     makeTestFactory,
@@ -42,7 +44,10 @@ function integrationTestSuite(
         TestDependencies,
         TestRunnerOptions
     >,
-    suiteOptions: { withModificationMerging?: boolean },
+    suiteOptions: {
+        withModificationMerging?: boolean
+        withCompoundPks?: boolean
+    },
 ) {
     async function setupTest(options: {
         dependencies: TestDependencies
@@ -79,6 +84,7 @@ function integrationTestSuite(
                 pkGenerator,
                 collections: options.collections,
                 withModificationMerging: suiteOptions.withModificationMerging,
+                withCompoundPks: suiteOptions.withCompoundPks,
             })
             clients[
                 name
@@ -95,22 +101,43 @@ function integrationTestSuite(
     describe('shareLogEntries()', () => {
         const it = makeTestFactory(withTestDependencies)
 
+        const firstUserObject = suiteOptions.withCompoundPks
+            ? { firstName: 'Joe', lastName: 'Doe' }
+            : { displayName: 'Joe' }
+        const firstUserPk = suiteOptions.withCompoundPks
+            ? ['Joe', 'Doe']
+            : 'id-1'
+        const firstUserValues = suiteOptions.withCompoundPks
+            ? {}
+            : { displayName: 'Joe' }
+
+        async function createUser(
+            storageManager: StorageManager,
+            userValues: any,
+            emailValues: any,
+        ) {
+            const { object: user } = await storageManager
+                .collection('user')
+                .createObject({ ...userValues })
+            if (!suiteOptions.withCompoundPks) {
+                await storageManager
+                    .collection('email')
+                    .createObject({ user: user.id, ...emailValues })
+            }
+
+            return { user }
+        }
+
         async function setupShareTest(dependencies: TestDependencies) {
             const { backend, clients, userId } = await setupTest({
                 dependencies,
                 clients: [{ name: 'one' }, { name: 'two' }],
                 getNow: linearTimestampGenerator({ start: 2 }),
             })
-            const {
-                object: user,
-            } = await clients.one.storageManager
-                .collection('user')
-                .createObject({
-                    displayName: 'Joe',
-                })
-            await clients.one.storageManager
-                .collection('email')
-                .createObject({ user: user.id, address: 'joe@doe.com' })
+
+            await createUser(clients.one.storageManager, firstUserObject, {
+                address: 'joe@doe.com',
+            })
 
             const share = (options: { now: number; batchSize?: number }) =>
                 shareLogEntries({
@@ -150,24 +177,26 @@ function integrationTestSuite(
                     data: {
                         operation: 'create',
                         collection: 'user',
-                        pk: 'id-1',
+                        pk: firstUserPk,
                         field: null,
-                        value: { displayName: 'Joe' },
+                        value: firstUserValues,
                     },
                 }),
-                (expect as any).objectContaining({
-                    userId,
-                    deviceId: clients.one.deviceId,
-                    createdOn: 3,
-                    sharedOn: 55,
-                    data: {
-                        operation: 'create',
-                        collection: 'email',
-                        pk: 'id-2',
-                        field: null,
-                        value: { user: 'id-1', address: 'joe@doe.com' },
-                    },
-                }),
+                ...(suiteOptions.withCompoundPks
+                    ? []
+                    : (expect as any).objectContaining({
+                          userId,
+                          deviceId: clients.one.deviceId,
+                          createdOn: 3,
+                          sharedOn: 55,
+                          data: {
+                              operation: 'create',
+                              collection: 'email',
+                              pk: 'id-2',
+                              field: null,
+                              value: { user: 'id-1', address: 'joe@doe.com' },
+                          },
+                      })),
             ])
         })
 
@@ -197,15 +226,10 @@ function integrationTestSuite(
                 dependencies,
             )
 
-            const {
-                object: user2,
-            } = await clients.one.storageManager
-                .collection('user')
-                .createObject({
-                    displayName: 'Jane',
-                })
-            await clients.one.storageManager.collection('email').createObject({
-                user: user2.id,
+            const secondUserObject = suiteOptions.withCompoundPks
+                ? { firstName: 'Jane', lastName: 'Doe' }
+                : { displayName: 'Jane' }
+            await createUser(clients.one.storageManager, secondUserObject, {
                 address: 'jane@doe.com',
             })
             await share({ now: 55, batchSize: 2 })
@@ -223,53 +247,71 @@ function integrationTestSuite(
                     data: {
                         operation: 'create',
                         collection: 'user',
-                        pk: 'id-1',
+                        pk: firstUserPk,
                         field: null,
-                        value: { displayName: 'Joe' },
+                        value: firstUserValues,
                     },
                     sharedOn: 55,
                     deviceId: 1,
                     userId: 1,
                 },
+                ...(suiteOptions.withCompoundPks
+                    ? []
+                    : [
+                          {
+                              createdOn: 3,
+                              data: {
+                                  operation: 'create',
+                                  collection: 'email',
+                                  pk: 'id-2',
+                                  field: null,
+                                  value: {
+                                      user: 'id-1',
+                                      address: 'joe@doe.com',
+                                  },
+                              },
+                              sharedOn: 55,
+                              deviceId: 1,
+                              userId: 1,
+                          },
+                      ]),
                 {
-                    createdOn: 3,
-                    data: {
-                        operation: 'create',
-                        collection: 'email',
-                        pk: 'id-2',
-                        field: null,
-                        value: { user: 'id-1', address: 'joe@doe.com' },
-                    },
-                    sharedOn: 55,
-                    deviceId: 1,
-                    userId: 1,
-                },
-                {
-                    createdOn: 4,
+                    createdOn: suiteOptions.withCompoundPks ? 3 : 4,
                     data: {
                         operation: 'create',
                         collection: 'user',
-                        pk: 'id-3',
+                        pk: suiteOptions.withCompoundPks
+                            ? ['Jane', 'Doe']
+                            : 'id-3',
                         field: null,
-                        value: { displayName: 'Jane' },
+                        value: suiteOptions.withCompoundPks
+                            ? {}
+                            : secondUserObject,
                     },
                     sharedOn: 55,
                     deviceId: 1,
                     userId: 1,
                 },
-                {
-                    createdOn: 5,
-                    data: {
-                        operation: 'create',
-                        collection: 'email',
-                        pk: 'id-4',
-                        field: null,
-                        value: { user: 'id-3', address: 'jane@doe.com' },
-                    },
-                    sharedOn: 55,
-                    deviceId: 1,
-                    userId: 1,
-                },
+                ...(suiteOptions.withCompoundPks
+                    ? []
+                    : [
+                          {
+                              createdOn: 5,
+                              data: {
+                                  operation: 'create',
+                                  collection: 'email',
+                                  pk: 'id-4',
+                                  field: null,
+                                  value: {
+                                      user: 'id-3',
+                                      address: 'jane@doe.com',
+                                  },
+                              },
+                              sharedOn: 55,
+                              deviceId: 1,
+                              userId: 1,
+                          },
+                      ]),
             ])
         })
     })
@@ -306,9 +348,13 @@ function integrationTestSuite(
                 userId,
                 receive,
             } = await setupReceiveTest(dependencies)
+
+            const userValues = suiteOptions.withCompoundPks
+                ? { firstName: 'Bob', lastName: 'Doe' }
+                : { displayName: 'Bob' }
             await clients.one.storageManager
                 .collection('user')
-                .createObject({ displayName: 'Bob' })
+                .createObject({ ...userValues })
 
             await backend.modules.sharedSyncLog.writeEntries(
                 [
@@ -335,10 +381,12 @@ function integrationTestSuite(
                     createdOn: 2,
                     needsIntegration: false,
                     collection: 'user',
-                    pk: 'id-1',
+                    pk: suiteOptions.withCompoundPks ? ['Bob', 'Doe'] : 'id-1',
                     operation: 'create',
                     field: null,
-                    value: { displayName: 'Bob' },
+                    value: suiteOptions.withCompoundPks
+                        ? {}
+                        : { displayName: 'Bob' },
                 }),
                 {
                     deviceId: 2,
@@ -453,6 +501,33 @@ function integrationTestSuite(
     describe('doSync()', () => {
         const it = makeTestFactory(withTestDependencies)
 
+        const firstUser = suiteOptions.withCompoundPks
+            ? {
+                  object: { firstName: 'Joe', lastName: 'Doe', test: null },
+                  pk: ['Joe', 'Doe'],
+                  values: { test: null },
+                  query: { firstName: 'Joe', lastName: 'Doe' },
+              }
+            : {
+                  object: { displayName: 'Joe' },
+                  pk: 'id-1',
+                  values: { displayName: 'Joe' },
+                  query: { id: 'id-1' },
+              }
+        const secondUser = suiteOptions.withCompoundPks
+            ? {
+                  object: { firstName: 'Jane', lastName: 'Doe', test: null },
+                  pk: ['Jane', 'Doe'],
+                  values: { test: null },
+                  query: { firstName: 'Jane', lastName: 'Doe' },
+              }
+            : {
+                  object: { displayName: 'Jane' },
+                  pk: 'id-2',
+                  values: { displayName: 'Jane' },
+                  query: { id: 'id-2' },
+              }
+
         async function setupSyncTest(
             dependencies: TestDependencies,
             options?: {
@@ -506,9 +581,7 @@ function integrationTestSuite(
                 const user = (
                     await clients.one.storageManager
                         .collection('user')
-                        .createObject({
-                            displayName: 'Joe',
-                        })
+                        .createObject({ ...firstUser.object })
                 ).object
 
                 await sync({ clientName: 'one' })
@@ -517,7 +590,7 @@ function integrationTestSuite(
                 expect(
                     await clients.two.storageManager
                         .collection('user')
-                        .findObject({ id: user.id }),
+                        .findObject({ ...firstUser.query }),
                 ).toEqual(user)
             },
             { includeTimestampChecks: true },
@@ -530,13 +603,16 @@ function integrationTestSuite(
                 const user = (
                     await clients.one.storageManager
                         .collection('user')
-                        .createObject({
-                            displayName: 'Joe',
-                        })
+                        .createObject({ ...firstUser.object })
                 ).object
                 await clients.one.storageManager
                     .collection('user')
-                    .updateOneObject(user, { displayName: 'Joe Black' })
+                    .updateOneObject(
+                        { ...firstUser.query },
+                        suiteOptions.withCompoundPks
+                            ? { test: 'Something' }
+                            : { displayName: 'Joe Black' },
+                    )
 
                 await sync({ clientName: 'one' })
                 await sync({ clientName: 'two' })
@@ -544,8 +620,12 @@ function integrationTestSuite(
                 expect(
                     await clients.two.storageManager
                         .collection('user')
-                        .findObject({ id: user.id }),
-                ).toEqual({ ...user, displayName: 'Joe Black' })
+                        .findObject({ ...firstUser.query }),
+                ).toEqual(
+                    suiteOptions.withCompoundPks
+                        ? { ...user, test: 'Something' }
+                        : { ...user, displayName: 'Joe Black' },
+                )
             },
             { includeTimestampChecks: true },
         )
@@ -554,20 +634,19 @@ function integrationTestSuite(
             'should correctly sync deleteObject operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const orig = (
-                    await clients.one.storageManager
-                        .collection('user')
-                        .createObject({
-                            displayName: 'Joe',
-                        })
-                ).object
                 await clients.one.storageManager
                     .collection('user')
-                    .deleteOneObject(orig)
-                const { ...user } = {
-                    ...orig,
-                    displayName: 'Joe Black',
-                } as any
+                    .createObject({ ...firstUser.object })
+                await clients.one.storageManager
+                    .collection('user')
+                    .createObject(secondUser.object)
+
+                await sync({ clientName: 'one' })
+                await sync({ clientName: 'two' })
+
+                await clients.one.storageManager
+                    .collection('user')
+                    .deleteOneObject(firstUser.query)
 
                 await sync({ clientName: 'one' })
                 await sync({ clientName: 'two' })
@@ -575,8 +654,8 @@ function integrationTestSuite(
                 expect(
                     await clients.two.storageManager
                         .collection('user')
-                        .findObject({ id: user.id }),
-                ).toBeFalsy()
+                        .findObjects({}),
+                ).toEqual([{ ...secondUser.values, ...secondUser.query }])
             },
             { includeTimestampChecks: true },
         )
@@ -588,21 +667,28 @@ function integrationTestSuite(
                 const user1 = (
                     await clients.one.storageManager
                         .collection('user')
-                        .createObject({
-                            displayName: 'Joe',
-                        })
+                        .createObject({ ...firstUser.object })
                 ).object
                 const user2 = (
                     await clients.one.storageManager
                         .collection('user')
-                        .createObject({
-                            displayName: 'Jane',
-                        })
+                        .createObject(
+                            suiteOptions.withCompoundPks
+                                ? { firstName: 'Jane', lastName: 'Doe' }
+                                : { displayName: 'Jane' },
+                        )
                 ).object
+
+                await sync({ clientName: 'one' })
+                await sync({ clientName: 'two' })
 
                 await clients.one.storageManager
                     .collection('user')
-                    .deleteObjects({ displayName: 'Joe' })
+                    .deleteObjects(
+                        suiteOptions.withCompoundPks
+                            ? { firstName: 'Joe' }
+                            : { displayName: 'Joe' },
+                    )
 
                 await sync({ clientName: 'one' })
                 await sync({ clientName: 'two' })
@@ -625,9 +711,7 @@ function integrationTestSuite(
                 const orig = (
                     await clients.one.storageManager
                         .collection('user')
-                        .createObject({
-                            displayName: 'Joe',
-                        })
+                        .createObject({ ...firstUser.object })
                 ).object
                 const { emails, ...user } = orig
 
@@ -639,20 +723,20 @@ function integrationTestSuite(
                 }
 
                 await sync({ clientName: 'one', serializer })
-                expect(
-                    await backend.modules.sharedSyncLog.getUnsyncedEntries({
+                const sharedEntries = await backend.modules.sharedSyncLog.getUnsyncedEntries(
+                    {
                         userId,
                         deviceId: clients.two.deviceId,
-                    }),
-                ).toEqual({
+                    },
+                )
+                expect(sharedEntries).toEqual({
                     entries: [
                         {
                             userId,
                             deviceId: clients.one.deviceId,
                             createdOn: expect.any(Number),
                             sharedOn: expect.any(Number),
-                            data:
-                                '!!!{"operation":"create","collection":"user","pk":"id-1","field":null,"value":{"displayName":"Joe"}}',
+                            data: expect.stringMatching(/^!!!\{.+\}$/),
                         },
                     ],
                     memo: expect.any(Object),
@@ -662,7 +746,7 @@ function integrationTestSuite(
                 expect(
                     await clients.two.storageManager
                         .collection('user')
-                        .findObject({ id: user.id }),
+                        .findObject({ ...firstUser.query }),
                 ).toEqual(user)
             },
             { includeTimestampChecks: true },
@@ -710,9 +794,7 @@ function integrationTestSuite(
                 const orig = (
                     await clients.one.storageManager
                         .collection('user')
-                        .createObject({
-                            displayName: 'Joe',
-                        })
+                        .createObject({ ...firstUser.object })
                 ).object
                 const { ...user } = orig
 
@@ -724,7 +806,7 @@ function integrationTestSuite(
                 expect(
                     await clients.two.storageManager
                         .collection('user')
-                        .findObject({ id: user.id }),
+                        .findObject({ ...firstUser.query }),
                 ).toEqual(user)
             },
             { includeTimestampChecks: true },
@@ -734,17 +816,10 @@ function integrationTestSuite(
             'should allow for filtering sent operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const users = []
-                for (const displayName of ['Jane', 'Joe', 'Jack']) {
-                    users.push(
-                        (
-                            await clients.one.storageManager
-                                .collection('user')
-                                .createObject({
-                                    displayName,
-                                })
-                        ).object,
-                    )
+                for (const user of [firstUser, secondUser]) {
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject(user.object)
                 }
 
                 await sync({
@@ -754,11 +829,12 @@ function integrationTestSuite(
                             return params
                         }
 
+                        const include = suiteOptions.withCompoundPks
+                            ? params.entry.pk[0] !== firstUser.object.firstName
+                            : params.entry.value.displayName !==
+                              firstUser.object.displayName
                         return {
-                            entry:
-                                params.entry.value.displayName !== 'Joe'
-                                    ? params.entry
-                                    : null,
+                            entry: include ? params.entry : null,
                         }
                     },
                 })
@@ -768,7 +844,7 @@ function integrationTestSuite(
                     await clients.two.storageManager
                         .collection('user')
                         .findObjects({}),
-                ).toEqual([users[0], users[2]])
+                ).toEqual([{ ...secondUser.values, ...secondUser.query }])
             },
             { includeTimestampChecks: true },
         )
@@ -777,19 +853,15 @@ function integrationTestSuite(
             'should allow for modifying sent operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const users = []
-                for (const displayName of ['Jane', 'Joe', 'Jack']) {
-                    users.push(
-                        (
-                            await clients.one.storageManager
-                                .collection('user')
-                                .createObject({
-                                    displayName,
-                                })
-                        ).object,
-                    )
+                for (const user of [firstUser, secondUser]) {
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject(user.object)
                 }
 
+                const targetField = suiteOptions.withCompoundPks
+                    ? 'test'
+                    : 'displayName'
                 await sync({
                     clientName: 'one',
                     preSend: async (params: { entry: ClientSyncLogEntry }) => {
@@ -797,28 +869,50 @@ function integrationTestSuite(
                             return params
                         }
 
-                        return {
-                            entry: {
-                                ...params.entry,
-                                value: {
-                                    ...params.entry.value,
-                                    displayName:
-                                        params.entry.value.displayName + '!!',
-                                },
-                            },
+                        if (suiteOptions.withCompoundPks) {
+                            return {
+                                entry: update(params.entry, {
+                                    value: {
+                                        test: {
+                                            $set: params.entry.pk[0] + '!!',
+                                        },
+                                    },
+                                }),
+                            }
+                        } else {
+                            return {
+                                entry: update(params.entry, {
+                                    value: {
+                                        [targetField]: {
+                                            $apply: (value: string) =>
+                                                value + '!!',
+                                        },
+                                    },
+                                }),
+                            }
                         }
                     },
                 })
                 await sync({ clientName: 'two' })
 
                 expect(
-                    await clients.two.storageManager
-                        .collection('user')
-                        .findObjects({}),
+                    sortBy(
+                        await clients.two.storageManager
+                            .collection('user')
+                            .findObjects({}),
+                        targetField,
+                    ),
                 ).toEqual([
-                    { ...users[0], displayName: 'Jane!!' },
-                    { ...users[1], displayName: 'Joe!!' },
-                    { ...users[2], displayName: 'Jack!!' },
+                    {
+                        ...secondUser.query,
+                        ...secondUser.values,
+                        [targetField]: 'Jane!!',
+                    },
+                    {
+                        ...firstUser.query,
+                        ...firstUser.values,
+                        [targetField]: 'Joe!!',
+                    },
                 ])
             },
             { includeTimestampChecks: true },
@@ -828,17 +922,10 @@ function integrationTestSuite(
             'should allow for filtering received operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const users = []
-                for (const displayName of ['Jane', 'Joe', 'Jack']) {
-                    users.push(
-                        (
-                            await clients.one.storageManager
-                                .collection('user')
-                                .createObject({
-                                    displayName,
-                                })
-                        ).object,
-                    )
+                for (const user of [firstUser, secondUser]) {
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject(user.object)
                 }
 
                 await sync({ clientName: 'one' })
@@ -849,20 +936,28 @@ function integrationTestSuite(
                             return params
                         }
 
+                        const include = suiteOptions.withCompoundPks
+                            ? params.entry.data.pk[0] !==
+                              firstUser.object.firstName
+                            : params.entry.data.value.displayName !==
+                              firstUser.object.displayName
                         return {
-                            entry:
-                                params.entry.data.value.displayName !== 'Joe'
-                                    ? params.entry
-                                    : null,
+                            entry: include ? params.entry : null,
                         }
                     },
                 })
 
+                const sort = suiteOptions.withCompoundPks
+                    ? 'firstName'
+                    : 'displayName'
                 expect(
-                    await clients.two.storageManager
-                        .collection('user')
-                        .findObjects({}),
-                ).toEqual([users[0], users[2]])
+                    sortBy(
+                        await clients.two.storageManager
+                            .collection('user')
+                            .findObjects({}),
+                        sort,
+                    ),
+                ).toEqual([{ ...secondUser.query, ...secondUser.values }])
             },
             { includeTimestampChecks: true },
         )
@@ -871,19 +966,15 @@ function integrationTestSuite(
             'should allow for modifying received operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const users = []
-                for (const displayName of ['Jane', 'Joe', 'Jack']) {
-                    users.push(
-                        (
-                            await clients.one.storageManager
-                                .collection('user')
-                                .createObject({
-                                    displayName,
-                                })
-                        ).object,
-                    )
+                for (const user of [firstUser, secondUser]) {
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject(user.object)
                 }
 
+                const targetField = suiteOptions.withCompoundPks
+                    ? 'test'
+                    : 'displayName'
                 await sync({ clientName: 'one' })
                 await sync({
                     clientName: 'two',
@@ -892,31 +983,55 @@ function integrationTestSuite(
                             return params
                         }
 
-                        return {
-                            entry: {
-                                ...params.entry,
-                                data: {
-                                    ...params.entry.data,
-                                    value: {
-                                        ...params.entry.data.value,
-                                        displayName:
-                                            params.entry.data.value
-                                                .displayName + '!!',
+                        if (suiteOptions.withCompoundPks) {
+                            return {
+                                entry: update(params.entry, {
+                                    data: {
+                                        value: {
+                                            test: {
+                                                $set:
+                                                    params.entry.data.pk[0] +
+                                                    '!!',
+                                            },
+                                        },
                                     },
-                                },
-                            },
+                                }),
+                            }
+                        } else {
+                            return {
+                                entry: update(params.entry, {
+                                    data: {
+                                        value: {
+                                            [targetField]: {
+                                                $apply: (value: string) =>
+                                                    value + '!!',
+                                            },
+                                        },
+                                    },
+                                }),
+                            }
                         }
                     },
                 })
 
                 expect(
-                    await clients.two.storageManager
-                        .collection('user')
-                        .findObjects({}),
+                    sortBy(
+                        await clients.two.storageManager
+                            .collection('user')
+                            .findObjects({}),
+                        targetField,
+                    ),
                 ).toEqual([
-                    { ...users[0], displayName: 'Jane!!' },
-                    { ...users[1], displayName: 'Joe!!' },
-                    { ...users[2], displayName: 'Jack!!' },
+                    {
+                        ...secondUser.query,
+                        ...secondUser.values,
+                        [targetField]: 'Jane!!',
+                    },
+                    {
+                        ...firstUser.query,
+                        ...firstUser.values,
+                        [targetField]: 'Joe!!',
+                    },
                 ])
             },
             { includeTimestampChecks: true },
@@ -926,17 +1041,10 @@ function integrationTestSuite(
             'should allow for sending and receiving custom information when syncing',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const users = []
-                for (const displayName of ['Jane', 'Joe', 'Jack']) {
-                    users.push(
-                        (
-                            await clients.one.storageManager
-                                .collection('user')
-                                .createObject({
-                                    displayName,
-                                })
-                        ).object,
-                    )
+                for (const user of [firstUser, secondUser]) {
+                    await clients.one.storageManager
+                        .collection('user')
+                        .createObject(user.object)
                 }
 
                 let receivedExtraInfo: any[] = []
@@ -953,13 +1061,22 @@ function integrationTestSuite(
                 expect(receivedExtraInfo).toEqual([
                     extraSentInfo,
                     extraSentInfo,
-                    extraSentInfo,
                 ])
+
+                const sortField = suiteOptions.withCompoundPks
+                    ? 'firstName'
+                    : 'displayName'
                 expect(
-                    await clients.two.storageManager
-                        .collection('user')
-                        .findObjects({}),
-                ).toEqual(users)
+                    sortBy(
+                        await clients.two.storageManager
+                            .collection('user')
+                            .findObjects({}),
+                        sortField,
+                    ),
+                ).toEqual([
+                    { ...secondUser.query, ...secondUser.values },
+                    { ...firstUser.query, ...firstUser.values },
+                ])
             },
             { includeTimestampChecks: true },
         )
@@ -968,21 +1085,18 @@ function integrationTestSuite(
             'should correctly sync createObject and updateObject operations',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const orig = (
-                    await clients.one.storageManager
-                        .collection('user')
-                        .createObject({
-                            displayName: 'Joe',
-                        })
-                ).object
-                const { ...user } = orig
+                await clients.one.storageManager
+                    .collection('user')
+                    .createObject({ ...firstUser.object })
 
                 await sync({ clientName: 'one' })
 
-                const userUpdate = { displayName: 'John' }
+                const userUpdate = suiteOptions.withCompoundPks
+                    ? { test: 'Bla' }
+                    : { displayName: 'John' }
                 await clients.one.storageManager
                     .collection('user')
-                    .updateObjects({ id: user.id }, userUpdate)
+                    .updateObjects({ ...firstUser.query }, userUpdate)
 
                 await sync({ clientName: 'one' })
                 await sync({ clientName: 'two' })
@@ -990,8 +1104,12 @@ function integrationTestSuite(
                 expect(
                     await clients.two.storageManager
                         .collection('user')
-                        .findObject({ id: user.id }),
-                ).toEqual({ ...user, ...userUpdate })
+                        .findObject({ ...firstUser.query }),
+                ).toEqual({
+                    ...firstUser.query,
+                    ...firstUser.values,
+                    ...userUpdate,
+                })
             },
             { includeTimestampChecks: true },
         )
@@ -1000,26 +1118,29 @@ function integrationTestSuite(
             'should correctly sync createObject and updateObject operations with limited batch sizes',
             async (dependencies: TestDependencies) => {
                 const { clients, sync } = await setupSyncTest(dependencies)
-                const orig = (
-                    await clients.one.storageManager
-                        .collection('user')
-                        .createObject({
-                            displayName: 'Joe',
-                        })
-                ).object
-                const { ...user } = orig
+                await clients.one.storageManager
+                    .collection('user')
+                    .createObject({ ...firstUser.object })
 
+                const firstUpdate = suiteOptions.withCompoundPks
+                    ? { test: 'Bla 1' }
+                    : { displayName: 'John 1' }
                 await clients.one.storageManager
                     .collection('user')
-                    .updateObjects({ id: user.id }, { displayName: 'Bob' })
+                    .updateObjects({ ...firstUser.query }, firstUpdate)
+                const secondUpdate = suiteOptions.withCompoundPks
+                    ? { test: 'Bla 1' }
+                    : { displayName: 'John 1' }
                 await clients.one.storageManager
                     .collection('user')
-                    .updateObjects({ id: user.id }, { displayName: 'Jane' })
+                    .updateObjects({ ...firstUser.query }, secondUpdate)
 
-                const lastUserUpdate = { displayName: 'John' }
+                const thirdUpdate = suiteOptions.withCompoundPks
+                    ? { test: 'Bla 1' }
+                    : { displayName: 'John 1' }
                 await clients.one.storageManager
                     .collection('user')
-                    .updateObjects({ id: user.id }, lastUserUpdate)
+                    .updateObjects({ ...firstUser.query }, { ...thirdUpdate })
 
                 await sync({ clientName: 'one', batchSize: 2 })
                 await sync({ clientName: 'two', batchSize: 2 })
@@ -1027,11 +1148,64 @@ function integrationTestSuite(
                 expect(
                     await clients.two.storageManager
                         .collection('user')
-                        .findObject({ id: user.id }),
-                ).toEqual({ ...user, ...lastUserUpdate })
+                        .findObject({ ...firstUser.query }),
+                ).toEqual({
+                    ...firstUser.query,
+                    ...firstUser.values,
+                    ...thirdUpdate,
+                })
             },
             { includeTimestampChecks: true },
         )
+
+        it('should correctly share the sync status of each device during a sync, even if no changes were made', async (dependencies: TestDependencies) => {
+            const { clients, sync, userId } = await setupSyncTest(dependencies)
+            expect(
+                await dependencies.sharedSyncLog.getDeviceInfo({
+                    userId,
+                    deviceId: clients.one.deviceId,
+                }),
+            ).toEqual(
+                expect.objectContaining({
+                    sharedUntil: null,
+                }),
+            )
+            expect(
+                await dependencies.sharedSyncLog.getDeviceInfo({
+                    userId,
+                    deviceId: clients.two.deviceId,
+                }),
+            ).toEqual(
+                expect.objectContaining({
+                    sharedUntil: null,
+                }),
+            )
+
+            await sync({ clientName: 'one' })
+            const firstInfo = await dependencies.sharedSyncLog.getDeviceInfo({
+                userId,
+                deviceId: clients.one.deviceId,
+            })
+            expect(firstInfo).toEqual(
+                expect.objectContaining({
+                    sharedUntil: expect.any(Number),
+                }),
+            )
+
+            await sync({ clientName: 'one' })
+            const secondInfo = await dependencies.sharedSyncLog.getDeviceInfo({
+                userId,
+                deviceId: clients.one.deviceId,
+            })
+            expect(secondInfo).toEqual(
+                expect.objectContaining({
+                    sharedUntil: expect.any(Number),
+                }),
+            )
+            expect(secondInfo?.sharedUntil).toBeGreaterThan(
+                firstInfo?.sharedUntil!,
+            )
+        })
 
         // it('should correctly continue sync even if one time we cannot signal seen entries in between', async (dependencies : TestDependencies) => {
         //     const { clients, sync } = await setupSyncTest(dependencies)
@@ -1049,16 +1223,18 @@ function integrationTests(
         TestRunnerOptions
     >,
 ) {
-    describe('With modification merging', () => {
+    describe('Without compound primary keys', () => {
         integrationTestSuite(withTestDependencies, {
+            withCompoundPks: false,
             withModificationMerging: true,
         })
     })
-    describe('Without modification merging', () => {
-        integrationTestSuite(withTestDependencies, {
-            withModificationMerging: false,
-        })
-    })
+    // describe('With compound primary keys', () => {
+    //     integrationTestSuite(withTestDependencies, {
+    //         withCompoundPks: true,
+    //         withModificationMerging: true,
+    //     })
+    // })
 }
 
 describe('Storex Sync integration with in-memory Dexie Storex backend', () => {
@@ -1085,64 +1261,64 @@ describe('Storex Sync integration with in-memory Dexie Storex backend', () => {
     )
 })
 
-describe('Storex Sync integration with in-memory TypeORM Storex backend', () => {
-    async function setupTestDependencies(
-        createClientStorageBackend: () => StorageBackend,
-    ): Promise<TestDependencies> {
-        const serverModules = (
-            await setupStorexTest<{
-                sharedSyncLog: SharedSyncLogStorage
-            }>({
-                collections: {},
-                modules: {
-                    sharedSyncLog: ({ storageManager }) =>
-                        new SharedSyncLogStorage({
-                            storageManager,
-                            autoPkType: 'int',
-                        }),
-                },
-            })
-        ).modules
+// describe('Storex Sync integration with in-memory TypeORM Storex backend', () => {
+//     async function setupTestDependencies(
+//         createClientStorageBackend: () => StorageBackend,
+//     ): Promise<TestDependencies> {
+//         const serverModules = (
+//             await setupStorexTest<{
+//                 sharedSyncLog: SharedSyncLogStorage
+//             }>({
+//                 collections: {},
+//                 modules: {
+//                     sharedSyncLog: ({ storageManager }) =>
+//                         new SharedSyncLogStorage({
+//                             storageManager,
+//                             autoPkType: 'int',
+//                         }),
+//                 },
+//             })
+//         ).modules
 
-        return {
-            sharedSyncLog: serverModules.sharedSyncLog,
-            createClientStorageBackend,
-        }
-    }
+//         return {
+//             sharedSyncLog: serverModules.sharedSyncLog,
+//             createClientStorageBackend,
+//         }
+//     }
 
-    integrationTests(
-        async (body: (dependencies: TestDependencies) => Promise<void>) => {
-            let clientStorageBackends: TypeORMStorageBackend[] = []
-            const createClientStorageBackend = (): StorageBackend => {
-                const backend = new TypeORMStorageBackend({
-                    connectionOptions: {
-                        type: 'sqlite',
-                        database: ':memory:',
-                        name: `connection-${clientStorageBackends.length}`,
-                    },
-                    // connectionOptions: { type: 'sqlite', database: ':memory:', logging: true },
-                    // connectionOptions: { type: 'sqlite', database: '/tmp/test.sqlite', logging: true },
-                })
-                clientStorageBackends.push(backend)
-                return backend as any
-            }
-            try {
-                const dependencies = await setupTestDependencies(
-                    createClientStorageBackend,
-                )
-                await body(dependencies)
-            } finally {
-                await Promise.all(
-                    clientStorageBackends.map(async backend => {
-                        if (backend.connection) {
-                            await backend.connection.close()
-                        }
-                    }),
-                )
-            }
-        },
-    )
-})
+//     integrationTests(
+//         async (body: (dependencies: TestDependencies) => Promise<void>) => {
+//             let clientStorageBackends: TypeORMStorageBackend[] = []
+//             const createClientStorageBackend = (): StorageBackend => {
+//                 const backend = new TypeORMStorageBackend({
+//                     connectionOptions: {
+//                         type: 'sqlite',
+//                         database: ':memory:',
+//                         name: `connection-${clientStorageBackends.length}`,
+//                     },
+//                     // connectionOptions: { type: 'sqlite', database: ':memory:', logging: true },
+//                     // connectionOptions: { type: 'sqlite', database: '/tmp/test.sqlite', logging: true },
+//                 })
+//                 clientStorageBackends.push(backend)
+//                 return backend as any
+//             }
+//             try {
+//                 const dependencies = await setupTestDependencies(
+//                     createClientStorageBackend,
+//                 )
+//                 await body(dependencies)
+//             } finally {
+//                 await Promise.all(
+//                     clientStorageBackends.map(async backend => {
+//                         if (backend.connection) {
+//                             await backend.connection.close()
+//                         }
+//                     }),
+//                 )
+//             }
+//         },
+//     )
+// })
 
 if (process.env.TEST_SYNC_GRAPHQL === 'true') {
     describe('Storex Sync integration with Storex backend over GraphQL', () => {

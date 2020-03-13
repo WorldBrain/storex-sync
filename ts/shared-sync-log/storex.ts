@@ -145,6 +145,25 @@ export class SharedSyncLogStorage extends StorageModule
         return (await this.operation('createDeviceInfo', options)).object.id
     }
 
+    async getDeviceInfo(options: {
+        userId: number | string
+        deviceId: number | string
+    }): Promise<{ sharedUntil: number | null } | null> {
+        const deviceInfo: { sharedUntil: number | null } = await this.operation(
+            'getDeviceInfo',
+            options,
+        )
+        if (!deviceInfo) {
+            return null
+        }
+
+        if (!deviceInfo.sharedUntil) {
+            deviceInfo.sharedUntil = null
+        }
+
+        return deviceInfo
+    }
+
     async writeEntries(
         entries: Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[],
         options: {
@@ -179,12 +198,13 @@ export class SharedSyncLogStorage extends StorageModule
             throw new Error(`No such device: ${options.deviceId}`)
         }
 
-        const entryBatches: Array<
-            SharedSyncLogEntryBatch
-        > = await this.operation('findUnseenSyncEntries', {
-            userId: options.userId,
-            after: deviceInfo.sharedUntil || 0,
-        })
+        const entryBatches: Array<SharedSyncLogEntryBatch> = await this.operation(
+            'findUnseenSyncEntries',
+            {
+                userId: options.userId,
+                after: deviceInfo.sharedUntil || 0,
+            },
+        )
 
         const lastBatch = entryBatches.length
             ? entryBatches[entryBatches.length - 1]
@@ -222,28 +242,14 @@ export class SharedSyncLogStorage extends StorageModule
             now?: number | '$now'
         },
     ): Promise<void> {
-        const { entries } = update
-        if (!entries.length) {
-            return
-        }
+        const sharedUntil = update.entries.length
+            ? update.memo.lastBatchTime
+            : options.now ?? Date.now()
 
-        // await this.operation('insertSeenEntries', {
-        //     operations: entries.map(entry => ({
-        //         placeholder: 'seenEntry',
-        //         operation: 'createObject',
-        //         collection: 'sharedSyncLogSeenEntry',
-        //         args: {
-        //             userId: options.userId,
-        //             creatorDeviceId: entry.deviceId,
-        //             createdOn: entry.createdOn,
-        //             retrieverDeviceId: options.deviceId,
-        //         },
-        //     })),
-        // })
         await this.operation('updateSharedUntil', {
             userId: options.userId,
             deviceId: options.deviceId,
-            sharedUntil: update.memo.lastBatchTime,
+            sharedUntil,
         })
     }
 }

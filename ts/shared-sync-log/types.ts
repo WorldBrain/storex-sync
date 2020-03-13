@@ -15,6 +15,11 @@ export interface SharedSyncLog {
         userId: number | string
         sharedUntil: number | null
     }): Promise<string>
+    getDeviceInfo(options: {
+        userId: number | string
+        deviceId: number | string
+    }): Promise<{ sharedUntil: number | null } | null>
+
     writeEntries(
         entries: Omit<SharedSyncLogEntry, 'userId' | 'deviceId' | 'sharedOn'>[],
         options: {

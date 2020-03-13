@@ -74,7 +74,7 @@ export interface SyncOptions extends CommonSyncOptions {
     storageManager: StorageManager
     reconciler: ReconcilerFunction
     extraSentInfo?: any
-    stages?: { receive?: boolean, share?: boolean, reconcile?: boolean }
+    stages?: { receive?: boolean; share?: boolean; reconcile?: boolean }
     reconciliationProcessor?: (
         reconciliation: OperationBatch,
     ) => Promise<OperationBatch>
@@ -146,7 +146,7 @@ export async function receiveLogEntries(
     const serializeEntryData = args.serializer
         ? args.serializer.serializeSharedSyncLogEntryData
         : async (deserialized: SharedSyncLogEntryData) =>
-            JSON.stringify(deserialized)
+              JSON.stringify(deserialized)
 
     while (true) {
         const logUpdate = await args.sharedSyncLog.getUnsyncedEntries({
@@ -155,6 +155,11 @@ export async function receiveLogEntries(
             batchSize: args.batchSize,
         })
         if (!logUpdate.entries.length) {
+            await args.sharedSyncLog.markAsSeen(logUpdate, {
+                userId: args.userId,
+                deviceId: args.deviceId,
+                now: args.now,
+            })
             return { finished: true }
         }
 
@@ -194,6 +199,7 @@ export async function receiveLogEntries(
         await args.sharedSyncLog.markAsSeen(logUpdate, {
             userId: args.userId,
             deviceId: args.deviceId,
+            now: args.now,
         })
 
         if (!continueSync('receive', args)) {
@@ -276,7 +282,9 @@ export async function doSync(options: SyncOptions): Promise<SyncReturnValue> {
     }
 
     if (options.stages?.reconcile ?? true) {
-        const { finished: reconciliationFinished } = await reconcileStorage(options)
+        const { finished: reconciliationFinished } = await reconcileStorage(
+            options,
+        )
         if (!reconciliationFinished) {
             return { finished: false }
         }
