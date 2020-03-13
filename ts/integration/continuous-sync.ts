@@ -23,25 +23,31 @@ export interface ContinuousSyncDependencies {
     getSharedSyncLog: () => Promise<SharedSyncLog>
     settingStore: SyncSettingsStore
     frequencyInMs?: number
-    batchSize?: number
+    uploadBatchSize?: number
+    uploadBatchByteLimit?: number
+    downloadBatchSize?: number
     singleBatch?: boolean
     debug?: boolean
     toggleSyncLogging: ((enabled: true, deviceId: string | number) => void) &
-    ((enabled: false) => void)
+        ((enabled: false) => void)
 }
 export interface ContinuousSyncEvents {
     syncStarted(): void
-    syncFinished(event: { hasChanges: boolean }): void
+    syncFinished(event: { hasChanges: boolean; error?: Error }): void
 }
 
 export class ContinuousSync {
-    public events = new EventEmitter() as TypedEventEmitter<ContinuousSyncEvents>
-    public recurringIncrementalSyncTask?: RecurringTask<Partial<SyncOptions>, SyncReturnValue | void>
+    public events = new EventEmitter() as TypedEventEmitter<
+        ContinuousSyncEvents
+    >
+    public recurringIncrementalSyncTask?: RecurringTask<
+        Partial<SyncOptions>,
+        SyncReturnValue | void
+    >
     public deviceId?: number | string
     public enabled = false
     public debug: boolean
     public runningSync: Promise<void> | null = null
-
 
     constructor(private dependencies: ContinuousSyncDependencies) {
         this.debug = !!dependencies.debug
@@ -70,12 +76,14 @@ export class ContinuousSync {
     setupRecurringTask() {
         if (this.dependencies.frequencyInMs) {
             this.recurringIncrementalSyncTask = new RecurringTask(
-                async (options?: Partial<SyncOptions> & { debug?: boolean }) => {
+                async (
+                    options?: Partial<SyncOptions> & { debug?: boolean },
+                ) => {
                     return this.maybeDoIncrementalSync(options)
                 },
                 {
                     intervalInMs: this.dependencies.frequencyInMs,
-                    onError: () => { },
+                    onError: () => {},
                 },
             )
         }
@@ -127,7 +135,9 @@ export class ContinuousSync {
         this.setupRecurringTask()
     }
 
-    async forceIncrementalSync(options?: { debug?: boolean } & Partial<SyncOptions>): Promise<SyncReturnValue | void> {
+    async forceIncrementalSync(
+        options?: { debug?: boolean } & Partial<SyncOptions>,
+    ): Promise<SyncReturnValue | void> {
         if (this.enabled) {
             if (this.recurringIncrementalSyncTask) {
                 return this.recurringIncrementalSyncTask.forceRun(options)
@@ -143,33 +153,48 @@ export class ContinuousSync {
         }
     }
 
-    async doIncrementalSync(options?: Partial<SyncOptions> & { debug?: boolean, prettifier?: (object: any) => string }) {
+    async doIncrementalSync(
+        options?: Partial<SyncOptions> & {
+            debug?: boolean
+            prettifier?: (object: any) => string
+        },
+    ) {
         options = options || {}
         if (this.runningSync) {
             return
         }
 
         let resolveRunningSync: () => void
-        this.runningSync = new Promise(resolve => resolveRunningSync = resolve)
+        this.runningSync = new Promise(
+            resolve => (resolveRunningSync = resolve),
+        )
         try {
             this.events.emit('syncStarted')
             const syncOptions = {
-                ...await this.getSyncOptions(),
+                ...(await this.getSyncOptions()),
                 ...options,
             }
             if (!syncOptions.syncEvents) {
                 syncOptions.syncEvents = new EventEmitter() as SyncEvents
             }
             if (options?.debug) {
-                const originalEmit = syncOptions.syncEvents.emit.bind(syncOptions.syncEvents)
+                const originalEmit = syncOptions.syncEvents.emit.bind(
+                    syncOptions.syncEvents,
+                )
                 syncOptions.syncEvents.emit = ((name: string, event: any) => {
-                    console.log(`SYNC EVENT '${name}':`, options?.prettifier ? options.prettifier(event) : event)
+                    console.log(
+                        `SYNC EVENT '${name}':`,
+                        options?.prettifier ? options.prettifier(event) : event,
+                    )
                     return originalEmit(name as any, event)
                 }) as any
             }
 
             let hasChanges = false
-            syncOptions.syncEvents.addListener('reconciledEntries', () => hasChanges = true)
+            syncOptions.syncEvents.addListener(
+                'reconciledEntries',
+                () => (hasChanges = true),
+            )
             try {
                 const syncResult = await doSync(syncOptions)
                 this.events.emit('syncFinished', { hasChanges })
@@ -177,9 +202,8 @@ export class ContinuousSync {
             } finally {
                 syncOptions.syncEvents.removeAllListeners('reconciledEntries')
             }
-        } catch (e) {
-            this.events.emit('syncFinished', { hasChanges: false })
-            throw e
+        } catch (error) {
+            this.events.emit('syncFinished', { hasChanges: false, error })
         } finally {
             this.runningSync = null
             resolveRunningSync!()
@@ -204,7 +228,9 @@ export class ContinuousSync {
             now: Date.now(),
             userId,
             deviceId: this.deviceId,
-            batchSize: this.dependencies.batchSize,
+            uploadBatchSize: this.dependencies.uploadBatchSize,
+            uploadBatchByteLimit: this.dependencies.uploadBatchByteLimit,
+            downloadBatchSize: this.dependencies.downloadBatchSize,
             singleBatch: this.dependencies.singleBatch,
             serializer: this.getSerializer() || undefined,
             preSend: this.getPreSendProcessor() || undefined,
@@ -212,11 +238,11 @@ export class ContinuousSync {
         }
     }
 
-    getPreSendProcessor(): SyncPreSendProcessor | void { }
+    getPreSendProcessor(): SyncPreSendProcessor | void {}
 
-    getPostReceiveProcessor(): SyncPostReceiveProcessor | void { }
+    getPostReceiveProcessor(): SyncPostReceiveProcessor | void {}
 
-    getSerializer(): SyncSerializer | void { }
+    getSerializer(): SyncSerializer | void {}
 
     _debugLog(...args: any[]) {
         if (this.debug) {

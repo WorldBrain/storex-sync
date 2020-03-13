@@ -65,7 +65,9 @@ export interface CommonSyncOptions {
     preSend?: SyncPreSendProcessor
     postReceive?: SyncPostReceiveProcessor
     syncEvents?: SyncEvents
-    batchSize?: number
+    uploadBatchSize?: number
+    uploadBatchByteLimit?: number
+    downloadBatchSize?: number
     singleBatch?: boolean
     continueSync?: (info: { stage: SyncStage }) => boolean
 }
@@ -91,9 +93,13 @@ export async function shareLogEntries(
         ? args.serializer.serializeSharedSyncLogEntryData
         : async (data: SharedSyncLogEntryData) => JSON.stringify(data)
 
+    let temporaryBatchSize: number | null = null
     while (true) {
+        const batchSize = temporaryBatchSize || args.uploadBatchSize
+        temporaryBatchSize = null
+
         const entries = await args.clientSyncLog.getUnsharedEntries({
-            batchSize: args.batchSize,
+            batchSize,
         })
         if (!entries.length) {
             return { finished: true }
@@ -117,6 +123,30 @@ export async function shareLogEntries(
                 }),
             })),
         )
+
+        if (args.uploadBatchByteLimit) {
+            const estimatedBatchSizeBytes = sharedLogEntries.reduce(
+                (acc, entry) => acc + entry.data.length + 100,
+                0,
+            )
+            const limitExceeded =
+                estimatedBatchSizeBytes > args.uploadBatchByteLimit
+            if (limitExceeded) {
+                if (batchSize) {
+                    if (batchSize < 2) {
+                        throw new Error(
+                            `Sync batch size exceeds limit during upload, but cannot make it smaller`,
+                        )
+                    }
+
+                    temporaryBatchSize = Math.floor(batchSize / 2)
+                } else {
+                    temporaryBatchSize = 16
+                }
+                continue
+            }
+        }
+
         if (args.syncEvents) {
             args.syncEvents.emit('sendingSharedEntries', {
                 entries: sharedLogEntries,
@@ -152,7 +182,7 @@ export async function receiveLogEntries(
         const logUpdate = await args.sharedSyncLog.getUnsyncedEntries({
             userId: args.userId,
             deviceId: args.deviceId,
-            batchSize: args.batchSize,
+            batchSize: args.downloadBatchSize,
         })
         if (!logUpdate.entries.length) {
             await args.sharedSyncLog.markAsSeen(logUpdate, {

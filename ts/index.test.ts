@@ -146,7 +146,7 @@ function integrationTestSuite(
                     userId,
                     deviceId: clients.one.deviceId,
                     now: options.now,
-                    batchSize: options.batchSize,
+                    uploadBatchSize: options.batchSize,
                 })
 
             return { backend, clients, userId, share }
@@ -335,7 +335,7 @@ function integrationTestSuite(
                     userId,
                     deviceId: clients.one.deviceId,
                     now: options.now,
-                    batchSize: options.batchSize,
+                    uploadBatchSize: options.batchSize,
                 })
             }
             return { backend, clients, userId, receive }
@@ -568,7 +568,7 @@ function integrationTestSuite(
                     preSend: options.preSend,
                     postReceive: options.postReceive,
                     extraSentInfo: options.extraSentInfo,
-                    batchSize: options.batchSize,
+                    uploadBatchSize: options.batchSize,
                 })
             }
             return { clients, backend, sync, userId }

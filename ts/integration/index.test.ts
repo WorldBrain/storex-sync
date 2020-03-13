@@ -4,7 +4,7 @@ import { RegistryCollections } from '@worldbrain/storex/lib/registry'
 import { setupSyncTestClient, linearTimestampGenerator } from '../index.tests'
 import { TEST_DATA } from '../index.test.data'
 import { InitialSync } from './initial-sync'
-import { ContinuousSync } from './continuous-sync'
+import { ContinuousSync, ContinuousSyncDependencies } from './continuous-sync'
 import {
     createMemorySharedSyncLog,
     lazyMemorySignalTransportFactory,
@@ -14,7 +14,13 @@ import { FastSyncEvents } from '../fast-sync'
 import { PromiseContentType } from '../types.test'
 
 describe('Integration helpers', () => {
-    async function setupTest(options: { collections: RegistryCollections }) {
+    async function setupTest(options: {
+        collections: RegistryCollections
+        continuousSyncDependenciesProcessor?: (
+            deps: ContinuousSyncDependencies,
+            options: { clientIndex: number },
+        ) => ContinuousSyncDependencies
+    }) {
         const getNow = linearTimestampGenerator({ start: 1 })
         const clients = [
             await setupSyncTestClient({
@@ -41,24 +47,34 @@ describe('Integration helpers', () => {
             })
             initialSync.wrtc = wrtc
 
+            const continuousSyncDeps: ContinuousSyncDependencies = {
+                auth: { getUserId: async () => 456 },
+                storageManager: client.storageManager,
+                clientSyncLog: client.clientSyncLog,
+                getSharedSyncLog: async () => sharedSyncLog,
+                settingStore: {
+                    storeSetting: async (key, value) => {
+                        settings[key] = value
+                    },
+                    retrieveSetting: async key => settings[key],
+                },
+                toggleSyncLogging: client.syncLoggingMiddleware.toggle.bind(
+                    client.syncLoggingMiddleware,
+                ),
+            }
+            const continuousSync = new ContinuousSync(
+                options.continuousSyncDependenciesProcessor
+                    ? options.continuousSyncDependenciesProcessor(
+                          continuousSyncDeps,
+                          { clientIndex: index },
+                      )
+                    : continuousSyncDeps,
+            )
+
             return {
                 settings,
-                initialSync: initialSync,
-                continuousSync: new ContinuousSync({
-                    auth: { getUserId: async () => index },
-                    storageManager: client.storageManager,
-                    clientSyncLog: client.clientSyncLog,
-                    getSharedSyncLog: async () => sharedSyncLog,
-                    settingStore: {
-                        storeSetting: async (key, value) => {
-                            settings[key] = value
-                        },
-                        retrieveSetting: async key => settings[key],
-                    },
-                    toggleSyncLogging: client.syncLoggingMiddleware.toggle.bind(
-                        client.syncLoggingMiddleware,
-                    ),
-                }),
+                initialSync,
+                continuousSync,
             }
         })
 
@@ -66,7 +82,7 @@ describe('Integration helpers', () => {
             await clients[clientIndex].storageManager.finishInitialization()
         }
 
-        const sync = async (options: {
+        const doInitialSync = async (options: {
             source: { initialSync: InitialSync }
             target: { initialSync: InitialSync }
         }) => {
@@ -81,7 +97,7 @@ describe('Integration helpers', () => {
             }
         }
 
-        return { clients, integration, sync }
+        return { clients, integration, doInitialSync }
     }
 
     async function testTwoWaySync(options: {
@@ -93,7 +109,7 @@ describe('Integration helpers', () => {
         validateSenderRoleSwitch: FastSyncEvents['roleSwitch']
         expectNoData?: boolean
     }) {
-        const { clients, integration, sync } = await setupTest({
+        const { clients, integration, doInitialSync } = await setupTest({
             collections: {
                 test: {
                     version: new Date(),
@@ -113,7 +129,7 @@ describe('Integration helpers', () => {
             options.validateSenderRoleSwitch(event)
         })
 
-        await sync({
+        await doInitialSync({
             source: integration[0],
             target: integration[1],
         })
@@ -209,7 +225,7 @@ describe('Integration helpers', () => {
     })
 
     it('should not crash if trying to abort the sync without notifying the other side', async () => {
-        const { clients, integration, sync } = await setupTest({
+        const { clients, integration } = await setupTest({
             collections: {
                 test: {
                     version: new Date(),
@@ -252,5 +268,111 @@ describe('Integration helpers', () => {
                 .collection('test')
                 .findObjects({}, { order: [['createdWhen', 'asc']] }),
         ).toEqual([(expect as any).objectContaining(TEST_DATA.test1)])
+    })
+
+    it('should do a continuous sync with a small batch size and a upload batch byte limit being exceeded', async () => {
+        const { clients, integration } = await setupTest({
+            collections: {
+                test: {
+                    version: new Date(),
+                    fields: {
+                        key: { type: 'string' },
+                        label: { type: 'string' },
+                        createWhen: { type: 'datetime' },
+                    },
+                    indices: [{ field: 'key', pk: true }],
+                },
+            },
+            continuousSyncDependenciesProcessor: (
+                dependencies,
+            ): ContinuousSyncDependencies => ({
+                ...dependencies,
+                uploadBatchSize: 2,
+                uploadBatchByteLimit: 300,
+            }),
+        })
+
+        await integration[0].continuousSync.initDevice()
+        await integration[0].continuousSync.enableContinuousSync()
+
+        await integration[1].continuousSync.initDevice()
+        await integration[1].continuousSync.enableContinuousSync()
+
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test1)
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test2)
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test3)
+
+        await integration[0].continuousSync.forceIncrementalSync()
+        await integration[1].continuousSync.forceIncrementalSync()
+
+        expect(
+            await clients[1].storageManager
+                .collection('test')
+                .findObjects({}, { order: [['createdWhen', 'asc']] }),
+        ).toEqual([
+            (expect as any).objectContaining(TEST_DATA.test1),
+            (expect as any).objectContaining(TEST_DATA.test2),
+            (expect as any).objectContaining(TEST_DATA.test3),
+        ])
+    })
+
+    it('should throw an error when it cannot satisfy a batch byte limit', async () => {
+        const { clients, integration } = await setupTest({
+            collections: {
+                test: {
+                    version: new Date(),
+                    fields: {
+                        key: { type: 'string' },
+                        label: { type: 'string' },
+                        createWhen: { type: 'datetime' },
+                    },
+                    indices: [{ field: 'key', pk: true }],
+                },
+            },
+            continuousSyncDependenciesProcessor: (
+                dependencies,
+            ): ContinuousSyncDependencies => ({
+                ...dependencies,
+                uploadBatchSize: 2,
+                uploadBatchByteLimit: 100,
+            }),
+        })
+
+        const events: any[] = []
+        integration[0].continuousSync.events.on('syncFinished', event =>
+            events.push(event),
+        )
+
+        await integration[0].continuousSync.initDevice()
+        await integration[0].continuousSync.enableContinuousSync()
+
+        await integration[1].continuousSync.initDevice()
+        await integration[1].continuousSync.enableContinuousSync()
+
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test1)
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test2)
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test3)
+
+        await integration[0].continuousSync.forceIncrementalSync()
+        expect(events).toEqual([
+            {
+                hasChanges: false,
+                error: new Error(
+                    'Sync batch size exceeds limit during upload, but cannot make it smaller',
+                ),
+            },
+        ])
     })
 })
