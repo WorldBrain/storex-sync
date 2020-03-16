@@ -28,7 +28,7 @@ export interface SyncEventMap {
         deviceId: number | string
     }) => void
     receivedSharedEntries: (event: {
-        entries: SharedSyncLogEntry[]
+        entries: SharedSyncLogEntry<'deserialized-data'>[]
         deviceId: number | string
     }) => void
     reconcilingEntries: (event: {
@@ -214,12 +214,7 @@ export async function receiveLogEntries(
 
         if (args.syncEvents) {
             args.syncEvents.emit('receivedSharedEntries', {
-                entries: await Promise.all(
-                    processedEntries.map(async entry => ({
-                        ...entry,
-                        data: await serializeEntryData(entry.data),
-                    })),
-                ),
+                entries: processedEntries,
                 deviceId: args.deviceId,
             })
         }
