@@ -176,7 +176,7 @@ export async function receiveLogEntries(
     const serializeEntryData = args.serializer
         ? args.serializer.serializeSharedSyncLogEntryData
         : async (deserialized: SharedSyncLogEntryData) =>
-              JSON.stringify(deserialized)
+            JSON.stringify(deserialized)
 
     while (true) {
         const logUpdate = await args.sharedSyncLog.getUnsyncedEntries({
@@ -193,24 +193,25 @@ export async function receiveLogEntries(
             return { finished: true }
         }
 
-        const processedEntries = (
-            await Promise.all(
-                logUpdate.entries.map(async entry => {
-                    const deserializedEntry: SharedSyncLogEntry<'deserialized-data'> = {
-                        ...entry,
-                        data: await deserializeEntryData(entry.data),
-                    }
-                    if (!deserializedEntry.data) {
-                        return null
-                    }
+        const processedEntries: SharedSyncLogEntry<'deserialized-data'>[] = []
+        for (const entry of logUpdate.entries) {
+            const deserializedEntry: SharedSyncLogEntry<'deserialized-data'> = {
+                ...entry,
+                data: await deserializeEntryData(entry.data),
+            }
+            if (!deserializedEntry.data) {
+                continue
+            }
 
-                    const postProcessed = await postReceive({
-                        entry: deserializedEntry,
-                    })
-                    return postProcessed.entry
-                }),
-            )
-        ).filter(entry => !!entry) as SharedSyncLogEntry<'deserialized-data'>[]
+            const postProcessed = await postReceive({
+                entry: deserializedEntry,
+            })
+            if (!postProcessed.entry) {
+                continue
+            }
+
+            processedEntries.push(postProcessed.entry)
+        }
 
         if (args.syncEvents) {
             args.syncEvents.emit('receivedSharedEntries', {
