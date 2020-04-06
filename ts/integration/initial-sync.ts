@@ -44,6 +44,7 @@ export interface InitialSyncDependencies {
     storageManager: StorageManager
     signalTransportFactory: SignalTransportFactory
     syncedCollections: string[]
+    getIceServers?: () => Promise<string[]>
     batchSize?: number
     debug?: boolean
 }
@@ -291,9 +292,17 @@ export class InitialSync {
     async preSync(options: InitialSyncInfo) {}
 
     async getPeer(options: { initiator: boolean }): Promise<Peer.Instance> {
+        const iceServers = await this.dependencies.getIceServers?.()
         return new Peer({
             initiator: options.initiator,
             wrtc: this.wrtc,
+            ...(iceServers
+                ? {
+                      config: {
+                          iceServers: iceServers.map(url => ({ urls: url })),
+                      },
+                  }
+                : {}),
         })
     }
 
