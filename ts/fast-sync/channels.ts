@@ -32,6 +32,8 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
 
     abstract destroy(): Promise<void>
 
+    constructor(private reEstablishConnection: () => Promise<void>) {}
+
     async sendUserPackage(jsonSerializable: any): Promise<void> {
         await this._sendPackageSafely({
             type: 'user-package',
@@ -139,7 +141,9 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     async _withStallingDetection<T>(f: () => Promise<T>) {
         const stalledTimeout = setTimeout(() => {
             this.events.emit('stalled')
+            return this.reEstablishConnection()
         }, this.timeoutInMiliseconds)
+
         const toReturn = await f()
         clearTimeout(stalledTimeout)
         return toReturn
@@ -154,15 +158,34 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
 
     private destroyed = false
 
-    constructor(private options: { peer: SimplePeer.Instance }) {
-        super()
+    constructor(
+        private options: {
+            peer: SimplePeer.Instance
+            reEstablishConnection: () => Promise<SimplePeer.Instance>
+        },
+    ) {
+        super(async () => {
+            const peer = await options.reEstablishConnection()
+            this.resetPeer(peer)
+        })
 
         this.dataHandler = (data: any) => {
             // This promise gets replaced after each received package
             // NOTE: This assumes package are sent and confirmed one by one
             this.dataReceived.resolve(data.toString())
         }
+
+        this.setupPeer()
+    }
+
+    private setupPeer() {
         this.options.peer.on('data', this.dataHandler)
+    }
+
+    resetPeer(peer: SimplePeer.Instance) {
+        this.options.peer.removeAllListeners()
+        this.options.peer = peer
+        this.setupPeer()
     }
 
     async destroy() {

@@ -21,6 +21,7 @@ import {
 } from '../fast-sync/types'
 import { resolvablePromise, getFastSyncInfo } from '../fast-sync/utils'
 import { EventEmitter } from 'events'
+import SimplePeer from 'simple-peer'
 
 export type InitialSyncInfo = {
     signalChannel: SignalChannel
@@ -51,6 +52,9 @@ export interface InitialSyncDependencies {
 
 export type SignalTransportFactory = () => SignalTransport
 export class InitialSync {
+    static RECONNECT_REQ_MSG = '@reconnect'
+    static RECONNECT_ACK_MSG = '@reconnect-acknowledged'
+
     events = new EventEmitter() as TypedEmitter<InitialSyncEvents>
 
     public debug: boolean
@@ -312,6 +316,61 @@ export class InitialSync {
         })
     }
 
+    private async signalReconnectReceiver(signalChannel: SignalChannel) {
+        await signalChannel.sendMessage(InitialSync.RECONNECT_REQ_MSG)
+
+        const { payload } = await signalChannel.receiveMessage()
+
+        // TODO: Better handling
+        if (payload !== InitialSync.RECONNECT_ACK_MSG) {
+            throw new Error('Cannot re-establish connection')
+        }
+    }
+
+    private async signalReconnectSender(signalChannel: SignalChannel) {
+        const { payload } = await signalChannel.receiveMessage()
+
+        // TODO: Better handling
+        if (payload !== InitialSync.RECONNECT_REQ_MSG) {
+            throw new Error('Cannot re-establish connection')
+        }
+
+        await signalChannel.sendMessage(InitialSync.RECONNECT_ACK_MSG)
+    }
+
+    private handleStalledConnection = (options: {
+        role: FastSyncRole
+        signalChannel: SignalChannel
+    }) => async () => {
+        const initiator = options.role === 'receiver'
+        const peer = await this.getPeer({ initiator })
+
+        if (initiator) {
+            await this.signalReconnectReceiver(options.signalChannel)
+        } else {
+            await this.signalReconnectSender(options.signalChannel)
+        }
+
+        await this.setupSimplePeerSignalling({ ...options, peer })
+        return peer
+    }
+
+    private setupSimplePeerSignalling = async (options: {
+        role: FastSyncRole
+        signalChannel: SignalChannel
+        peer: SimplePeer.Instance
+    }) => {
+        await options.signalChannel.connect()
+        await signalSimplePeer({
+            signalChannel: options.signalChannel,
+            simplePeer: options.peer,
+            reporter: (eventName, event) =>
+                (this.events as any).emit(eventName, event),
+        })
+        this.events.emit('releasingSignalChannel', {})
+        await options.signalChannel.release()
+    }
+
     async createFastSyncChannel(options: {
         role: FastSyncRole
         signalChannel: SignalChannel
@@ -319,22 +378,15 @@ export class InitialSync {
         const peer = await this.getPeer({
             initiator: options.role === 'receiver',
         })
+
         const channel: FastSyncChannel = new WebRTCFastSyncChannel({
             peer,
+            reEstablishConnection: this.handleStalledConnection(options),
         })
+
         return {
             channel,
-            setup: async () => {
-                await options.signalChannel.connect()
-                await signalSimplePeer({
-                    signalChannel: options.signalChannel,
-                    simplePeer: peer,
-                    reporter: (eventName, event) =>
-                        (this.events as any).emit(eventName, event),
-                })
-                this.events.emit('releasingSignalChannel', {})
-                await options.signalChannel.release()
-            },
+            setup: () => this.setupSimplePeerSignalling({ ...options, peer }),
         }
     }
 
