@@ -73,6 +73,7 @@ export class InitialSync {
 
     async requestInitialSync(options?: {
         preserveChannel?: boolean
+        fastSyncChannelSetup?: (channel: FastSyncChannel) => void
     }): Promise<{ initialMessage: string }> {
         const role = 'sender'
         const {
@@ -93,6 +94,7 @@ export class InitialSync {
     async answerInitialSync(options: {
         initialMessage: string
         preserveChannel?: boolean
+        fastSyncChannelSetup?: (channel: FastSyncChannel) => void
     }): Promise<void> {
         const role = 'receiver'
         const { signalTransport } = await this._createSignalTransport(role)
@@ -185,6 +187,7 @@ export class InitialSync {
         initialMessage: string
         deviceId: 'first' | 'second'
         preserveChannel?: boolean
+        fastSyncChannelSetup?: (channel: FastSyncChannel) => void
     }): Promise<InitialSyncInfo> {
         await this.cleanupInitialSync()
 
@@ -193,9 +196,11 @@ export class InitialSync {
         )
 
         const fastSyncChannel = await this.createFastSyncChannel({
+            channelSetupCb: options.fastSyncChannelSetup,
             role: options.role,
             signalChannel,
         })
+
         const fastSync = new FastSync({
             storageManager: this.dependencies.storageManager,
             channel: fastSyncChannel.channel,
@@ -375,6 +380,7 @@ export class InitialSync {
     async createFastSyncChannel(options: {
         role: FastSyncRole
         signalChannel: SignalChannel
+        channelSetupCb?: (channel: FastSyncChannel) => void
     }) {
         const peer = await this.getPeer({
             initiator: options.role === 'receiver',
@@ -384,6 +390,10 @@ export class InitialSync {
             peer,
             reEstablishConnection: this.handleStalledConnection(options),
         })
+
+        if (options.channelSetupCb != null) {
+            options.channelSetupCb(channel)
+        }
 
         return {
             channel,

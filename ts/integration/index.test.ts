@@ -12,6 +12,7 @@ import {
 import { registerModuleMapCollections } from '@worldbrain/storex-pattern-modules'
 import { FastSyncEvents } from '../fast-sync'
 import { PromiseContentType } from '../types.test'
+import { FastSyncChannel } from '../fast-sync/types'
 
 describe('Integration helpers', () => {
     async function setupTest(options: {
@@ -83,15 +84,26 @@ describe('Integration helpers', () => {
         }
 
         const doInitialSync = async (options: {
-            source: { initialSync: InitialSync }
-            target: { initialSync: InitialSync }
+            source: {
+                initialSync: InitialSync
+                fastSyncChannelSetup?: (channel: FastSyncChannel) => void
+            }
+            target: {
+                initialSync: InitialSync
+                fastSyncChannelSetup?: (channel: FastSyncChannel) => void
+            }
         }) => {
             const {
                 initialMessage,
-            } = await options.source.initialSync.requestInitialSync()
+            } = await options.source.initialSync.requestInitialSync({
+                fastSyncChannelSetup: options.source.fastSyncChannelSetup,
+            })
+
             await options.target.initialSync.answerInitialSync({
                 initialMessage,
+                fastSyncChannelSetup: options.target.fastSyncChannelSetup,
             })
+
             for (const client of [options.source, options.target]) {
                 await client.initialSync.waitForInitialSync()
             }
@@ -222,6 +234,68 @@ describe('Integration helpers', () => {
             },
             expectNoData: true,
         })
+    })
+
+    it('should re-establish connection if stall detected during initial sync', async () => {
+        const { clients, integration, doInitialSync } = await setupTest({
+            collections: {
+                test: {
+                    version: new Date(),
+                    fields: {
+                        key: { type: 'string' },
+                        label: { type: 'string' },
+                        createWhen: { type: 'datetime' },
+                    },
+                    indices: [{ field: 'key', pk: true }],
+                },
+            },
+        })
+
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test1)
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test2)
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test3)
+
+        let reconnected = false
+
+        integration[0].initialSync.events.on('reconnected', () => {
+            reconnected = true
+        })
+
+        expect(reconnected).toBe(false)
+
+        await doInitialSync({
+            source: {
+                ...integration[0],
+                fastSyncChannelSetup: channel => {
+                    channel.timeoutInMiliseconds = 100
+                },
+            },
+            target: {
+                ...integration[1],
+                fastSyncChannelSetup: channel => {
+                    channel.preSend = () =>
+                        new Promise(resolve => setTimeout(resolve, 500))
+                },
+            },
+        })
+
+        expect(reconnected).toBe(true)
+
+        expect(
+            await clients[1].storageManager
+                .collection('test')
+                .findObjects({}, { order: [['createdWhen', 'asc']] }),
+        ).toEqual([
+            (expect as any).objectContaining(TEST_DATA.test1),
+            (expect as any).objectContaining(TEST_DATA.test2),
+            (expect as any).objectContaining(TEST_DATA.test3),
+        ])
     })
 
     it('should not crash if trying to abort the sync without notifying the other side', async () => {
