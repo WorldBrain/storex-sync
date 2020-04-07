@@ -44,7 +44,7 @@ export interface InitialSyncDependencies {
     storageManager: StorageManager
     signalTransportFactory: SignalTransportFactory
     syncedCollections: string[]
-    getIceServers?: () => Promise<string[]>
+    getIceServers?: () => Promise<any[]>
     batchSize?: number
     debug?: boolean
 }
@@ -288,20 +288,26 @@ export class InitialSync {
         }
     }
 
-    getPreSendProcessor(): FastSyncPreSendProcessor | void {}
-    async preSync(options: InitialSyncInfo) {}
+    getPreSendProcessor(): FastSyncPreSendProcessor | void { }
+    async preSync(options: InitialSyncInfo) { }
 
     async getPeer(options: { initiator: boolean }): Promise<Peer.Instance> {
-        const iceServers = await this.dependencies.getIceServers?.()
+        let iceServers = undefined
+        try {
+            iceServers = await this.dependencies.getIceServers?.()
+        } catch (e) {
+            console.warn('An error occured while trying to get ICE servers, ignoring...')
+            console.warn(e)
+        }
         return new Peer({
             initiator: options.initiator,
             wrtc: this.wrtc,
             ...(iceServers
                 ? {
-                      config: {
-                          iceServers: iceServers.map(url => ({ urls: url })),
-                      },
-                  }
+                    config: {
+                        iceServers,
+                    },
+                }
                 : {}),
         })
     }
