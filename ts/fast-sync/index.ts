@@ -35,6 +35,7 @@ export interface FastSyncEvents {
         progress: FastSyncProgress
         role: FastSyncRole
     }) => void
+    reconnected: () => void
     stalled: () => void
     paused: () => void
     resumed: () => void
@@ -105,6 +106,7 @@ export class FastSync {
         const { channel } = this.options
 
         channel.events.on('stalled', () => this.events.emit('stalled'))
+        channel.events.on('reconnected', () => this.events.emit('reconnected'))
         const interruptable = (this.interruptable = new Interruptable())
         this._state = 'running'
         try {
@@ -215,6 +217,9 @@ export class FastSync {
         }
         this.options.channel.events.on('stalled', () =>
             this.events.emit('stalled'),
+        )
+        this.options.channel.events.on('reconnected', () =>
+            this.events.emit('reconnected'),
         )
         this.options.channel.events.on('paused', stateChangeHandler('paused'))
         this.options.channel.events.on('resumed', stateChangeHandler('resumed'))

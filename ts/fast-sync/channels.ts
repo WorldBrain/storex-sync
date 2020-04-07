@@ -32,7 +32,7 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
 
     abstract destroy(): Promise<void>
 
-    constructor(private reEstablishConnection: () => Promise<void>) {}
+    constructor(private reEstablishConnection?: () => Promise<void>) {}
 
     async sendUserPackage(jsonSerializable: any): Promise<void> {
         await this._sendPackageSafely({
@@ -139,9 +139,19 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     }
 
     async _withStallingDetection<T>(f: () => Promise<T>) {
-        const stalledTimeout = setTimeout(() => {
+        const stalledTimeout = setTimeout(async () => {
             this.events.emit('stalled')
-            return this.reEstablishConnection()
+
+            if (this.reEstablishConnection == null) {
+                return
+            }
+
+            try {
+                await this.reEstablishConnection()
+                this.events.emit('reconnected')
+            } catch (err) {
+                this.events.emit('stalled')
+            }
         }, this.timeoutInMiliseconds)
 
         const toReturn = await f()
@@ -182,7 +192,7 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
         this.options.peer.on('data', this.dataHandler)
     }
 
-    resetPeer(peer: SimplePeer.Instance) {
+    private resetPeer(peer: SimplePeer.Instance) {
         this.options.peer.removeAllListeners()
         this.options.peer = peer
         this.setupPeer()

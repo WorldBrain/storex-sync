@@ -352,6 +352,7 @@ export class InitialSync {
         }
 
         await this.setupSimplePeerSignalling({ ...options, peer })
+        this.events.emit('reconnected')
         return peer
     }
 

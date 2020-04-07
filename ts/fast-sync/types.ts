@@ -12,9 +12,10 @@ export type FastSyncPackage<UserPackageType = any> =
     | { type: 'finish' }
     | { type: 'user-package'; package: UserPackageType }
 export interface FastSyncChannelEvents {
+    reconnected: () => void
     stalled: () => void
-    paused: () => void
     resumed: () => void
+    paused: () => void
 }
 export interface FastSyncChannel<UserPackageType = any> {
     timeoutInMiliseconds: number
