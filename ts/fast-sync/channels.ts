@@ -144,13 +144,19 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     }
 
     async _withStallingDetection<T>(f: () => Promise<T>) {
-        const stalledTimeout = setTimeout(
-            () => this.attemptReconnect(),
-            this.timeoutInMiliseconds,
-        )
+        let reconnectAttempt: Promise<void> | undefined = undefined
+        const stalledTimeout = setTimeout(() => {
+            reconnectAttempt = this.attemptReconnect()
+        }, this.timeoutInMiliseconds)
 
         const toReturn = await f()
-        clearTimeout(stalledTimeout)
+
+        if (reconnectAttempt == null) {
+            clearTimeout(stalledTimeout)
+        } else {
+            await reconnectAttempt
+        }
+
         return toReturn
     }
 
