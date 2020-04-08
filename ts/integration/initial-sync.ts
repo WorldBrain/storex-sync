@@ -330,47 +330,58 @@ export class InitialSync {
         })
     }
 
-    private signalReconnectReceiver = (signalChannel: SignalChannel) =>
-        new Promise<void>(async (resolve, reject) => {
-            await signalChannel.sendMessage(
-                JSON.stringify(InitialSync.RECONNECT_REQ_MSG),
-            )
+    private async signalReconnectReceiver(
+        signalChannel: SignalChannel,
+        signals: SignalBuffer,
+    ) {
+        await signalChannel.sendMessage(
+            JSON.stringify(InitialSync.RECONNECT_REQ_MSG),
+        )
 
-            signalChannel.events.on('signal', ({ payload }) => {
-                if (payload !== InitialSync.RECONNECT_ACK_MSG) {
-                    return reject(new Error('Cannot re-establish connection'))
-                }
+        let payload: string
+        // TODO: return if not found after certain time
+        do {
+            payload = await signals.getLatestOrWait()
+        } while (payload !== InitialSync.RECONNECT_ACK_MSG)
 
-                return resolve()
-            })
-        })
+        // if (payload !== InitialSync.RECONNECT_ACK_MSG) {
+        //     throw new Error('Cannot re-establish connection')
+        // }
+    }
 
-    private signalReconnectSender = (signalChannel: SignalChannel) =>
-        new Promise<void>(async (resolve, reject) => {
-            signalChannel.events.on('signal', async ({ payload }) => {
-                if (payload !== InitialSync.RECONNECT_REQ_MSG) {
-                    return reject(new Error('Cannot re-establish connection'))
-                }
+    private async signalReconnectSender(
+        signalChannel: SignalChannel,
+        signals: SignalBuffer,
+    ) {
+        let payload: string
+        // TODO: return if not found after certain time
+        do {
+            payload = await signals.getLatestOrWait()
+        } while (payload !== InitialSync.RECONNECT_REQ_MSG)
 
-                await signalChannel.sendMessage(
-                    JSON.stringify(InitialSync.RECONNECT_ACK_MSG),
-                )
+        // if (payload !== InitialSync.RECONNECT_REQ_MSG) {
+        //     throw new Error('Cannot re-establish connection')
+        // }
 
-                return resolve()
-            })
-        })
+        await signalChannel.sendMessage(
+            JSON.stringify(InitialSync.RECONNECT_ACK_MSG),
+        )
+    }
 
-    private handleStalledConnection = (options: {
-        role: FastSyncRole
-        signalChannel: SignalChannel
-    }) => async () => {
+    private handleStalledConnection = (
+        options: {
+            role: FastSyncRole
+            signalChannel: SignalChannel
+        },
+        signals: SignalBuffer,
+    ) => async () => {
         const initiator = options.role === 'receiver'
         const peer = await this.getPeer({ initiator })
 
         if (initiator) {
-            await this.signalReconnectReceiver(options.signalChannel)
+            await this.signalReconnectReceiver(options.signalChannel, signals)
         } else {
-            await this.signalReconnectSender(options.signalChannel)
+            await this.signalReconnectSender(options.signalChannel, signals)
         }
 
         await this.setupSimplePeerSignalling({ ...options, peer })
@@ -400,9 +411,17 @@ export class InitialSync {
             initiator: options.role === 'receiver',
         })
 
+        const signals = new SignalBuffer()
+        options.signalChannel.events.on('signal', ({ payload }) =>
+            signals.bufferSignal({ payload }),
+        )
+
         const channel: FastSyncChannel = new WebRTCFastSyncChannel({
             peer,
-            reEstablishConnection: this.handleStalledConnection(options),
+            reEstablishConnection: this.handleStalledConnection(
+                options,
+                signals,
+            ),
             maxReconnectAttempts:
                 this.dependencies.maxReconnectAttempts ??
                 InitialSync.MAX_RECONNECT_ATTEMPTS,
@@ -418,5 +437,44 @@ export class InitialSync {
         if (this.debug) {
             console['log']('Initial Sync -', ...args)
         }
+    }
+}
+
+class SignalBuffer {
+    private queue: string[] = []
+    private currentlyWaiting = false
+    private shouldWait!: Promise<string>
+    private resolveWait!: (signal: string) => void
+
+    constructor() {
+        this.setupWait()
+    }
+
+    private setupWait() {
+        this.shouldWait = new Promise(resolve => {
+            this.resolveWait = resolve
+        })
+    }
+
+    bufferSignal(options: { payload: string }) {
+        if (this.currentlyWaiting) {
+            this.resolveWait(options.payload)
+            this.setupWait()
+        } else {
+            this.queue.push(options.payload)
+        }
+    }
+
+    async getLatestOrWait() {
+        if (this.queue.length) {
+            const [head, ...tail] = this.queue
+            this.queue = tail
+            return head
+        }
+
+        this.currentlyWaiting = true
+        const signal = await this.shouldWait
+        this.currentlyWaiting = false
+        return signal
     }
 }
