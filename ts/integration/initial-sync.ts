@@ -52,6 +52,7 @@ export interface InitialSyncDependencies {
 
 export type SignalTransportFactory = () => SignalTransport
 export class InitialSync {
+    static MAX_RECONNECT_ATTEMPTS = 3
     static RECONNECT_REQ_MSG = '@reconnect'
     static RECONNECT_ACK_MSG = '@reconnect-acknowledged'
 
@@ -389,6 +390,7 @@ export class InitialSync {
         const channel: FastSyncChannel = new WebRTCFastSyncChannel({
             peer,
             reEstablishConnection: this.handleStalledConnection(options),
+            maxReconnectAttempts: InitialSync.MAX_RECONNECT_ATTEMPTS,
         })
 
         if (options.channelSetupCb != null) {

@@ -13,6 +13,7 @@ export type FastSyncPackage<UserPackageType = any> =
     | { type: 'user-package'; package: UserPackageType }
 export interface FastSyncChannelEvents {
     reconnected: () => void
+    reconnect: (event: { attempt: number }) => void
     stalled: () => void
     resumed: () => void
     paused: () => void

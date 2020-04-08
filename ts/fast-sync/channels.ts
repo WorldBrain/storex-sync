@@ -32,7 +32,12 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
 
     abstract destroy(): Promise<void>
 
-    constructor(private reEstablishConnection?: () => Promise<void>) {}
+    constructor(
+        private reconnectOptions: {
+            reEstablishConnection?: () => Promise<void>
+            maxReconnectAttempts?: number
+        },
+    ) {}
 
     async sendUserPackage(jsonSerializable: any): Promise<void> {
         await this._sendPackageSafely({
@@ -139,24 +144,35 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     }
 
     async _withStallingDetection<T>(f: () => Promise<T>) {
-        const stalledTimeout = setTimeout(async () => {
-            this.events.emit('stalled')
-
-            if (this.reEstablishConnection == null) {
-                return
-            }
-
-            try {
-                await this.reEstablishConnection()
-                this.events.emit('reconnected')
-            } catch (err) {
-                this.events.emit('stalled')
-            }
-        }, this.timeoutInMiliseconds)
+        const stalledTimeout = setTimeout(
+            () => this.attemptReconnect(),
+            this.timeoutInMiliseconds,
+        )
 
         const toReturn = await f()
         clearTimeout(stalledTimeout)
         return toReturn
+    }
+
+    private async attemptReconnect(attempt = 0): Promise<void> {
+        if (
+            this.reconnectOptions.reEstablishConnection == null ||
+            this.reconnectOptions.maxReconnectAttempts == null ||
+            attempt >= this.reconnectOptions.maxReconnectAttempts
+        ) {
+            this.events.emit('stalled')
+            return
+        }
+
+        this.events.emit('reconnect', { attempt })
+
+        try {
+            await this.reconnectOptions.reEstablishConnection()
+            this.events.emit('reconnected')
+            return
+        } catch (err) {
+            return this.attemptReconnect(attempt + 1)
+        }
     }
 }
 
@@ -172,11 +188,15 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
         private options: {
             peer: SimplePeer.Instance
             reEstablishConnection: () => Promise<SimplePeer.Instance>
+            maxReconnectAttempts: number
         },
     ) {
-        super(async () => {
-            const peer = await options.reEstablishConnection()
-            this.resetPeer(peer)
+        super({
+            ...options,
+            reEstablishConnection: async () => {
+                const peer = await options.reEstablishConnection()
+                this.resetPeer(peer)
+            },
         })
 
         this.dataHandler = (data: any) => {
@@ -302,7 +322,7 @@ export class MemoryFastSyncChannel<
     UserPackageType = any
 > extends FastSyncChannelBase<UserPackageType> {
     constructor(private dependencies: MemoryFastSyncChannelDependencies) {
-        super()
+        super({})
     }
 
     async destroy() {}
