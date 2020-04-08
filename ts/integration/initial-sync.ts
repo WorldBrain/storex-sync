@@ -45,7 +45,8 @@ export interface InitialSyncDependencies {
     storageManager: StorageManager
     signalTransportFactory: SignalTransportFactory
     syncedCollections: string[]
-    getIceServers?: () => Promise<any[]>
+    maxReconnectAttempts?: number
+    getIceServers?: () => Promise<string[]>
     batchSize?: number
     debug?: boolean
 }
@@ -201,10 +202,13 @@ export class InitialSync {
         )
 
         const fastSyncChannel = await this.createFastSyncChannel({
-            channelSetupCb: options.fastSyncChannelSetup,
             role: options.role,
             signalChannel,
         })
+
+        if (options.fastSyncChannelSetup != null) {
+            options.fastSyncChannelSetup(fastSyncChannel.channel)
+        }
 
         const fastSync = new FastSync({
             storageManager: this.dependencies.storageManager,
@@ -328,7 +332,9 @@ export class InitialSync {
 
     private signalReconnectReceiver = (signalChannel: SignalChannel) =>
         new Promise<void>(async (resolve, reject) => {
-            await signalChannel.sendMessage(InitialSync.RECONNECT_REQ_MSG)
+            await signalChannel.sendMessage(
+                JSON.stringify(InitialSync.RECONNECT_REQ_MSG),
+            )
 
             signalChannel.events.on('signal', ({ payload }) => {
                 if (payload !== InitialSync.RECONNECT_ACK_MSG) {
@@ -346,7 +352,9 @@ export class InitialSync {
                     return reject(new Error('Cannot re-establish connection'))
                 }
 
-                await signalChannel.sendMessage(InitialSync.RECONNECT_ACK_MSG)
+                await signalChannel.sendMessage(
+                    JSON.stringify(InitialSync.RECONNECT_ACK_MSG),
+                )
 
                 return resolve()
             })
@@ -387,7 +395,6 @@ export class InitialSync {
     async createFastSyncChannel(options: {
         role: FastSyncRole
         signalChannel: SignalChannel
-        channelSetupCb?: (channel: FastSyncChannel) => void
     }) {
         const peer = await this.getPeer({
             initiator: options.role === 'receiver',
@@ -396,12 +403,10 @@ export class InitialSync {
         const channel: FastSyncChannel = new WebRTCFastSyncChannel({
             peer,
             reEstablishConnection: this.handleStalledConnection(options),
-            maxReconnectAttempts: InitialSync.MAX_RECONNECT_ATTEMPTS,
+            maxReconnectAttempts:
+                this.dependencies.maxReconnectAttempts ??
+                InitialSync.MAX_RECONNECT_ATTEMPTS,
         })
-
-        if (options.channelSetupCb != null) {
-            options.channelSetupCb(channel)
-        }
 
         return {
             channel,

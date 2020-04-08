@@ -16,6 +16,7 @@ import { FastSyncChannel } from '../fast-sync/types'
 
 describe('Integration helpers', () => {
     async function setupTest(options: {
+        maxReconnectAttempts?: number
         collections: RegistryCollections
         continuousSyncDependenciesProcessor?: (
             deps: ContinuousSyncDependencies,
@@ -44,6 +45,7 @@ describe('Integration helpers', () => {
                 storageManager: client.storageManager,
                 signalTransportFactory,
                 syncedCollections: Object.keys(options.collections),
+                maxReconnectAttempts: options.maxReconnectAttempts ?? 0,
                 batchSize: 1,
             })
             initialSync.wrtc = wrtc
@@ -236,8 +238,9 @@ describe('Integration helpers', () => {
         })
     })
 
-    it('should re-establish connection if stall detected during initial sync', async () => {
+    it('should re-establish connection if stall detected on receiver side during initial sync', async () => {
         const { clients, integration, doInitialSync } = await setupTest({
+            maxReconnectAttempts: 1,
             collections: {
                 test: {
                     version: new Date(),
