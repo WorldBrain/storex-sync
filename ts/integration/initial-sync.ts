@@ -145,6 +145,10 @@ export class InitialSync {
 
         const info = this.fastSyncInfo
         delete this.fastSyncInfo
+
+        this.events.emit('releasingSignalChannel', {})
+        await info.signalChannel.release()
+
         info.events.emit = () => false
         await Promise.race([
             new Promise(resolve => setTimeout(resolve, 1000)),
@@ -322,27 +326,31 @@ export class InitialSync {
         })
     }
 
-    private async signalReconnectReceiver(signalChannel: SignalChannel) {
-        await signalChannel.sendMessage(InitialSync.RECONNECT_REQ_MSG)
+    private signalReconnectReceiver = (signalChannel: SignalChannel) =>
+        new Promise<void>(async (resolve, reject) => {
+            await signalChannel.sendMessage(InitialSync.RECONNECT_REQ_MSG)
 
-        const { payload } = await signalChannel.receiveMessage()
+            signalChannel.events.on('signal', ({ payload }) => {
+                if (payload !== InitialSync.RECONNECT_ACK_MSG) {
+                    return reject(new Error('Cannot re-establish connection'))
+                }
 
-        // TODO: Better handling
-        if (payload !== InitialSync.RECONNECT_ACK_MSG) {
-            throw new Error('Cannot re-establish connection')
-        }
-    }
+                return resolve()
+            })
+        })
 
-    private async signalReconnectSender(signalChannel: SignalChannel) {
-        const { payload } = await signalChannel.receiveMessage()
+    private signalReconnectSender = (signalChannel: SignalChannel) =>
+        new Promise<void>(async (resolve, reject) => {
+            signalChannel.events.on('signal', async ({ payload }) => {
+                if (payload !== InitialSync.RECONNECT_REQ_MSG) {
+                    return reject(new Error('Cannot re-establish connection'))
+                }
 
-        // TODO: Better handling
-        if (payload !== InitialSync.RECONNECT_REQ_MSG) {
-            throw new Error('Cannot re-establish connection')
-        }
+                await signalChannel.sendMessage(InitialSync.RECONNECT_ACK_MSG)
 
-        await signalChannel.sendMessage(InitialSync.RECONNECT_ACK_MSG)
-    }
+                return resolve()
+            })
+        })
 
     private handleStalledConnection = (options: {
         role: FastSyncRole
@@ -374,8 +382,6 @@ export class InitialSync {
             reporter: (eventName, event) =>
                 (this.events as any).emit(eventName, event),
         })
-        this.events.emit('releasingSignalChannel', {})
-        await options.signalChannel.release()
     }
 
     async createFastSyncChannel(options: {
