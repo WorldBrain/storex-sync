@@ -57,6 +57,7 @@ export class FastSync {
 
     constructor(private options: FastSyncOptions) {
         this.totalObjectsProcessed = 0
+        this.forwardReconnectEvents()
     }
 
     get state() {
@@ -104,7 +105,6 @@ export class FastSync {
 
         const interruptable = (this.interruptable = new Interruptable())
         this._state = 'running'
-        this.forwardReconnectEvents()
 
         try {
             const syncInfo =
@@ -224,7 +224,6 @@ export class FastSync {
 
         this.options.channel.events.on('paused', stateChangeHandler('paused'))
         this.options.channel.events.on('resumed', stateChangeHandler('resumed'))
-        this.forwardReconnectEvents()
 
         try {
             const syncInfo = await this.options.channel.receiveSyncInfo()

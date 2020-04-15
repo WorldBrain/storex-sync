@@ -1,8 +1,12 @@
 import { ResolvablePromise, resolvablePromise } from './utils'
 
+export class InterruptableCancelledError extends Error {}
+
 export default class Interruptable {
     cancelled: boolean = false
     private pausePromise: ResolvablePromise<void> | null = null // only set if paused, resolved when pause ends
+
+    constructor(private options?: { throwOnCancelled: boolean }) {}
 
     get paused(): boolean {
         return !!this.pausePromise
@@ -73,7 +77,7 @@ export default class Interruptable {
         }
     }
 
-    async execute(f: () => Promise<void>) {
+    async execute<ReturnValue>(f: () => Promise<ReturnValue | undefined>) {
         if (await this._shouldCancelAfterWaitingForPause()) {
             return
         }
@@ -84,6 +88,11 @@ export default class Interruptable {
     async _shouldCancelAfterWaitingForPause() {
         if (this.pausePromise) {
             await this.pausePromise.promise
+        }
+        if (this.cancelled && this.options?.throwOnCancelled) {
+            throw new InterruptableCancelledError(
+                'Tried to execute code on a cancelled interruptable',
+            )
         }
         return this.cancelled
     }

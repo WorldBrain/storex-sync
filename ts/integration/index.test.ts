@@ -9,7 +9,6 @@ import {
     createMemorySharedSyncLog,
     lazyMemorySignalTransportFactory,
 } from './index.tests'
-import { registerModuleMapCollections } from '@worldbrain/storex-pattern-modules'
 import { FastSyncEvents } from '../fast-sync'
 import { PromiseContentType } from '../types.test'
 import { FastSyncChannel } from '../fast-sync/types'
@@ -49,6 +48,9 @@ describe('Integration helpers', () => {
                 batchSize: 1,
             })
             initialSync.wrtc = wrtc
+            initialSync.events.on('error', ({ error }) => {
+                throw error
+            })
 
             const continuousSyncDeps: ContinuousSyncDependencies = {
                 auth: { getUserId: async () => 456 },
@@ -88,22 +90,17 @@ describe('Integration helpers', () => {
         const doInitialSync = async (options: {
             source: {
                 initialSync: InitialSync
-                fastSyncChannelSetup?: (channel: FastSyncChannel) => void
             }
             target: {
                 initialSync: InitialSync
-                fastSyncChannelSetup?: (channel: FastSyncChannel) => void
             }
         }) => {
             const {
                 initialMessage,
-            } = await options.source.initialSync.requestInitialSync({
-                fastSyncChannelSetup: options.source.fastSyncChannelSetup,
-            })
+            } = await options.source.initialSync.requestInitialSync()
 
             await options.target.initialSync.answerInitialSync({
                 initialMessage,
-                fastSyncChannelSetup: options.target.fastSyncChannelSetup,
             })
 
             for (const client of [options.source, options.target]) {
@@ -253,6 +250,10 @@ describe('Integration helpers', () => {
                 },
             },
         })
+        // integration[0].initialSync.debug = true
+        // integration[1].initialSync.debug = true
+        // integration[0].initialSync.peerName = `Peer 0`
+        // integration[1].initialSync.peerName = `Peer 1`
 
         await clients[0].storageManager
             .collection('test')
@@ -269,23 +270,32 @@ describe('Integration helpers', () => {
         integration[0].initialSync.events.on('reconnected', () => {
             reconnected = true
         })
+        integration[0].initialSync.events.on(
+            'fastSyncChannelCreated',
+            channel => {
+                // channel.timeoutInMiliseconds = 100;
+                ;(channel as any).peerName = 'Peer 0'
+            },
+        )
+        integration[1].initialSync.events.on(
+            'fastSyncChannelCreated',
+            channel => {
+                // let packageCounter = 0
+                // channel.preSend = async () => {
+                //     if (++packageCounter === 2) {
+                //         return new Promise(resolve => setTimeout(resolve, 200))
+                //     }
+                // }
+                // channel.timeoutInMiliseconds = 100;
+                ;(channel as any).peerName = 'Peer 1'
+            },
+        )
 
         expect(reconnected).toBe(false)
 
         await doInitialSync({
-            source: {
-                ...integration[0],
-                fastSyncChannelSetup: channel => {
-                    channel.timeoutInMiliseconds = 100
-                },
-            },
-            target: {
-                ...integration[1],
-                fastSyncChannelSetup: channel => {
-                    channel.preSend = () =>
-                        new Promise(resolve => setTimeout(resolve, 500))
-                },
-            },
+            source: integration[0],
+            target: integration[1],
         })
 
         expect(reconnected).toBe(true)

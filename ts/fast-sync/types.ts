@@ -4,16 +4,20 @@ export type FastSyncRole = 'sender' | 'receiver'
 export const flippedRole = (role: FastSyncRole): FastSyncRole =>
     role === 'sender' ? 'receiver' : 'sender'
 export type FastSyncOrder = 'receive-first' | 'send-first'
-export type FastSyncPackage<UserPackageType = any> =
-    | { type: 'batch'; batch: any }
-    | { type: 'confirm' }
-    | { type: 'state-change'; state: 'paused' | 'running' }
-    | { type: 'sync-info'; info: FastSyncInfo }
-    | { type: 'finish' }
-    | { type: 'user-package'; package: UserPackageType }
+export type FastSyncPackage<
+    UserPackageType = any,
+    WithIndex extends boolean = true
+> = (WithIndex extends true ? { index: number } : {}) &
+    (
+        | { type: 'sync-info'; info: FastSyncInfo }
+        | { type: 'batch'; batch: any }
+        | { type: 'finish' }
+        | { type: 'state-change'; state: 'paused' | 'running' }
+        | { type: 'user-package'; package: UserPackageType }
+        | { type: 'confirm' }
+    )
+
 export interface FastSyncChannelEvents {
-    reconnected: () => void
-    reconnect: (event: { attempt: number }) => void
     stalled: () => void
     resumed: () => void
     paused: () => void

@@ -1,4 +1,5 @@
 import { splitWithTail } from './utils'
+import Interruptable from './interruptable'
 
 export function calculateStringChunkCount(
     s: string,
@@ -17,13 +18,12 @@ export function getStringChunk(
 
 export async function receiveInChucks(
     receiveChunk: () => Promise<string>,
+    interruptable: Interruptable,
 ): Promise<string> {
     let data: string[] = []
     let expectedChunkCount: null | number = null
 
-    while (true) {
-        const chunk = await receiveChunk()
-
+    const processChunk = (chunk: string) => {
         const [
             chunkConfirmation,
             chunkIndexString,
@@ -31,7 +31,7 @@ export async function receiveInChucks(
             chunkContent,
         ] = splitWithTail(chunk, ':', 4)
         if (chunkConfirmation !== 'chunk') {
-            throw new Error(`Invalid WebRTC package received: ${chunk}`)
+            throw new Error(`Invalid WebRTC chunk package received: ${chunk}`)
         }
 
         const chunkIndex = parseInt(chunkIndexString)
@@ -67,10 +67,44 @@ export async function receiveInChucks(
         }
 
         data.push(chunkContent)
-        if (data.length === expectedChunkCount) {
-            break
-        }
+        return { finished: data.length === expectedChunkCount }
     }
 
+    let running = true
+    await interruptable.whileLoop(
+        async () => running,
+        async () => {
+            const chunk = (await interruptable.execute(receiveChunk))!
+            const result = await interruptable.execute(async () =>
+                processChunk(chunk),
+            )
+            if (result?.finished) {
+                running = false
+            }
+        },
+    )
+
     return data.join('')
+}
+
+export async function sendInChunks(
+    message: string,
+    send: (chunk: string) => Promise<void>,
+    options: {
+        interruptable: Interruptable
+        chunkSize: number
+    },
+) {
+    const chunkCount = calculateStringChunkCount(message, options)
+    let chunkIndex = -1
+    await options.interruptable.whileLoop(
+        async () => chunkIndex < chunkCount,
+        async () => {
+            chunkIndex += 1
+            const chunkContent = getStringChunk(message, chunkIndex, {
+                chunkSize: options.chunkSize,
+            })
+            await send(`chunk:${chunkIndex}:${chunkCount}:${chunkContent}`)
+        },
+    )
 }

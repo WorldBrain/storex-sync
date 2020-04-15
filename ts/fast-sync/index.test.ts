@@ -119,13 +119,9 @@ async function createWebRTCSyncChannels(options: {
     return {
         senderChannel: new WebRTCFastSyncChannel({
             peer: peers[0],
-            reEstablishConnection: async () => peers[0],
-            maxReconnectAttempts: 0,
         }),
         receiverChannel: new WebRTCFastSyncChannel({
             peer: peers[1],
-            reEstablishConnection: async () => peers[1],
-            maxReconnectAttempts: 0,
         }),
     }
 }
