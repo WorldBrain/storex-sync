@@ -21,6 +21,8 @@ import {
 } from '../fast-sync/types'
 import { resolvablePromise, getFastSyncInfo } from '../fast-sync/utils'
 import { EventEmitter } from 'events'
+import SimplePeer from 'simple-peer'
+import { BufferedEventEmitter } from './utils'
 
 export type InitialSyncInfo = {
     signalChannel: SignalChannel
@@ -33,36 +35,59 @@ export type InitialSyncInfo = {
 
 export type InitialSyncEvents = FastSyncEvents &
     SimplePeerSignallingEvents & {
-        connecting: {}
-        releasingSignalChannel: {}
-        connected: {}
-        preSyncSuccess: {}
-        finished: {}
+        fastSyncChannelCreated: (channel: FastSyncChannel) => void
+        connecting: () => void
+        reconnected: () => void
+        reconnect: (event: { attempt: number }) => void
+        releasingSignalChannel: () => void
+        connected: () => void
+        preSyncSuccess: () => void
+        finished: () => void
+        peerCrashed: () => void
+        crashed: () => void
     }
 
 export interface InitialSyncDependencies {
     storageManager: StorageManager
     signalTransportFactory: SignalTransportFactory
     syncedCollections: string[]
-    getIceServers?: () => Promise<any[]>
+    maxReconnectAttempts?: number
+    getIceServers?: () => Promise<string[]>
     batchSize?: number
     debug?: boolean
 }
-
 export type SignalTransportFactory = () => SignalTransport
+
+export const CONNECTION_MESSAGES = {
+    requestReconnect: 'reconnect.req',
+    confirmReconnect: 'reconnect.ack',
+    peerCrash: 'crashed',
+}
+
 export class InitialSync {
     events = new EventEmitter() as TypedEmitter<InitialSyncEvents>
-
-    public debug: boolean
-    public wrtc?: any // Possibility for tests to inject wrtc library
+    debug: boolean
+    wrtc?: any // Possibility for tests to inject wrtc library
+    peerName?: string // Only used for debug logging
 
     private fastSyncInfo?: InitialSyncInfo
+
+    private reconnectingPeer?: Promise<SimplePeer.Instance | null>
+    private reconnectAttempt = 0
+    private peerCrashed = false // An error occurred on the peer we're trying to sync to
+    private crashed = false
 
     constructor(protected dependencies: InitialSyncDependencies) {
         this.debug = !!dependencies.debug
         const origEmit = this.events.emit.bind(this.events) as any
         this.events.emit = ((eventName: string, event: any) => {
-            this._debugLog(`Event '${eventName}':`, event)
+            if (eventName !== 'fastSyncChannelCreated') {
+                if (event) {
+                    this._debugLog(`Event '${eventName}':`, event)
+                } else {
+                    this._debugLog(`Event '${eventName}'`)
+                }
+            }
             return origEmit(eventName, event)
         }) as any
     }
@@ -136,8 +161,17 @@ export class InitialSync {
             return
         }
 
+        this.reconnectAttempt = 0
+        delete this.reconnectingPeer
+        this.crashed = false
+        this.peerCrashed = false
+
         const info = this.fastSyncInfo
         delete this.fastSyncInfo
+
+        this.events.emit('releasingSignalChannel')
+        await info.signalChannel.release()
+
         info.events.emit = () => false
         await Promise.race([
             new Promise(resolve => setTimeout(resolve, 1000)),
@@ -187,11 +221,30 @@ export class InitialSync {
         const signalChannel = await options.signalTransport.openChannel(
             pick(options, 'initialMessage', 'deviceId'),
         )
+        signalChannel.events = new BufferedEventEmitter() as any
 
         const fastSyncChannel = await this.createFastSyncChannel({
             role: options.role,
             signalChannel,
         })
+        this.events.emit('fastSyncChannelCreated', fastSyncChannel.channel)
+
+        signalChannel.events.on('userMessage', ({ message }) => {
+            if (message === CONNECTION_MESSAGES.requestReconnect) {
+                fastSyncChannel.channel.replacePeer(
+                    this.attemptReconnect({
+                        role: options.role,
+                        signalChannel,
+                        reason: 'requested',
+                    }),
+                )
+            } else if (message === CONNECTION_MESSAGES.peerCrash) {
+                this.events.emit('peerCrashed')
+                this.peerCrashed = true
+                this.abortInitialSync()
+            }
+        })
+
         const fastSync = new FastSync({
             storageManager: this.dependencies.storageManager,
             channel: fastSyncChannel.channel,
@@ -199,7 +252,7 @@ export class InitialSync {
             preSendProcessor: this.getPreSendProcessor() || undefined,
             batchSize: this.dependencies.batchSize,
         })
-        fastSync.events.emit = ((eventName: any, event: any) => {
+        fastSync.events.on = ((eventName: any, event: any) => {
             return this.events.emit(eventName, event)
         }) as any
 
@@ -215,36 +268,44 @@ export class InitialSync {
         }
 
         const finishPromise: Promise<void> = (async () => {
-            this.events.emit('connecting', {})
+            this.events.emit('connecting')
             await fastSyncChannel.setup()
-            this.events.emit('connected', {})
+            this.events.emit('connected')
 
-            await this.preSync(buildInfo())
-            this.events.emit('preSyncSuccess', {})
-            const fastSyncInfo = await getFastSyncInfo(
-                this.dependencies.storageManager,
-                { collections: this.dependencies.syncedCollections },
-            )
-            const syncOrder = await this.negiotiateSyncOrder({
-                role: options.role,
-                channel: fastSyncChannel.channel,
-                fastSyncInfo,
-            })
             try {
-                await fastSync.execute({
+                await this.preSync(buildInfo())
+                this.events.emit('preSyncSuccess')
+                const fastSyncInfo = await getFastSyncInfo(
+                    this.dependencies.storageManager,
+                    { collections: this.dependencies.syncedCollections },
+                )
+                const syncOrder = await this.negiotiateSyncOrder({
                     role: options.role,
-                    bothWays: syncOrder,
+                    channel: fastSyncChannel.channel,
                     fastSyncInfo,
                 })
-            } catch (e) {
-                if (e.name !== 'ChannelDestroyedError') {
-                    throw e
+                try {
+                    await fastSync.execute({
+                        role: options.role,
+                        bothWays: syncOrder,
+                        fastSyncInfo,
+                    })
+                } catch (e) {
+                    if (e.name !== 'ChannelDestroyedError') {
+                        throw e
+                    }
                 }
-            }
-            this.events.emit('finished', {})
+                this.events.emit('finished')
 
-            if (!options.preserveChannel) {
-                await this.cleanupInitialSync()
+                if (!options.preserveChannel) {
+                    await this.cleanupInitialSync()
+                }
+            } catch (e) {
+                this.crashed = true
+                this.fastSyncInfo?.fastSync?.abort?.()
+                this.events.emit('error', { error: e })
+                signalChannel.sendUserMessage(CONNECTION_MESSAGES.peerCrash)
+                throw e
             }
         })()
 
@@ -312,6 +373,90 @@ export class InitialSync {
         })
     }
 
+    shouldAttemptReconnect = () => {
+        if (
+            !this.dependencies.maxReconnectAttempts ||
+            this.peerCrashed ||
+            this.crashed
+        ) {
+            return false
+        }
+
+        return this.reconnectAttempt < this.dependencies.maxReconnectAttempts
+    }
+
+    attemptReconnect = async (options: {
+        role: FastSyncRole
+        signalChannel: SignalChannel
+        reason: 'stalled' | 'requested'
+    }): Promise<SimplePeer.Instance | null> => {
+        if (this.reconnectingPeer) {
+            return this.reconnectingPeer
+        }
+        await options.signalChannel.sendUserMessage(
+            options.reason === 'stalled'
+                ? CONNECTION_MESSAGES.requestReconnect
+                : CONNECTION_MESSAGES.confirmReconnect,
+        )
+
+        console.log('start reconnecting')
+        const peer = (this.reconnectingPeer = (async () => {
+            console.log('entering promise')
+            this.reconnectAttempt = 0
+            while (this.shouldAttemptReconnect()) {
+                console.log('another attempt', this.reconnectAttempt)
+                this.reconnectAttempt += 1
+                this.events.emit('reconnect', {
+                    attempt: this.reconnectAttempt,
+                })
+                try {
+                    const peer = await this.recreatePeer(options)
+                    this.events.emit('reconnected')
+                    this.reconnectAttempt = 0
+                    return peer
+                } catch (err) {
+                    continue
+                }
+            }
+
+            return null
+        })())
+
+        return peer
+    }
+
+    private signalSimplePeer = async (options: {
+        role: FastSyncRole
+        signalChannel: SignalChannel
+        peer: SimplePeer.Instance
+        alreadyConnected?: boolean
+    }) => {
+        if (!options.alreadyConnected) {
+            await options.signalChannel.connect()
+        }
+        await signalSimplePeer({
+            signalChannel: options.signalChannel,
+            simplePeer: options.peer,
+            reporter: (eventName, event) =>
+                (this.events as any).emit(eventName, event),
+        })
+    }
+
+    async recreatePeer(options: {
+        role: FastSyncRole
+        signalChannel: SignalChannel
+    }) {
+        const peer = await this.getPeer({
+            initiator: options.role === 'receiver',
+        })
+        await this.signalSimplePeer({
+            ...options,
+            peer,
+            alreadyConnected: true,
+        })
+        return peer
+    }
+
     async createFastSyncChannel(options: {
         role: FastSyncRole
         signalChannel: SignalChannel
@@ -319,28 +464,28 @@ export class InitialSync {
         const peer = await this.getPeer({
             initiator: options.role === 'receiver',
         })
-        const channel: FastSyncChannel = new WebRTCFastSyncChannel({
+
+        const channel = new WebRTCFastSyncChannel({
             peer,
+            shouldAttemptReconnect: this.shouldAttemptReconnect,
+            reconnect: () =>
+                this.attemptReconnect({
+                    ...options,
+                    reason: 'stalled',
+                }),
         })
+
         return {
             channel,
-            setup: async () => {
-                await options.signalChannel.connect()
-                await signalSimplePeer({
-                    signalChannel: options.signalChannel,
-                    simplePeer: peer,
-                    reporter: (eventName, event) =>
-                        (this.events as any).emit(eventName, event),
-                })
-                this.events.emit('releasingSignalChannel', {})
-                await options.signalChannel.release()
-            },
+            setup: () => this.signalSimplePeer({ ...options, peer }),
         }
     }
 
+    count = 0
     _debugLog(...args: any[]) {
-        if (this.debug) {
-            console['log']('Initial Sync -', ...args)
+        if (this.debug && ++this.count < 500) {
+            const peerName = this.peerName ? ` ${this.peerName} -` : ``
+            console['log'](`Initial Sync -${peerName}`, ...args)
         }
     }
 }

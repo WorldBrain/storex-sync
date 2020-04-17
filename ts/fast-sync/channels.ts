@@ -14,7 +14,10 @@ import {
     calculateStringChunkCount,
     getStringChunk,
     receiveInChucks,
+    sendInChunks,
 } from './chunking'
+import Interruptable from './interruptable'
+import pick from 'lodash/pick'
 
 export class ChannelDestroyedError extends Error {
     name = 'ChannelDestroyedError'
@@ -26,9 +29,21 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     timeoutInMiliseconds = 10 * 1000
     preSend?: (syncPackage: FastSyncPackage) => Promise<void>
     postReceive?: (syncPackage: FastSyncPackage) => Promise<void>
+    peerName?: string
 
-    abstract _sendPackage(syncPackage: FastSyncPackage): Promise<void>
-    abstract _receivePackage(): Promise<FastSyncPackage>
+    private _packageCounter = 0
+
+    abstract _sendPackage(
+        syncPackage: FastSyncPackage,
+        options: {
+            interruptable: Interruptable
+            packageIndex: number
+        },
+    ): Promise<void>
+    abstract _receivePackage(options: {
+        interruptable: Interruptable
+        packageIndex: number
+    }): Promise<FastSyncPackage>
 
     abstract destroy(): Promise<void>
 
@@ -46,8 +61,7 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
         if (userPackage.type === 'user-package') {
             const innerPackage = userPackage.package
             if (
-                options &&
-                options.expectedType &&
+                options?.expectedType &&
                 innerPackage.type !== options.expectedType
             ) {
                 throw new Error(
@@ -117,9 +131,12 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     }
 
     async _receivePackageSafely() {
-        const syncPackage = await this._withStallingDetection(() =>
-            this._receivePackage(),
+        const packageIndex = ++this._packageCounter
+        this._debugLog('receiving package safely')
+        const syncPackage = await this._withStallingDetection(interruptable =>
+            this._receivePackage({ interruptable, packageIndex }),
         )
+        this._debugLog('received package safely', syncPackage)
 
         if (this.postReceive) {
             await this.postReceive(syncPackage)
@@ -128,21 +145,98 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
         return syncPackage
     }
 
-    async _sendPackageSafely(syncPackage: FastSyncPackage) {
+    async _sendPackageSafely(
+        syncPackage: FastSyncPackage<UserPackageType, false>,
+    ) {
+        const packageIndex = ++this._packageCounter
+        this._debugLog('sending package safely', syncPackage)
+        const syncPackageWithIndex: FastSyncPackage<UserPackageType> = {
+            ...syncPackage,
+            index: packageIndex,
+        }
         if (this.preSend) {
-            await this.preSend(syncPackage)
+            await this.preSend(syncPackageWithIndex)
         }
 
-        await this._withStallingDetection(() => this._sendPackage(syncPackage))
+        await this._withStallingDetection(interruptable =>
+            this._sendPackage(syncPackageWithIndex, {
+                interruptable,
+                packageIndex,
+            }),
+        )
+        this._debugLog('sent package safely', syncPackage)
     }
 
-    async _withStallingDetection<T>(f: () => Promise<T>) {
-        const stalledTimeout = setTimeout(() => {
-            this.events.emit('stalled')
-        }, this.timeoutInMiliseconds)
-        const toReturn = await f()
-        clearTimeout(stalledTimeout)
-        return toReturn
+    async _withStallingDetection<T>(
+        f: (interruptable: Interruptable) => Promise<T>,
+    ) {
+        while (true) {
+            const interruptable = new Interruptable({ throwOnCancelled: true })
+            const outcome = await Promise.race([
+                new Promise<{ type: 'success'; value: T }>(
+                    async (resolve, reject) => {
+                        try {
+                            resolve({
+                                type: 'success',
+                                value: await f(interruptable),
+                            })
+                        } catch (e) {
+                            reject(e)
+                        }
+                    },
+                ),
+                new Promise<{ type: 'timeout' }>(resolve =>
+                    setTimeout(
+                        () => resolve({ type: 'timeout' }),
+                        this.timeoutInMiliseconds,
+                    ),
+                ),
+            ])
+
+            // this._debugLog({ outcome })
+
+            if (outcome.type === 'success') {
+                return outcome.value
+            }
+            await interruptable.cancel()
+
+            this._debugLog('timeout, so reconnect')
+
+            if (!this.shouldAttemptReconnect()) {
+                this.events.emit('stalled')
+                await this.waitForNewConnection()
+            }
+
+            this._debugLog('should attempt')
+
+            const reconnected = await this.attemptReconnect()
+            if (!reconnected) {
+                this._debugLog('could not reconnect, so waiting')
+                this.events.emit('stalled')
+                await this.waitForNewConnection()
+            }
+
+            this._debugLog('reconnected, so retrying')
+        }
+    }
+
+    async waitForNewConnection() {
+        await new Promise(resolve => {})
+    }
+
+    shouldAttemptReconnect() {
+        return false
+    }
+
+    async attemptReconnect(): Promise<boolean> {
+        return false
+    }
+
+    _debugLog(...args: any[]) {
+        console.log(
+            `${this.peerName}, package ${this._packageCounter}`,
+            ...args,
+        )
     }
 }
 
@@ -153,16 +247,81 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
     dataHandler: (data: any) => void
 
     private destroyed = false
+    private peer: Promise<SimplePeer.Instance | null>
+    private newPeer = resolvablePromise<SimplePeer.Instance>()
 
-    constructor(private options: { peer: SimplePeer.Instance }) {
+    constructor(
+        private options: {
+            peer: SimplePeer.Instance
+            shouldAttemptReconnect?: () => boolean
+            reconnect?: () => Promise<SimplePeer.Instance | null>
+        },
+    ) {
         super()
+        this.peer = Promise.resolve(options.peer)
 
         this.dataHandler = (data: any) => {
             // This promise gets replaced after each received package
             // NOTE: This assumes package are sent and confirmed one by one
             this.dataReceived.resolve(data.toString())
         }
-        this.options.peer.on('data', this.dataHandler)
+
+        this.setupPeer(options.peer)
+    }
+
+    replacePeer(eventualPeer: Promise<SimplePeer.Instance | null>) {
+        this.peer = (async () => {
+            const currentPeer = await this.peer
+            if (currentPeer) {
+                currentPeer.removeListener('data', this.dataHandler)
+                currentPeer.destroy()
+            }
+            this.dataReceived = resolvablePromise()
+
+            const peer = await eventualPeer
+            if (peer) {
+                this.setupPeer(peer)
+                this.newPeer.resolve(peer)
+                this.newPeer = resolvablePromise()
+            }
+            return peer
+        })()
+    }
+
+    shouldAttemptReconnect() {
+        return this.options?.shouldAttemptReconnect?.() ?? false
+    }
+
+    async attemptReconnect() {
+        if (!this.options.reconnect) {
+            return false
+        }
+
+        this.replacePeer(this.options.reconnect())
+        try {
+            const peer = await this.peer
+            return !!peer
+        } catch (e) {
+            console.error('Error during reconnect')
+            console.error(e)
+            return false
+        }
+    }
+
+    async waitForNewConnection() {
+        await this.newPeer.promise
+    }
+
+    async waitForPeer(): Promise<SimplePeer.Instance> {
+        const peer = await this.peer
+        if (peer) {
+            return peer
+        }
+        return this.newPeer.promise
+    }
+
+    private setupPeer(peer: SimplePeer.Instance) {
+        peer.on('data', this.dataHandler)
     }
 
     async destroy() {
@@ -170,15 +329,23 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
             return
         }
 
-        this.options.peer.removeListener('data', this.dataHandler)
-        await this.options.peer.destroy()
+        const peer = await this.peer
+        if (peer) {
+            peer.removeListener('data', this.dataHandler)
+            await peer.destroy()
+        }
         this.destroyed = true
     }
 
     async _sendPackage(
         syncPackage: FastSyncPackage,
-        options?: { noChunking?: boolean },
+        options: {
+            interruptable: Interruptable
+            packageIndex: number
+            noChunking?: boolean
+        },
     ) {
+        this._debugLog('send package', syncPackage)
         if (this.destroyed) {
             throw new ChannelDestroyedError(
                 'Cannot send package through destroyed channel',
@@ -186,17 +353,23 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
         }
 
         const sendAndConfirm = async (data: string) => {
-            this.options.peer.send(data)
+            const peer = await this.waitForPeer()
+            await options.interruptable.execute(async () => {
+                peer.send(data)
 
-            const response = await this._receivePackage({
-                noChunking: true,
-                noConfirm: true,
+                this._debugLog('waiting for confirmation')
+                const response = await this._receivePackage({
+                    ...options,
+                    noChunking: true,
+                    noConfirm: true,
+                })
+                this._debugLog('got confirmation', response)
+
+                if (response.type !== 'confirm') {
+                    console.error(`Invalid confirmation received:`, response)
+                    throw new Error(`Invalid confirmation received`)
+                }
             })
-
-            if (response.type !== 'confirm') {
-                console.error(`Invalid confirmation received:`, response)
-                throw new Error(`Invalid confirmation received`)
-            }
         }
 
         const serialized = JSON.stringify(syncPackage)
@@ -204,22 +377,25 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
             return sendAndConfirm(serialized)
         }
 
-        const chunkSize = 10000
-        const chunkCount = calculateStringChunkCount(serialized, { chunkSize })
-        for (let chunkIndex = 0; chunkIndex < chunkCount; ++chunkIndex) {
-            const chunkContent = getStringChunk(serialized, chunkIndex, {
-                chunkSize,
-            })
-            await sendAndConfirm(
-                `chunk:${chunkIndex}:${chunkCount}:${chunkContent}`,
-            )
-        }
+        await sendInChunks(serialized, sendAndConfirm, {
+            interruptable: options.interruptable,
+            chunkSize: 10000,
+        })
+        this._debugLog('sent package', syncPackage)
     }
 
-    async _receivePackage(options?: {
+    async _receivePackage(options: {
+        interruptable: Interruptable
+        packageIndex: number
         noChunking?: boolean
         noConfirm?: boolean
     }): Promise<FastSyncPackage> {
+        this._debugLog(
+            'receiving package',
+            pick(options, 'noChunking', 'noConfirm'),
+        )
+        const { interruptable } = options
+
         if (this.destroyed) {
             throw new ChannelDestroyedError(
                 'Cannot receive package from destroyed channel',
@@ -232,26 +408,37 @@ export class WebRTCFastSyncChannel<UserPackageType> extends FastSyncChannelBase<
             return data
         }
         const maybeConfirm = async () => {
+            this._debugLog('maybeConfirm start', !options?.noConfirm)
             if (!options?.noConfirm) {
-                const confirmationPackage: FastSyncPackage = {
+                const confirmationPackage: FastSyncPackage<
+                    UserPackageType,
+                    false
+                > = {
                     type: 'confirm',
                 }
-                this.options.peer.send(JSON.stringify(confirmationPackage))
+                const peer = await this.waitForPeer()
+                peer.send(JSON.stringify(confirmationPackage))
             }
+            this._debugLog('maybeConfirm end', !options?.noConfirm)
         }
         const receiveAndMaybeConfirm = async () => {
-            const data = await receive()
-            await maybeConfirm()
-            return data
+            const data = await interruptable.execute(receive)
+            await interruptable.execute(maybeConfirm)
+            return data as string
         }
 
         const serialized = options?.noChunking
             ? await receiveAndMaybeConfirm()
-            : await receiveInChucks(receiveAndMaybeConfirm)
+            : await receiveInChucks(receiveAndMaybeConfirm, interruptable)
 
+        this._debugLog({ serialized })
         const syncPackage: FastSyncPackage = JSON.parse(
             serialized,
             jsonDateParser,
+        )
+        this._debugLog(
+            'received package',
+            pick(options, 'noChunking', 'noConfirm'),
         )
         return syncPackage
     }
@@ -289,7 +476,7 @@ function _createMemoryChannelPeer() {
 
     return {
         async sendPackage(syncPackage: FastSyncPackage) {
-            // console.log('sendPackage', syncPackage)
+            // this._debugLog('sendPackage', syncPackage)
             sendPackagePromise.resolve(syncPackage)
             await receivePackagePromise.promise
         },

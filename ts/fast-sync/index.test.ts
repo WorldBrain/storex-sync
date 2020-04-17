@@ -117,7 +117,9 @@ async function createWebRTCSyncChannels(options: {
     ])
 
     return {
-        senderChannel: new WebRTCFastSyncChannel({ peer: peers[0] }),
+        senderChannel: new WebRTCFastSyncChannel({
+            peer: peers[0],
+        }),
         receiverChannel: new WebRTCFastSyncChannel({
             peer: peers[1],
         }),

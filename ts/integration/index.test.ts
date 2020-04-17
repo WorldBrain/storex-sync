@@ -9,12 +9,13 @@ import {
     createMemorySharedSyncLog,
     lazyMemorySignalTransportFactory,
 } from './index.tests'
-import { registerModuleMapCollections } from '@worldbrain/storex-pattern-modules'
 import { FastSyncEvents } from '../fast-sync'
 import { PromiseContentType } from '../types.test'
+import { FastSyncChannel } from '../fast-sync/types'
 
 describe('Integration helpers', () => {
     async function setupTest(options: {
+        maxReconnectAttempts?: number
         collections: RegistryCollections
         continuousSyncDependenciesProcessor?: (
             deps: ContinuousSyncDependencies,
@@ -43,9 +44,13 @@ describe('Integration helpers', () => {
                 storageManager: client.storageManager,
                 signalTransportFactory,
                 syncedCollections: Object.keys(options.collections),
+                maxReconnectAttempts: options.maxReconnectAttempts ?? 0,
                 batchSize: 1,
             })
             initialSync.wrtc = wrtc
+            initialSync.events.on('error', ({ error }) => {
+                throw error
+            })
 
             const continuousSyncDeps: ContinuousSyncDependencies = {
                 auth: { getUserId: async () => 456 },
@@ -83,15 +88,21 @@ describe('Integration helpers', () => {
         }
 
         const doInitialSync = async (options: {
-            source: { initialSync: InitialSync }
-            target: { initialSync: InitialSync }
+            source: {
+                initialSync: InitialSync
+            }
+            target: {
+                initialSync: InitialSync
+            }
         }) => {
             const {
                 initialMessage,
             } = await options.source.initialSync.requestInitialSync()
+
             await options.target.initialSync.answerInitialSync({
                 initialMessage,
             })
+
             for (const client of [options.source, options.target]) {
                 await client.initialSync.waitForInitialSync()
             }
@@ -222,6 +233,82 @@ describe('Integration helpers', () => {
             },
             expectNoData: true,
         })
+    })
+
+    it('should re-establish connection if stall detected on receiver side during initial sync', async () => {
+        const { clients, integration, doInitialSync } = await setupTest({
+            maxReconnectAttempts: 1,
+            collections: {
+                test: {
+                    version: new Date(),
+                    fields: {
+                        key: { type: 'string' },
+                        label: { type: 'string' },
+                        createWhen: { type: 'datetime' },
+                    },
+                    indices: [{ field: 'key', pk: true }],
+                },
+            },
+        })
+        // integration[0].initialSync.debug = true
+        // integration[1].initialSync.debug = true
+        // integration[0].initialSync.peerName = `Peer 0`
+        // integration[1].initialSync.peerName = `Peer 1`
+
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test1)
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test2)
+        await clients[0].storageManager
+            .collection('test')
+            .createObject(TEST_DATA.test3)
+
+        let reconnected = false
+
+        integration[0].initialSync.events.on('reconnected', () => {
+            reconnected = true
+        })
+        integration[0].initialSync.events.on(
+            'fastSyncChannelCreated',
+            channel => {
+                // channel.timeoutInMiliseconds = 100;
+                ;(channel as any).peerName = 'Peer 0'
+            },
+        )
+        integration[1].initialSync.events.on(
+            'fastSyncChannelCreated',
+            channel => {
+                // let packageCounter = 0
+                // channel.preSend = async () => {
+                //     if (++packageCounter === 2) {
+                //         return new Promise(resolve => setTimeout(resolve, 200))
+                //     }
+                // }
+                // channel.timeoutInMiliseconds = 100;
+                ;(channel as any).peerName = 'Peer 1'
+            },
+        )
+
+        expect(reconnected).toBe(false)
+
+        await doInitialSync({
+            source: integration[0],
+            target: integration[1],
+        })
+
+        expect(reconnected).toBe(true)
+
+        expect(
+            await clients[1].storageManager
+                .collection('test')
+                .findObjects({}, { order: [['createdWhen', 'asc']] }),
+        ).toEqual([
+            (expect as any).objectContaining(TEST_DATA.test1),
+            (expect as any).objectContaining(TEST_DATA.test2),
+            (expect as any).objectContaining(TEST_DATA.test3),
+        ])
     })
 
     it('should not crash if trying to abort the sync without notifying the other side', async () => {

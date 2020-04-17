@@ -3,6 +3,7 @@ import TypedEmitter from 'typed-emitter'
 import StorageManager from '@worldbrain/storex'
 import {
     FastSyncInfo,
+    FastSyncChannelEvents,
     FastSyncProgress,
     FastSyncChannel,
     FastSyncRole,
@@ -29,15 +30,12 @@ export interface FastSyncPreSendProcessorParams {
     object: any
 }
 
-export interface FastSyncEvents {
+export interface FastSyncEvents extends FastSyncChannelEvents {
     prepared: (event: { syncInfo: FastSyncInfo; role: FastSyncRole }) => void
     progress: (event: {
         progress: FastSyncProgress
         role: FastSyncRole
     }) => void
-    stalled: () => void
-    paused: () => void
-    resumed: () => void
     roleSwitch: (event: { before: FastSyncRole; after: FastSyncRole }) => void
     error: (event: { error: string }) => void
 }
@@ -59,6 +57,7 @@ export class FastSync {
 
     constructor(private options: FastSyncOptions) {
         this.totalObjectsProcessed = 0
+        this.forwardReconnectEvents()
     }
 
     get state() {
@@ -104,9 +103,9 @@ export class FastSync {
     async send(options: { role: FastSyncRole; fastSyncInfo?: FastSyncInfo }) {
         const { channel } = this.options
 
-        channel.events.on('stalled', () => this.events.emit('stalled'))
         const interruptable = (this.interruptable = new Interruptable())
         this._state = 'running'
+
         try {
             const syncInfo =
                 options.fastSyncInfo ||
@@ -185,6 +184,15 @@ export class FastSync {
         })
     }
 
+    private forwardReconnectEvents() {
+        const events: any[] = ['stalled', 'reconnect', 'reconnected']
+        for (const event of events) {
+            this.options.channel.events.on(event, (e: any) =>
+                this.events.emit(event, e),
+            )
+        }
+    }
+
     async _preproccesObjects(params: { collection: string; objects: any[] }) {
         const preSendProcessor = this.options.preSendProcessor
         if (!preSendProcessor) {
@@ -213,11 +221,10 @@ export class FastSync {
             this._state = state === 'paused' ? 'paused' : 'running'
             this.events.emit(state)
         }
-        this.options.channel.events.on('stalled', () =>
-            this.events.emit('stalled'),
-        )
+
         this.options.channel.events.on('paused', stateChangeHandler('paused'))
         this.options.channel.events.on('resumed', stateChangeHandler('resumed'))
+
         try {
             const syncInfo = await this.options.channel.receiveSyncInfo()
             this.events.emit('prepared', { syncInfo, role: options.role })

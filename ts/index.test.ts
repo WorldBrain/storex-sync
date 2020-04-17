@@ -1366,7 +1366,7 @@ if (process.env.TEST_SYNC_FIRESTORE === 'true') {
                     {
                         sharedSyncLog: ({ storageManager }) =>
                             new SharedSyncLogStorage({
-                                storageManager,
+                                storageManager: storageManager as any,
                                 autoPkType: 'string',
                                 excludeTimestampChecks:
                                     !options || !options.includeTimestampChecks,
