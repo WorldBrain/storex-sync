@@ -12,12 +12,14 @@ export type FastSyncPackage<UserPackageType = any> =
     | { type: 'finish' }
     | { type: 'user-package'; package: UserPackageType }
 export interface FastSyncChannelEvents {
-    stalled: () => void
+    packageStalled: () => void
+    channelTimeout: () => void
     paused: () => void
     resumed: () => void
 }
 export interface FastSyncChannel<UserPackageType = any> {
-    timeoutInMiliseconds: number
+    packageTimeoutInMilliseconds: number
+    channelTimeoutInMilliseconds: number
     preSend?: (syncPackage: FastSyncPackage) => Promise<void>
     postReceive?: (syncPackage: FastSyncPackage) => Promise<void>
 
