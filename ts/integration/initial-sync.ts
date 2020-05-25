@@ -38,6 +38,7 @@ export type InitialSyncEvents = FastSyncEvents &
         connected: {}
         preSyncSuccess: {}
         finished: {}
+        setupContinuingWithoutICE: {}
     }
 
 export interface InitialSyncDependencies {
@@ -225,7 +226,7 @@ export class InitialSync {
                 this.dependencies.storageManager,
                 { collections: this.dependencies.syncedCollections },
             )
-            const syncOrder = await this.negiotiateSyncOrder({
+            const syncOrder = await this.negotiateSyncOrder({
                 role: options.role,
                 channel: fastSyncChannel.channel,
                 fastSyncInfo,
@@ -251,7 +252,7 @@ export class InitialSync {
         return buildInfo()
     }
 
-    async negiotiateSyncOrder(params: {
+    async negotiateSyncOrder(params: {
         role: FastSyncRole
         channel: FastSyncChannel
         fastSyncInfo: FastSyncInfo
@@ -292,12 +293,13 @@ export class InitialSync {
     async preSync(options: InitialSyncInfo) { }
 
     async getPeer(options: { initiator: boolean }): Promise<Peer.Instance> {
-        let iceServers = undefined
+        let iceServers
         try {
             iceServers = await this.dependencies.getIceServers?.()
         } catch (e) {
-            console.warn('An error occured while trying to get ICE servers, ignoring...')
+            console.warn('An error occurred while trying to get ICE servers, ignoring...')
             console.warn(e)
+            this.events.emit('setupContinuingWithoutICE', {e})
         }
         return new Peer({
             initiator: options.initiator,

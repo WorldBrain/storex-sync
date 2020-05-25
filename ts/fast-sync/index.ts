@@ -35,9 +35,10 @@ export interface FastSyncEvents {
         progress: FastSyncProgress
         role: FastSyncRole
     }) => void
-    stalled: () => void
     paused: () => void
     resumed: () => void
+    channelTimeout: () => void
+    packageStalled: () => void
     roleSwitch: (event: { before: FastSyncRole; after: FastSyncRole }) => void
     error: (event: { error: string }) => void
 }
@@ -84,6 +85,7 @@ export class FastSync {
             fastSyncInfo?: FastSyncInfo,
         ) => {
             this.totalObjectsProcessed = 0
+            this.setupTimeoutListeners(this.options.channel)
             if (role === 'sender') {
                 await this.send({ role, fastSyncInfo })
             } else {
@@ -104,7 +106,6 @@ export class FastSync {
     async send(options: { role: FastSyncRole; fastSyncInfo?: FastSyncInfo }) {
         const { channel } = this.options
 
-        channel.events.on('stalled', () => this.events.emit('stalled'))
         const interruptable = (this.interruptable = new Interruptable())
         this._state = 'running'
         try {
@@ -148,6 +149,11 @@ export class FastSync {
         } finally {
             this.interruptable = null
         }
+    }
+
+    private setupTimeoutListeners(channel: FastSyncChannel<any>) {
+        channel.events.on('channelTimeout', () => this.events.emit('channelTimeout'))
+        channel.events.on('packageStalled', () => this.events.emit('packageStalled'))
     }
 
     private async sendObjecsInCollection(
@@ -213,9 +219,7 @@ export class FastSync {
             this._state = state === 'paused' ? 'paused' : 'running'
             this.events.emit(state)
         }
-        this.options.channel.events.on('stalled', () =>
-            this.events.emit('stalled'),
-        )
+
         this.options.channel.events.on('paused', stateChangeHandler('paused'))
         this.options.channel.events.on('resumed', stateChangeHandler('resumed'))
         try {

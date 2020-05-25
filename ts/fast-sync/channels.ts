@@ -23,9 +23,11 @@ export class ChannelDestroyedError extends Error {
 abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     events = new EventEmitter() as TypedEmitter<FastSyncChannelEvents>
 
-    timeoutInMiliseconds = 10 * 1000
+    packageTimeoutInMilliseconds = 10 * 1000
+    channelTimeoutInMilliseconds = 60 * 1000
     preSend?: (syncPackage: FastSyncPackage) => Promise<void>
     postReceive?: (syncPackage: FastSyncPackage) => Promise<void>
+    channelTimeout?: NodeJS.Timer
 
     abstract _sendPackage(syncPackage: FastSyncPackage): Promise<void>
     abstract _receivePackage(): Promise<FastSyncPackage>
@@ -113,13 +115,15 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     }
 
     async finish() {
+        this._clearChannelTimeout()
         await this._sendPackageSafely({ type: 'finish' })
     }
 
     async _receivePackageSafely() {
-        const syncPackage = await this._withStallingDetection(() =>
+        const syncPackage = await this._withPackageStallingDetection(() =>
             this._receivePackage(),
         )
+        this._refreshChannelTimeout()
 
         if (this.postReceive) {
             await this.postReceive(syncPackage)
@@ -132,17 +136,30 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
         if (this.preSend) {
             await this.preSend(syncPackage)
         }
-
-        await this._withStallingDetection(() => this._sendPackage(syncPackage))
+        await this._withPackageStallingDetection(() => this._sendPackage(syncPackage))
+        this._refreshChannelTimeout()
     }
 
-    async _withStallingDetection<T>(f: () => Promise<T>) {
+    async _withPackageStallingDetection<T>(f: () => Promise<T>) {
         const stalledTimeout = setTimeout(() => {
-            this.events.emit('stalled')
-        }, this.timeoutInMiliseconds)
+            this.events.emit('packageStalled')
+        }, this.packageTimeoutInMilliseconds)
         const toReturn = await f()
         clearTimeout(stalledTimeout)
         return toReturn
+    }
+
+    _refreshChannelTimeout() {
+        this._clearChannelTimeout()
+        this.channelTimeout = setTimeout(() => {
+            this.events.emit('channelTimeout')
+        }, this.channelTimeoutInMilliseconds)
+    }
+
+    _clearChannelTimeout() {
+        if (this.channelTimeout) {
+            clearTimeout(this.channelTimeout)
+        }
     }
 }
 

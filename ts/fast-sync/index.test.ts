@@ -556,7 +556,7 @@ describe('Fast initial sync', () => {
 
         it('must detect on the receiver side the connection has stalled', async options => {
             const setup = await setupMinimalTest(options)
-            setup.channels.receiverChannel.timeoutInMiliseconds = 100
+            setup.channels.receiverChannel.packageTimeoutInMiliseconds = 100
             setup.channels.senderChannel.preSend = async () => {
                 return new Promise(resolve => setTimeout(resolve, 500))
             }
@@ -577,7 +577,7 @@ describe('Fast initial sync', () => {
 
         it('must detect on the sender side the connection has stalled', async options => {
             const setup = await setupMinimalTest(options)
-            setup.channels.senderChannel.timeoutInMiliseconds = 100
+            setup.channels.senderChannel.packageTimeoutInMiliseconds = 100
             setup.channels.receiverChannel.postReceive = async () => {
                 return new Promise(resolve => setTimeout(resolve, 400))
             }
