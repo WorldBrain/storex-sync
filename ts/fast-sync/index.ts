@@ -47,6 +47,7 @@ export class FastSync {
     public events: TypedEmitter<
         FastSyncEvents
     > = new EventEmitter() as TypedEmitter<FastSyncEvents>
+    processNonFatalError?: (event: { source: 'create-object', error: Error }) => ({ fatal: boolean })
 
     private totalObjectsProcessed: number
     private interruptable: Interruptable | null = null
@@ -237,10 +238,17 @@ export class FastSync {
             for await (const objectBatch of this.options.channel.streamObjectBatches()) {
                 // console.log('recv: start iter')
                 for (const object of objectBatch.objects) {
-                    await this.options.storageManager.backend.createObject(
-                        objectBatch.collection,
-                        object,
-                    )
+                    try {
+                        await this.options.storageManager.backend.createObject(
+                            objectBatch.collection,
+                            object,
+                        )
+                    } catch (e) {
+                        const { fatal } = this.processNonFatalError?.({ source: 'create-object', error: e }) ?? { fatal: true }
+                        if (fatal) {
+                            throw e
+                        }
+                    }
                 }
                 this.totalObjectsProcessed += objectBatch.objects.length
                 this.events.emit('progress', {
