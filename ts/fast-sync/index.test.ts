@@ -58,7 +58,7 @@ async function setupTest(options: TestOptions) {
     }
 
     function createEventSpy() {
-        let emittedEvents: Array<{ eventName: string; [key: string]: any }> = []
+        let emittedEvents: Array<{ eventName: string;[key: string]: any }> = []
         const listen = (events: EventEmitter) => {
             const emit = events.emit.bind(events)
             events.emit = ((eventName: string, event: any) => {
@@ -197,7 +197,7 @@ function makeTestFactory(runner: TestRunner) {
         description: string,
         test: (options: TestOptions) => Promise<void>,
     ) => {
-        it(description, async function() {
+        it(description, async function () {
             await runner(test, { skip: () => this.skip() })
         })
     }
@@ -395,74 +395,74 @@ describe('Fast initial sync', () => {
                 initialRole: FastSyncRole,
                 subsequentRole: FastSyncRole,
             ) => [
-                {
-                    eventName: 'prepared',
-                    role: initialRole,
-                    syncInfo: {
-                        ...expectedSyncInfoWhileReceiving,
+                    {
+                        eventName: 'prepared',
+                        role: initialRole,
+                        syncInfo: {
+                            ...expectedSyncInfoWhileReceiving,
+                        },
                     },
-                },
-                {
-                    eventName: 'progress',
-                    role: initialRole,
-                    progress: {
-                        ...expectedSyncInfoWhileReceiving,
-                        totalObjectsProcessed: 0,
+                    {
+                        eventName: 'progress',
+                        role: initialRole,
+                        progress: {
+                            ...expectedSyncInfoWhileReceiving,
+                            totalObjectsProcessed: 0,
+                        },
                     },
-                },
-                {
-                    eventName: 'progress',
-                    role: initialRole,
-                    progress: {
-                        ...expectedSyncInfoWhileReceiving,
-                        totalObjectsProcessed: 1,
+                    {
+                        eventName: 'progress',
+                        role: initialRole,
+                        progress: {
+                            ...expectedSyncInfoWhileReceiving,
+                            totalObjectsProcessed: 1,
+                        },
                     },
-                },
-                {
-                    eventName: 'roleSwitch',
-                    before: initialRole,
-                    after: subsequentRole,
-                },
-                {
-                    eventName: 'prepared',
-                    role: subsequentRole,
-                    syncInfo: {
-                        ...expectedSyncInfoWhileSending,
+                    {
+                        eventName: 'roleSwitch',
+                        before: initialRole,
+                        after: subsequentRole,
                     },
-                },
-                {
-                    eventName: 'progress',
-                    role: subsequentRole,
-                    progress: {
-                        ...expectedSyncInfoWhileSending,
-                        totalObjectsProcessed: 0,
+                    {
+                        eventName: 'prepared',
+                        role: subsequentRole,
+                        syncInfo: {
+                            ...expectedSyncInfoWhileSending,
+                        },
                     },
-                },
-                {
-                    eventName: 'progress',
-                    role: subsequentRole,
-                    progress: {
-                        ...expectedSyncInfoWhileSending,
-                        totalObjectsProcessed: 1,
+                    {
+                        eventName: 'progress',
+                        role: subsequentRole,
+                        progress: {
+                            ...expectedSyncInfoWhileSending,
+                            totalObjectsProcessed: 0,
+                        },
                     },
-                },
-                {
-                    eventName: 'progress',
-                    role: subsequentRole,
-                    progress: {
-                        ...expectedSyncInfoWhileSending,
-                        totalObjectsProcessed: 2,
+                    {
+                        eventName: 'progress',
+                        role: subsequentRole,
+                        progress: {
+                            ...expectedSyncInfoWhileSending,
+                            totalObjectsProcessed: 1,
+                        },
                     },
-                },
-                {
-                    eventName: 'progress',
-                    role: subsequentRole,
-                    progress: {
-                        ...expectedSyncInfoWhileSending,
-                        totalObjectsProcessed: 3,
+                    {
+                        eventName: 'progress',
+                        role: subsequentRole,
+                        progress: {
+                            ...expectedSyncInfoWhileSending,
+                            totalObjectsProcessed: 2,
+                        },
                     },
-                },
-            ]
+                    {
+                        eventName: 'progress',
+                        role: subsequentRole,
+                        progress: {
+                            ...expectedSyncInfoWhileSending,
+                            totalObjectsProcessed: 3,
+                        },
+                    },
+                ]
             expect(setup.senderEventSpy.popEvents()).toEqual(
                 allExpectedEvents('receiver', 'sender'),
             )
@@ -556,7 +556,7 @@ describe('Fast initial sync', () => {
 
         it('must detect on the receiver side the connection has stalled', async options => {
             const setup = await setupMinimalTest(options)
-            setup.channels.receiverChannel.packageTimeoutInMiliseconds = 100
+            setup.channels.receiverChannel.packageTimeoutInMilliseconds = 100
             setup.channels.senderChannel.preSend = async () => {
                 return new Promise(resolve => setTimeout(resolve, 500))
             }
@@ -577,7 +577,7 @@ describe('Fast initial sync', () => {
 
         it('must detect on the sender side the connection has stalled', async options => {
             const setup = await setupMinimalTest(options)
-            setup.channels.senderChannel.packageTimeoutInMiliseconds = 100
+            setup.channels.senderChannel.packageTimeoutInMilliseconds = 100
             setup.channels.receiverChannel.postReceive = async () => {
                 return new Promise(resolve => setTimeout(resolve, 400))
             }
@@ -631,7 +631,7 @@ describe('Fast initial sync', () => {
         })
     })
 
-    describe('WebRTC data channel with Firebase signalling', async function() {
+    describe('WebRTC data channel with Firebase signalling', async function () {
         runTests(async (test, options) => {
             if (
                 process.env.SKIP_WEBRTC_TESTS === 'true' ||
