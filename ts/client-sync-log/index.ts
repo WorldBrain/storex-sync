@@ -6,13 +6,15 @@ import {
 import { ClientSyncLogEntry } from './types'
 import { SharedSyncLogEntry } from '../shared-sync-log/types'
 import { UpdateObjectsBatchOperation } from '@worldbrain/storex'
+import { HISTORY } from './history'
 
 export class ClientSyncLogStorage extends StorageModule {
     getConfig(): StorageModuleConfig {
         return {
             collections: {
                 clientSyncLogEntry: {
-                    version: new Date('2019-02-05'),
+                    history: HISTORY.clientSyncLogEntry,
+                    version: new Date('2020-07-08'),
                     fields: {
                         createdOn: { type: 'timestamp' },
                         sharedOn: { type: 'timestamp', optional: true }, // when was this sent or received?
@@ -28,6 +30,8 @@ export class ClientSyncLogStorage extends StorageModule {
                         { field: ['deviceId', 'createdOn'], pk: true },
                         { field: 'createdOn' },
                         { field: ['collection', 'pk'] },
+                        { field: 'sharedOn' },
+                        { field: 'needsIntegration' },
                     ],
                 },
                 // clientSyncLogInfo: {
@@ -96,6 +100,8 @@ export class ClientSyncLogStorage extends StorageModule {
 
     async insertEntries(entries: ClientSyncLogEntry[]) {
         for (const entry of entries) {
+            entry.sharedOn = entry.sharedOn ?? null
+            entry.needsIntegration = entry.needsIntegration ?? true
             await this.operation('createEntry', entry)
         }
     }
@@ -201,6 +207,8 @@ export class ClientSyncLogStorage extends StorageModule {
             }),
         )
     }
+
+    debug = true
 
     async getNextEntriesToIntgrate(): Promise<ClientSyncLogEntry[] | null> {
         const firstEntryList = await this.operation(
