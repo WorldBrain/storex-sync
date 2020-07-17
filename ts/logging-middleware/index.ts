@@ -127,9 +127,9 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
             {
                 createMetadata: async () => ({
                     createdOn: await this._getNow(),
-                    sharedOn: null,
+                    sharedOn: 0,
                     deviceId: this.deviceId!,
-                    needsIntegration: false,
+                    needsIntegration: 0,
                 }),
                 storageRegistry: this.options.storageManager.registry,
             },

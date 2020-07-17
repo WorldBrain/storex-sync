@@ -1,8 +1,8 @@
 export interface ClientSyncLogEntryMetadata {
     createdOn: number | '$now'
-    sharedOn: number | null
+    sharedOn: number
     deviceId: number | string
-    needsIntegration: boolean
+    needsIntegration: 0 | 1
 }
 
 export interface ClientSyncLogEntryBase extends ClientSyncLogEntryMetadata {

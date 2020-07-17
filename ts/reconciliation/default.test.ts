@@ -75,7 +75,7 @@ const ACTION_ENTRIES: {
         operation: 'create',
         createdOn: 1,
         sharedOn: 52525252,
-        needsIntegration: false,
+        needsIntegration: 0,
         collection: 'customList',
         pk: 'list-one',
         value: { id: 'list-one', title: 'List one' },
@@ -85,7 +85,7 @@ const ACTION_ENTRIES: {
         deviceId: 'device-one',
         createdOn: 2,
         sharedOn: 525252,
-        needsIntegration: true,
+        needsIntegration: 1,
         collection: 'customList',
         pk: 'list-one',
         field: 'title',
@@ -97,7 +97,7 @@ const ACTION_ENTRIES: {
         operation: 'delete',
         createdOn: 1,
         sharedOn: 52525252,
-        needsIntegration: false,
+        needsIntegration: 0,
         collection: 'customList',
         pk: 'list-one',
     },
@@ -106,7 +106,7 @@ const ACTION_ENTRIES: {
         operation: 'create',
         createdOn: 1,
         sharedOn: 52525252,
-        needsIntegration: false,
+        needsIntegration: 0,
         collection: 'customList',
         pk: 'list-one',
         value: { title: 'List one recreated' },
@@ -116,7 +116,7 @@ const ACTION_ENTRIES: {
         operation: 'delete',
         createdOn: 1,
         sharedOn: 52525252,
-        needsIntegration: false,
+        needsIntegration: 0,
         collection: 'customList',
         pk: 'list-one',
     },
@@ -242,7 +242,7 @@ describe('Reconciliation', () => {
     TEST_CREATOR.suite(['creation'], ({ scenario }) => {
         scenario('with all entries needing integration', ({ entry }) => {
             test({
-                logEntries: [entry('creation', { needsIntegration: true })],
+                logEntries: [entry('creation', { needsIntegration: 1 })],
                 expectedOperations: [
                     {
                         operation: 'createObject',
@@ -261,11 +261,11 @@ describe('Reconciliation', () => {
                 test({
                     logEntries: [
                         entry('modification', {
-                            needsIntegration: false,
+                            needsIntegration: 0,
                             value: 'First title update',
                         }),
                         entry('modification', {
-                            needsIntegration: true,
+                            needsIntegration: 1,
                             value: 'Second title update',
                         }),
                     ],
@@ -285,11 +285,11 @@ describe('Reconciliation', () => {
             test({
                 logEntries: [
                     entry('modification', {
-                        needsIntegration: true,
+                        needsIntegration: 1,
                         value: 'First title update',
                     }),
                     entry('modification', {
-                        needsIntegration: true,
+                        needsIntegration: 1,
                         value: 'Second title update',
                     }),
                 ],
@@ -313,14 +313,14 @@ describe('Reconciliation', () => {
                     doubleCreateBehaviour: 'merge',
                     logEntries: [
                         entry('creation', {
-                            needsIntegration: false,
+                            needsIntegration: 0,
                             value: {
                                 id: 'list-one',
                                 title: 'first entry title',
                             },
                         }),
                         entry('creation', {
-                            needsIntegration: true,
+                            needsIntegration: 1,
                             value: {
                                 id: 'list-one',
                                 title: 'second entry title',
@@ -344,11 +344,11 @@ describe('Reconciliation', () => {
                 doubleCreateBehaviour: 'merge',
                 logEntries: [
                     entry('creation', {
-                        needsIntegration: true,
+                        needsIntegration: 1,
                         value: { id: 'list-one', title: 'first entry title' },
                     }),
                     entry('creation', {
-                        needsIntegration: true,
+                        needsIntegration: 1,
                         value: { id: 'list-one', title: 'second entry title' },
                     }),
                 ],
@@ -369,9 +369,9 @@ describe('Reconciliation', () => {
             scenario('with only deletion needing integration', ({ entry }) => {
                 test({
                     logEntries: [
-                        entry('creation', { needsIntegration: false }),
-                        entry('modification', { needsIntegration: false }),
-                        entry('deletion', { needsIntegration: true }),
+                        entry('creation', { needsIntegration: 0 }),
+                        entry('modification', { needsIntegration: 0 }),
+                        entry('deletion', { needsIntegration: 1 }),
                     ],
                     expectedOperations: [
                         {
@@ -388,9 +388,9 @@ describe('Reconciliation', () => {
                 ({ entry }) => {
                     test({
                         logEntries: [
-                            entry('creation', { needsIntegration: false }),
-                            entry('modification', { needsIntegration: true }),
-                            entry('deletion', { needsIntegration: true }),
+                            entry('creation', { needsIntegration: 0 }),
+                            entry('modification', { needsIntegration: 1 }),
+                            entry('deletion', { needsIntegration: 1 }),
                         ],
                         expectedOperations: [
                             {
@@ -406,9 +406,9 @@ describe('Reconciliation', () => {
             scenario('with all entries needing integration', ({ entry }) => {
                 test({
                     logEntries: [
-                        entry('creation', { needsIntegration: true }),
-                        entry('modification', { needsIntegration: true }),
-                        entry('deletion', { needsIntegration: true }),
+                        entry('creation', { needsIntegration: 1 }),
+                        entry('modification', { needsIntegration: 1 }),
+                        entry('deletion', { needsIntegration: 1 }),
                     ],
                     expectedOperations: [],
                 })
@@ -422,16 +422,16 @@ describe('Reconciliation', () => {
             scenario('with only deletion needing integration', ({ entry }) => {
                 test({
                     logEntries: [
-                        entry('creation', { needsIntegration: false }),
+                        entry('creation', { needsIntegration: 0 }),
                         entry('modification', {
-                            needsIntegration: false,
+                            needsIntegration: 0,
                             value: 'first',
                         }),
                         entry('modification', {
-                            needsIntegration: false,
+                            needsIntegration: 0,
                             value: 'second',
                         }),
-                        entry('deletion', { needsIntegration: true }),
+                        entry('deletion', { needsIntegration: 1 }),
                     ],
                     expectedOperations: [
                         {
@@ -448,16 +448,16 @@ describe('Reconciliation', () => {
                 ({ entry }) => {
                     test({
                         logEntries: [
-                            entry('creation', { needsIntegration: false }),
+                            entry('creation', { needsIntegration: 0 }),
                             entry('modification', {
-                                needsIntegration: false,
+                                needsIntegration: 0,
                                 value: 'first',
                             }),
                             entry('modification', {
-                                needsIntegration: true,
+                                needsIntegration: 1,
                                 value: 'second',
                             }),
-                            entry('deletion', { needsIntegration: true }),
+                            entry('deletion', { needsIntegration: 1 }),
                         ],
                         expectedOperations: [
                             {
@@ -475,16 +475,16 @@ describe('Reconciliation', () => {
                 ({ entry }) => {
                     test({
                         logEntries: [
-                            entry('creation', { needsIntegration: false }),
+                            entry('creation', { needsIntegration: 0 }),
                             entry('modification', {
-                                needsIntegration: true,
+                                needsIntegration: 1,
                                 value: 'first',
                             }),
                             entry('modification', {
-                                needsIntegration: true,
+                                needsIntegration: 1,
                                 value: 'second',
                             }),
-                            entry('deletion', { needsIntegration: true }),
+                            entry('deletion', { needsIntegration: 1 }),
                         ],
                         expectedOperations: [
                             {
@@ -500,16 +500,16 @@ describe('Reconciliation', () => {
             scenario('with all entries needing integration', ({ entry }) => {
                 test({
                     logEntries: [
-                        entry('creation', { needsIntegration: true }),
+                        entry('creation', { needsIntegration: 1 }),
                         entry('modification', {
-                            needsIntegration: true,
+                            needsIntegration: 1,
                             value: 'first',
                         }),
                         entry('modification', {
-                            needsIntegration: true,
+                            needsIntegration: 1,
                             value: 'second',
                         }),
-                        entry('deletion', { needsIntegration: true }),
+                        entry('deletion', { needsIntegration: 1 }),
                     ],
                     expectedOperations: [],
                 })
@@ -524,7 +524,7 @@ describe('Reconciliation', () => {
                 operation: 'modify',
                 createdOn: 2,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
@@ -535,7 +535,7 @@ describe('Reconciliation', () => {
                 operation: 'modify',
                 createdOn: 1,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
@@ -563,7 +563,7 @@ describe('Reconciliation', () => {
                 operation: 'modify',
                 createdOn: 2,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
@@ -574,7 +574,7 @@ describe('Reconciliation', () => {
                 operation: 'delete',
                 createdOn: 1,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
             },
@@ -599,7 +599,7 @@ describe('Reconciliation', () => {
                 operation: 'delete',
                 createdOn: 1,
                 sharedOn: 3,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
             },
@@ -608,7 +608,7 @@ describe('Reconciliation', () => {
                 operation: 'modify',
                 createdOn: 2,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
@@ -619,7 +619,7 @@ describe('Reconciliation', () => {
                 operation: 'delete',
                 createdOn: 4,
                 sharedOn: 3,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
             },
@@ -646,7 +646,7 @@ describe('Reconciliation', () => {
                 operation: 'delete',
                 createdOn: 1,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
             },
@@ -671,7 +671,7 @@ describe('Reconciliation', () => {
                 operation: 'delete',
                 createdOn: 1,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
             },
@@ -680,7 +680,7 @@ describe('Reconciliation', () => {
                 operation: 'delete',
                 createdOn: 4,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
             },
@@ -705,7 +705,7 @@ describe('Reconciliation', () => {
                 operation: 'delete',
                 createdOn: 4,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'listEntry',
                 pk: ['list-one', 3],
             },
@@ -727,8 +727,8 @@ describe('Reconciliation', () => {
         scenario('with only modification needing integration', ({ entry }) => {
             test({
                 logEntries: [
-                    entry('creation', { needsIntegration: false }),
-                    entry('modification', { needsIntegration: true }),
+                    entry('creation', { needsIntegration: 0 }),
+                    entry('modification', { needsIntegration: 1 }),
                 ],
                 expectedOperations: [
                     {
@@ -744,8 +744,8 @@ describe('Reconciliation', () => {
         scenario('with all entries needing integration', ({ entry }) => {
             test({
                 logEntries: [
-                    entry('creation', { needsIntegration: true }),
-                    entry('modification', { needsIntegration: true }),
+                    entry('creation', { needsIntegration: 1 }),
+                    entry('modification', { needsIntegration: 1 }),
                 ],
                 expectedOperations: [
                     {
@@ -765,7 +765,7 @@ describe('Reconciliation', () => {
                 operation: 'modify',
                 createdOn: 2,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
                 field: 'title',
@@ -776,7 +776,7 @@ describe('Reconciliation', () => {
                 operation: 'create',
                 createdOn: 1,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
                 value: { pk: 'list-one', title: 'first', prio: 5 },
@@ -786,7 +786,7 @@ describe('Reconciliation', () => {
                 operation: 'delete',
                 createdOn: 3,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
             },
@@ -803,9 +803,9 @@ describe('Reconciliation', () => {
                 ({ entry }) => {
                     test({
                         logEntries: [
-                            entry('creation', { needsIntegration: false }),
-                            entry('deletion', { needsIntegration: false }),
-                            entry('recreation', { needsIntegration: true }),
+                            entry('creation', { needsIntegration: 0 }),
+                            entry('deletion', { needsIntegration: 0 }),
+                            entry('recreation', { needsIntegration: 1 }),
                         ],
                         expectedOperations: [
                             {
@@ -826,9 +826,9 @@ describe('Reconciliation', () => {
                 ({ entry }) => {
                     test({
                         logEntries: [
-                            entry('creation', { needsIntegration: false }),
-                            entry('deletion', { needsIntegration: true }),
-                            entry('recreation', { needsIntegration: true }),
+                            entry('creation', { needsIntegration: 0 }),
+                            entry('deletion', { needsIntegration: 1 }),
+                            entry('recreation', { needsIntegration: 1 }),
                         ],
                         expectedOperations: [
                             {
@@ -852,9 +852,9 @@ describe('Reconciliation', () => {
             scenario('all entries needing integration', ({ entry }) => {
                 test({
                     logEntries: [
-                        entry('creation', { needsIntegration: true }),
-                        entry('deletion', { needsIntegration: true }),
-                        entry('recreation', { needsIntegration: true }),
+                        entry('creation', { needsIntegration: 1 }),
+                        entry('deletion', { needsIntegration: 1 }),
+                        entry('recreation', { needsIntegration: 1 }),
                     ],
                     expectedOperations: [
                         {
@@ -877,9 +877,9 @@ describe('Reconciliation', () => {
             scenario('with only redelete needing integration', ({ entry }) => {
                 test({
                     logEntries: [
-                        entry('deletion', { needsIntegration: false }),
-                        entry('recreation', { needsIntegration: false }),
-                        entry('redeletion', { needsIntegration: true }),
+                        entry('deletion', { needsIntegration: 0 }),
+                        entry('recreation', { needsIntegration: 0 }),
+                        entry('redeletion', { needsIntegration: 1 }),
                     ],
                     expectedOperations: [
                         {
@@ -896,9 +896,9 @@ describe('Reconciliation', () => {
                 ({ entry }) => {
                     test({
                         logEntries: [
-                            entry('deletion', { needsIntegration: false }),
-                            entry('recreation', { needsIntegration: true }),
-                            entry('redeletion', { needsIntegration: true }),
+                            entry('deletion', { needsIntegration: 0 }),
+                            entry('recreation', { needsIntegration: 1 }),
+                            entry('redeletion', { needsIntegration: 1 }),
                         ],
                         expectedOperations: [],
                     })
@@ -908,9 +908,9 @@ describe('Reconciliation', () => {
             scenario('with all entries needing integration', ({ entry }) => {
                 test({
                     logEntries: [
-                        entry('deletion', { needsIntegration: true }),
-                        entry('recreation', { needsIntegration: true }),
-                        entry('redeletion', { needsIntegration: true }),
+                        entry('deletion', { needsIntegration: 1 }),
+                        entry('recreation', { needsIntegration: 1 }),
+                        entry('redeletion', { needsIntegration: 1 }),
                     ],
                     expectedOperations: [
                         {
@@ -928,8 +928,8 @@ describe('Reconciliation', () => {
         scenario('with only modification needing integration', ({ entry }) => {
             test({
                 logEntries: [
-                    entry('deletion', { needsIntegration: false }),
-                    entry('modification', { needsIntegration: true }),
+                    entry('deletion', { needsIntegration: 0 }),
+                    entry('modification', { needsIntegration: 1 }),
                 ],
                 expectedOperations: [],
             })
@@ -938,8 +938,8 @@ describe('Reconciliation', () => {
         scenario('with all entries needing integration', ({ entry }) => {
             test({
                 logEntries: [
-                    entry('deletion', { needsIntegration: true }),
-                    entry('modification', { needsIntegration: true }),
+                    entry('deletion', { needsIntegration: 1 }),
+                    entry('modification', { needsIntegration: 1 }),
                 ],
                 expectedOperations: [
                     {
@@ -959,7 +959,7 @@ describe('Reconciliation', () => {
                 operation: 'delete',
                 createdOn: 2,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
             },
@@ -968,7 +968,7 @@ describe('Reconciliation', () => {
                 operation: 'create',
                 createdOn: 3,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
                 value: { title: 'List one' },
@@ -999,7 +999,7 @@ describe('Reconciliation', () => {
                 operation: 'create',
                 createdOn: 1,
                 sharedOn: 1,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
                 value: { pk: 'list-one', title: 'first', prio: 5 },
@@ -1009,7 +1009,7 @@ describe('Reconciliation', () => {
                 operation: 'create',
                 createdOn: 2,
                 sharedOn: 52525252,
-                needsIntegration: true,
+                needsIntegration: 1,
                 collection: 'customList',
                 pk: 'list-one',
                 value: { pk: 'list-one', title: 'first', prio: 5 },

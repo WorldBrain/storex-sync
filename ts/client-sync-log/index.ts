@@ -104,7 +104,7 @@ export class ClientSyncLogStorage extends StorageModule {
                     operation: 'findObjects',
                     collection: 'clientSyncLogEntry',
                     args: [
-                        { needsIntegration: true },
+                        { needsIntegration: 1 },
                         { order: [['createdOn', 'asc']], limit: 1 },
                     ],
                 },
@@ -141,7 +141,7 @@ export class ClientSyncLogStorage extends StorageModule {
                                 ? Date.now()
                                 : options.now,
                         deviceId: sharedEntry.deviceId,
-                        needsIntegration: true,
+                        needsIntegration: 1 as 1,
                         collection: data.collection,
                         pk: data.pk,
                     }
@@ -222,7 +222,7 @@ export class ClientSyncLogStorage extends StorageModule {
                     createdOn: entry.createdOn,
                 },
                 updates: {
-                    needsIntegration: false,
+                    needsIntegration: 0,
                 },
             }),
         )
