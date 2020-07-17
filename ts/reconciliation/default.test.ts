@@ -125,7 +125,7 @@ const ACTION_ENTRIES: {
 interface SyncTestContext {
     entry: (
         type: Event,
-        options: { needsIntegration: boolean; value?: any },
+        options: { needsIntegration: 1 | 0; value?: any },
     ) => ClientSyncLogEntry
 }
 interface SyncFlowTestInfo {
@@ -133,7 +133,7 @@ interface SyncFlowTestInfo {
     scenarios: Array<SyncFlowScenarioTestInfo>
 }
 interface SyncFlowScenarioTestInfo {
-    steps: Array<{ type: Event; needsIntegration: boolean }>
+    steps: Array<{ type: Event; needsIntegration: 1 | 0 }>
 }
 
 interface TestSuiteConfiguration {
@@ -169,7 +169,7 @@ class TestCreator {
                             entry: (
                                 type: Event,
                                 options: {
-                                    needsIntegration: boolean
+                                    needsIntegration: 1 | 0
                                     value?: any
                                 },
                             ) => {
@@ -197,15 +197,15 @@ describe('Reconciliation', () => {
     if (process.env.SKIP_SYNC_FLOW_CHECKS !== 'true') {
         after('we should have tested all necessary flows', () => {
             const testedFlows = new Set(
-                TEST_CREATOR.tested.map(scenarioInfo =>
+                TEST_CREATOR.tested.map((scenarioInfo) =>
                     scenarioInfo.flow.join(', '),
                 ),
             )
             const requiredFlows = new Set(
-                TEST_FLOWS.map(flow => flow.join(', ')),
+                TEST_FLOWS.map((flow) => flow.join(', ')),
             )
             const missingFlows = new Set(
-                [...requiredFlows].filter(flow => !testedFlows.has(flow)),
+                [...requiredFlows].filter((flow) => !testedFlows.has(flow)),
             )
             expect({ missingFlows }).toEqual({ missingFlows: new Set() })
 

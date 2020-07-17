@@ -85,14 +85,14 @@ export class ClientSyncLogStorage extends StorageModule {
                     operation: 'findObjects',
                     collection: 'clientSyncLogEntry',
                     args: {
-                        sharedOn: { $eq: null },
+                        sharedOn: { $eq: 0 },
                     },
                 },
                 findUnsharedEntryBatch: {
                     operation: 'findObjects',
                     collection: 'clientSyncLogEntry',
                     args: [
-                        { sharedOn: { $eq: null } },
+                        { sharedOn: { $eq: 0 } },
                         { limit: '$limit:number' },
                     ],
                 },
