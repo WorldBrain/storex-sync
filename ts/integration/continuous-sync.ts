@@ -10,6 +10,7 @@ import {
     SyncPostReceiveProcessor,
     SyncOptions,
     SyncReturnValue,
+    ExecuteReconciliationOperation,
 } from '../'
 import { ClientSyncLogStorage } from '../client-sync-log'
 import { RecurringTask } from '../utils/recurring-task'
@@ -29,7 +30,8 @@ export interface ContinuousSyncDependencies {
     singleBatch?: boolean
     debug?: boolean
     toggleSyncLogging: ((enabled: true, deviceId: string | number) => void) &
-        ((enabled: false) => void)
+    ((enabled: false) => void)
+    executeReconciliationOperation?: ExecuteReconciliationOperation
 }
 export interface ContinuousSyncEvents {
     syncStarted(): void
@@ -83,7 +85,7 @@ export class ContinuousSync {
                 },
                 {
                     intervalInMs: this.dependencies.frequencyInMs,
-                    onError: () => {},
+                    onError: () => { },
                 },
             )
         }
@@ -235,14 +237,15 @@ export class ContinuousSync {
             serializer: this.getSerializer() || undefined,
             preSend: this.getPreSendProcessor() || undefined,
             postReceive: this.getPostReceiveProcessor() || undefined,
+            executeReconciliationOperation: this.dependencies.executeReconciliationOperation,
         }
     }
 
-    getPreSendProcessor(): SyncPreSendProcessor | void {}
+    getPreSendProcessor(): SyncPreSendProcessor | void { }
 
-    getPostReceiveProcessor(): SyncPostReceiveProcessor | void {}
+    getPostReceiveProcessor(): SyncPostReceiveProcessor | void { }
 
-    getSerializer(): SyncSerializer | void {}
+    getSerializer(): SyncSerializer | void { }
 
     _debugLog(...args: any[]) {
         if (this.debug) {
