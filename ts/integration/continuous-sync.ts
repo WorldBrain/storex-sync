@@ -205,6 +205,7 @@ export class ContinuousSync {
                 syncOptions.syncEvents.removeAllListeners('reconciledEntries')
             }
         } catch (error) {
+            console.error(error)
             this.events.emit('syncFinished', { hasChanges: false, error })
         } finally {
             this.runningSync = null
