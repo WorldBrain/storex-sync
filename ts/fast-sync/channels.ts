@@ -24,7 +24,7 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
     events = new EventEmitter() as TypedEmitter<FastSyncChannelEvents>
 
     packageTimeoutInMilliseconds = 10 * 1000
-    channelTimeoutInMilliseconds = 60 * 1000
+    channelTimeoutInMilliseconds = 180 * 1000
     preSend?: (syncPackage: FastSyncPackage) => Promise<void>
     postReceive?: (syncPackage: FastSyncPackage) => Promise<void>
     channelTimeout?: NodeJS.Timer
@@ -136,7 +136,9 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
         if (this.preSend) {
             await this.preSend(syncPackage)
         }
-        await this._withPackageStallingDetection(() => this._sendPackage(syncPackage))
+        await this._withPackageStallingDetection(() =>
+            this._sendPackage(syncPackage),
+        )
         this._refreshChannelTimeout()
     }
 
