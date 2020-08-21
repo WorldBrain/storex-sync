@@ -7,7 +7,7 @@ import { ClientSyncLogStorage } from './'
 import { ClientSyncLogEntry } from './types'
 import { TypeORMStorageBackend } from '@worldbrain/storex-backend-typeorm'
 
-const TEST_LOG_ENTRIES: ClientSyncLogEntry[] = [
+const TEST_LOG_ENTRIES: (ClientSyncLogEntry & { field: string | null })[] = [
     {
         deviceId: 'device-one',
         createdOn: 2,
@@ -16,6 +16,7 @@ const TEST_LOG_ENTRIES: ClientSyncLogEntry[] = [
         collection: 'user',
         pk: '1:1',
         operation: 'create',
+        field: null,
         value: { displayName: 'Joe' },
     },
     {
@@ -26,6 +27,7 @@ const TEST_LOG_ENTRIES: ClientSyncLogEntry[] = [
         collection: 'user',
         pk: '2:1',
         operation: 'create',
+        field: null,
         value: { displayName: 'Joe' },
     },
     {
@@ -36,6 +38,7 @@ const TEST_LOG_ENTRIES: ClientSyncLogEntry[] = [
         collection: 'user',
         pk: '1:2',
         operation: 'create',
+        field: null,
         value: { displayName: 'Joe' },
     },
 ]
@@ -76,6 +79,20 @@ function makeTestFactory(dependencies: TestDependencies) {
 function clientSyncLogTests(dependencies: TestDependencies) {
     const it = makeTestFactory(dependencies)
 
+    function normalizeEntries(
+        entries?: ClientSyncLogEntry[] | null,
+    ): ClientSyncLogEntry[] | undefined | null {
+        if (!entries) {
+            return entries
+        }
+
+        return entries.map(entry => ({
+            ...entry,
+            field: 'field' in entry && entry.field ? entry.field : null,
+            needsIntegration: entry.needsIntegration ? 1 : 0,
+        }))
+    }
+
     it('should store and retrieve entries correctly', async ({
         syncLogStorage,
     }) => {
@@ -84,13 +101,12 @@ function clientSyncLogTests(dependencies: TestDependencies) {
             TEST_LOG_ENTRIES[2],
         ])
 
-        expect(await syncLogStorage.getEntriesCreatedAfter(2)).toEqual([
-            { ...TEST_LOG_ENTRIES[0] },
-            { ...TEST_LOG_ENTRIES[2] },
-        ])
-        expect(await syncLogStorage.getEntriesCreatedAfter(3)).toEqual([
-            { ...TEST_LOG_ENTRIES[2] },
-        ])
+        expect(
+            normalizeEntries(await syncLogStorage.getEntriesCreatedAfter(2)),
+        ).toEqual([{ ...TEST_LOG_ENTRIES[0] }, { ...TEST_LOG_ENTRIES[2] }])
+        expect(
+            normalizeEntries(await syncLogStorage.getEntriesCreatedAfter(3)),
+        ).toEqual([{ ...TEST_LOG_ENTRIES[2] }])
     })
 
     it('should store and retrieve entries received out-of-order correctly', async ({
@@ -102,7 +118,9 @@ function clientSyncLogTests(dependencies: TestDependencies) {
         ])
         await syncLogStorage.insertEntries([TEST_LOG_ENTRIES[1]])
 
-        expect(await syncLogStorage.getEntriesCreatedAfter(2)).toEqual([
+        expect(
+            normalizeEntries(await syncLogStorage.getEntriesCreatedAfter(2)),
+        ).toEqual([
             { ...TEST_LOG_ENTRIES[0] },
             { ...TEST_LOG_ENTRIES[1] },
             { ...TEST_LOG_ENTRIES[2] },
@@ -117,7 +135,9 @@ function clientSyncLogTests(dependencies: TestDependencies) {
         ])
         await syncLogStorage.updateSharedUntil({ until: 3, sharedOn: 6 })
 
-        expect(await syncLogStorage.getEntriesCreatedAfter(2)).toEqual([
+        expect(
+            normalizeEntries(await syncLogStorage.getEntriesCreatedAfter(2)),
+        ).toEqual([
             { ...TEST_LOG_ENTRIES[0], sharedOn: 6 },
             { ...TEST_LOG_ENTRIES[1], sharedOn: 6 },
             { ...TEST_LOG_ENTRIES[2] },
@@ -134,10 +154,9 @@ function clientSyncLogTests(dependencies: TestDependencies) {
         await syncLogStorage.insertEntries([TEST_LOG_ENTRIES[1]])
         await syncLogStorage.updateSharedUntil({ until: 2, sharedOn: 6 })
 
-        expect(await syncLogStorage.getUnsharedEntries()).toEqual([
-            { ...TEST_LOG_ENTRIES[1] },
-            { ...TEST_LOG_ENTRIES[2] },
-        ])
+        expect(
+            normalizeEntries(await syncLogStorage.getUnsharedEntries()),
+        ).toEqual([{ ...TEST_LOG_ENTRIES[1] }, { ...TEST_LOG_ENTRIES[2] }])
     })
 
     it('should be able to insert entries received from shared log', async ({
@@ -160,7 +179,9 @@ function clientSyncLogTests(dependencies: TestDependencies) {
             })),
             { now },
         )
-        expect(await syncLogStorage.getEntriesCreatedAfter(1)).toEqual([
+        expect(
+            normalizeEntries(await syncLogStorage.getEntriesCreatedAfter(1)),
+        ).toEqual([
             {
                 createdOn: 2,
                 deviceId: 'u1d1',
@@ -168,7 +189,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
                 needsIntegration: 1,
                 collection: 'user',
                 pk: '1:1',
-                field: undefined,
+                field: null,
                 operation: 'create',
                 value: { displayName: 'Joe' },
             },
@@ -178,7 +199,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
     it('should be able to mark entries as integrated', async ({
         syncLogStorage,
     }) => {
-        const entries: ClientSyncLogEntry[] = [
+        const entries: (ClientSyncLogEntry & { field: null })[] = [
             {
                 deviceId: 'device-one',
                 createdOn: 2,
@@ -187,6 +208,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
                 operation: 'create',
                 collection: 'user',
                 pk: '1:1',
+                field: null,
                 value: { displayName: 'Joe' },
             },
             {
@@ -197,6 +219,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
                 operation: 'create',
                 collection: 'user',
                 pk: '1:2',
+                field: null,
                 value: { displayName: 'Joe' },
             },
         ]
@@ -205,7 +228,9 @@ function clientSyncLogTests(dependencies: TestDependencies) {
         await syncLogStorage.markAsIntegrated(
             await syncLogStorage.getEntriesCreatedAfter(1),
         )
-        expect(await syncLogStorage.getEntriesCreatedAfter(1)).toEqual([
+        expect(
+            normalizeEntries(await syncLogStorage.getEntriesCreatedAfter(1)),
+        ).toEqual([
             { ...entries[0], needsIntegration: 0 },
             { ...entries[1], needsIntegration: 0 },
         ])
@@ -215,7 +240,10 @@ function clientSyncLogTests(dependencies: TestDependencies) {
         it('should be able to get all relevant operations that happened to a single object', async ({
             syncLogStorage,
         }) => {
-            const entries: ClientSyncLogEntry[] = [
+            const entries: (ClientSyncLogEntry & {
+                field: string | null
+                value: any
+            })[] = [
                 {
                     deviceId: 'device-one',
                     createdOn: 2,
@@ -224,6 +252,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
                     operation: 'create',
                     collection: 'user',
                     pk: '1:1',
+                    field: null,
                     value: { displayName: 'Joe' },
                 },
                 {
@@ -234,6 +263,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
                     operation: 'create',
                     collection: 'user',
                     pk: '1:2',
+                    field: null,
                     value: { displayName: 'Joe' },
                 },
                 {
@@ -253,25 +283,33 @@ function clientSyncLogTests(dependencies: TestDependencies) {
                     sharedOn: 10,
                     needsIntegration: 1,
                     operation: 'delete',
+                    field: null,
                     collection: 'user',
                     pk: '1:1',
+                    value: null,
                 },
             ]
 
             await syncLogStorage.insertEntries(entries)
-            const firstEntries = (await syncLogStorage.getNextEntriesToIntgrate()) as ClientSyncLogEntry[]
+            const firstEntries = normalizeEntries(
+                (await syncLogStorage.getNextEntriesToIntgrate()) as ClientSyncLogEntry[],
+            )
             expect(firstEntries).toEqual([
                 { ...entries[0] },
                 { ...entries[2] },
                 { ...entries[3] },
             ])
 
-            await syncLogStorage.markAsIntegrated(firstEntries)
-            const secondEntries = (await syncLogStorage.getNextEntriesToIntgrate()) as ClientSyncLogEntry[]
+            await syncLogStorage.markAsIntegrated(firstEntries!)
+            const secondEntries = normalizeEntries(
+                (await syncLogStorage.getNextEntriesToIntgrate()) as ClientSyncLogEntry[],
+            )
             expect(secondEntries).toEqual([{ ...entries[1] }])
 
-            await syncLogStorage.markAsIntegrated(secondEntries)
-            const thirdEntries = await syncLogStorage.getNextEntriesToIntgrate()
+            await syncLogStorage.markAsIntegrated(secondEntries!)
+            const thirdEntries = normalizeEntries(
+                (await syncLogStorage.getNextEntriesToIntgrate()) as ClientSyncLogEntry[],
+            )
             expect(thirdEntries).toEqual(null)
         })
     })
@@ -289,18 +327,19 @@ describe('Client sync log with in-memory Dexie IndexedDB backend', () => {
     })
 })
 
-// describe('Client sync log with in-memory TypeORM SQLite backend', () => {
-//     clientSyncLogTests({
-//         createBackend: () => {
-//             return new TypeORMStorageBackend({
-//                 connectionOptions: { type: 'sqlite', database: ':memory:' },
-//             }) as any as StorageBackend
-//         },
-//         destroyBackend: async (backend: StorageBackend) => {
-//             const connection = (backend as any as TypeORMStorageBackend).connection!
-//             if (connection) {
-//                 await connection.close()
-//             }
-//         }
-//     })
-// })
+describe('Client sync log with in-memory TypeORM SQLite backend', () => {
+    clientSyncLogTests({
+        createBackend: () => {
+            return (new TypeORMStorageBackend({
+                connectionOptions: { type: 'sqlite', database: ':memory:' },
+            }) as any) as StorageBackend
+        },
+        destroyBackend: async (backend: StorageBackend) => {
+            const connection = ((backend as any) as TypeORMStorageBackend)
+                .connection!
+            if (connection) {
+                await connection.close()
+            }
+        },
+    })
+})
