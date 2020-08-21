@@ -54,7 +54,10 @@ export type SyncPreSendProcessor = (params: {
 export type SyncPostReceiveProcessor = (params: {
     entry: SharedSyncLogEntry<'deserialized-data'>
 }) => Promise<{ entry: SharedSyncLogEntry<'deserialized-data'> | null }>
-export type ExecuteReconciliationOperation = (operationName: string, ...args: any[]) => Promise<any>
+export type ExecuteReconciliationOperation = (
+    operationName: string,
+    ...args: any[]
+) => Promise<any>
 
 export interface CommonSyncOptions {
     clientSyncLog: ClientSyncLogStorage
@@ -82,6 +85,7 @@ export interface SyncOptions extends CommonSyncOptions {
         reconciliation: OperationBatch,
     ) => Promise<OperationBatch>
     executeReconciliationOperation?: ExecuteReconciliationOperation
+    cleanupAfterReconcile?: boolean
 }
 export interface SyncReturnValue {
     finished: boolean
@@ -178,7 +182,7 @@ export async function receiveLogEntries(
     const serializeEntryData = args.serializer
         ? args.serializer.serializeSharedSyncLogEntryData
         : async (deserialized: SharedSyncLogEntryData) =>
-            JSON.stringify(deserialized)
+              JSON.stringify(deserialized)
 
     while (true) {
         const logUpdate = await args.sharedSyncLog.getUnsyncedEntries({
@@ -242,9 +246,10 @@ export async function writeReconcilation(args: {
     reconciliation: OperationBatch
     executeReconciliationOperation?: ExecuteReconciliationOperation
 }) {
-    const executeReconciliationOperation = args.executeReconciliationOperation ?? (
-        (name, ...operation) => args.storageManager.backend.operation(name, ...operation)
-    )
+    const executeReconciliationOperation =
+        args.executeReconciliationOperation ??
+        ((name, ...operation) =>
+            args.storageManager.backend.operation(name, ...operation))
 
     const batchSteps = [
         ...args.reconciliation,
@@ -253,14 +258,11 @@ export async function writeReconcilation(args: {
     for (const [stepIndex, step] of Object.entries(batchSteps)) {
         step.placeholder = `step-${stepIndex}`
     }
-    await executeReconciliationOperation(
-        'executeBatch',
-        batchSteps
-    )
+    await executeReconciliationOperation('executeBatch', batchSteps)
 }
 
 export async function reconcileStorage(
-    options: SyncOptions
+    options: SyncOptions,
 ): Promise<{ finished: boolean }> {
     while (true) {
         const entries = await options.clientSyncLog.getNextEntriesToIntgrate()
@@ -290,7 +292,8 @@ export async function reconcileStorage(
             clientSyncLog: options.clientSyncLog,
             entries,
             reconciliation,
-            executeReconciliationOperation: options.executeReconciliationOperation,
+            executeReconciliationOperation:
+                options.executeReconciliationOperation,
         })
 
         if (!continueSync('integrate', options)) {
@@ -321,6 +324,10 @@ export async function doSync(options: SyncOptions): Promise<SyncReturnValue> {
         if (!reconciliationFinished) {
             return { finished: false }
         }
+    }
+
+    if (options.cleanupAfterReconcile) {
+        await options.clientSyncLog.deleteObsoleteEntries()
     }
 
     return { finished: true }
