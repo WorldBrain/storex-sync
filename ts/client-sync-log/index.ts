@@ -140,6 +140,14 @@ export class ClientSyncLogStorage extends StorageModule {
                         { order: [['createdOn', 'asc']] },
                     ],
                 },
+                deleteObsoleteEntries: {
+                    operation: 'deleteObjects',
+                    collection: 'clientSyncLogEntry',
+                    args: {
+                        needsIntegration: 0,
+                        sharedOn: { $gt: 0 },
+                    },
+                },
             },
         }
     }
@@ -267,5 +275,9 @@ export class ClientSyncLogStorage extends StorageModule {
             pk: firstEntry.pk,
         })
         return entries
+    }
+
+    async deleteObsoleteEntries() {
+        await this.operation('deleteObsoleteEntries', {})
     }
 }

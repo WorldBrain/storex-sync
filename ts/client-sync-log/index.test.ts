@@ -236,6 +236,22 @@ function clientSyncLogTests(dependencies: TestDependencies) {
         ])
     })
 
+    it('should be able to delete obsolete sync entries', async ({
+        syncLogStorage,
+    }) => {
+        const entries: typeof TEST_LOG_ENTRIES = [
+            { ...TEST_LOG_ENTRIES[0], sharedOn: 1, needsIntegration: 1 },
+            { ...TEST_LOG_ENTRIES[1], sharedOn: 1, needsIntegration: 0 },
+            { ...TEST_LOG_ENTRIES[2], sharedOn: 0, needsIntegration: 0 },
+        ]
+
+        await syncLogStorage.insertEntries(entries)
+        await syncLogStorage.deleteObsoleteEntries()
+        expect(
+            normalizeEntries(await syncLogStorage.getEntriesCreatedAfter(1)),
+        ).toEqual([{ ...entries[0] }, { ...entries[2] }])
+    })
+
     describe('getNextEntriesToIntgrate()', () => {
         it('should be able to get all relevant operations that happened to a single object', async ({
             syncLogStorage,
