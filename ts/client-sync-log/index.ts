@@ -12,7 +12,7 @@ export class ClientSyncLogStorage extends StorageModule {
         return {
             collections: {
                 clientSyncLogEntry: {
-                    version: new Date('2020-08-21'),
+                    version: new Date('2020-07-15'),
                     fields: {
                         createdOn: { type: 'timestamp' },
                         sharedOn: { type: 'timestamp' }, // when was this sent or received?
@@ -29,7 +29,6 @@ export class ClientSyncLogStorage extends StorageModule {
                         { field: 'createdOn' },
                         { field: ['collection', 'pk'] },
                         { field: 'sharedOn' },
-                        { field: ['createdOn', 'sharedOn'] },
                         { field: 'needsIntegration' },
                     ],
                     history: [
