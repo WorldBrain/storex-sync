@@ -12,7 +12,7 @@ export class ClientSyncLogStorage extends StorageModule {
         return {
             collections: {
                 clientSyncLogEntry: {
-                    version: new Date('2020-07-15'),
+                    version: new Date('2020-08-21'),
                     fields: {
                         createdOn: { type: 'timestamp' },
                         sharedOn: { type: 'timestamp' }, // when was this sent or received?
@@ -29,6 +29,7 @@ export class ClientSyncLogStorage extends StorageModule {
                         { field: 'createdOn' },
                         { field: ['collection', 'pk'] },
                         { field: 'sharedOn' },
+                        { field: ['createdOn', 'sharedOn'] },
                         { field: 'needsIntegration' },
                     ],
                     history: [
@@ -54,6 +55,27 @@ export class ClientSyncLogStorage extends StorageModule {
                                 { field: ['collection', 'pk'] },
                             ],
                         },
+                        {
+                            version: new Date('2020-07-15'),
+                            fields: {
+                                createdOn: { type: 'timestamp' },
+                                sharedOn: { type: 'timestamp' }, // when was this sent or received?
+                                deviceId: { type: 'json' }, // what device did this operation happen on?
+                                needsIntegration: { type: 'int' },
+                                collection: { type: 'string' },
+                                pk: { type: 'json' },
+                                field: { type: 'string', optional: true },
+                                operation: { type: 'string' },
+                                value: { type: 'json', optional: true },
+                            },
+                            indices: [
+                                { field: ['deviceId', 'createdOn'], pk: true },
+                                { field: 'createdOn' },
+                                { field: ['collection', 'pk'] },
+                                { field: 'sharedOn' },
+                                { field: 'needsIntegration' },
+                            ],
+                        },
                     ],
                 },
                 // clientSyncLogInfo: {
@@ -77,7 +99,10 @@ export class ClientSyncLogStorage extends StorageModule {
                     operation: 'updateObjects',
                     collection: 'clientSyncLogEntry',
                     args: [
-                        { createdOn: { $lte: '$until:timestamp' } },
+                        {
+                            createdOn: { $lte: '$until:timestamp' },
+                            sharedOn: 0,
+                        },
                         { sharedOn: '$sharedOn:timestamp' },
                     ],
                 },
