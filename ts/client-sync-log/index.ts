@@ -30,6 +30,7 @@ export class ClientSyncLogStorage extends StorageModule {
                         { field: ['collection', 'pk'] },
                         { field: 'sharedOn' },
                         { field: 'needsIntegration' },
+                        { field: ['createdOn', 'sharedOn'] },
                     ],
                     history: [
                         {
