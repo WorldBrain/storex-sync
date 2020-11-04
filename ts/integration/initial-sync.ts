@@ -21,6 +21,7 @@ import {
 } from '../fast-sync/types'
 import { resolvablePromise, getFastSyncInfo } from '../fast-sync/utils'
 import { EventEmitter } from 'events'
+import { ExecuteReconciliationOperation } from '..'
 
 export type InitialSyncInfo = {
     signalChannel: SignalChannel
@@ -42,6 +43,7 @@ export type InitialSyncEvents = FastSyncEvents &
     }
 
 export interface InitialSyncDependencies {
+    executeReconciliationOperation: ExecuteReconciliationOperation
     storageManager: StorageManager
     signalTransportFactory: SignalTransportFactory
     syncedCollections: string[]
@@ -199,6 +201,8 @@ export class InitialSync {
             collections: this.dependencies.syncedCollections,
             preSendProcessor: this.getPreSendProcessor() || undefined,
             batchSize: this.dependencies.batchSize,
+            executeReconciliationOperation: this.dependencies
+                .executeReconciliationOperation,
         })
         fastSync.events.emit = ((eventName: any, event: any) => {
             return this.events.emit(eventName, event)

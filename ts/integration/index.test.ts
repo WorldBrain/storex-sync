@@ -43,6 +43,8 @@ describe('Integration helpers', () => {
                 storageManager: client.storageManager,
                 signalTransportFactory,
                 syncedCollections: Object.keys(options.collections),
+                executeReconciliationOperation: (...args) =>
+                    client.storageManager.operation(...args),
                 batchSize: 1,
             })
             initialSync.wrtc = wrtc

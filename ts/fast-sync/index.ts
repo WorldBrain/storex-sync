@@ -11,6 +11,7 @@ import {
 } from './types'
 import Interruptable from './interruptable'
 import { getFastSyncInfo } from './utils'
+import { ExecuteReconciliationOperation } from '..'
 
 export interface FastSyncOptions {
     storageManager: StorageManager
@@ -19,6 +20,7 @@ export interface FastSyncOptions {
     batchSize?: number
     preSendProcessor?: FastSyncPreSendProcessor
     postReceiveProcessor?: FastSyncPreSendProcessor
+    executeReconciliationOperation: ExecuteReconciliationOperation
 }
 
 export type FastSyncPreSendProcessor = (
@@ -239,7 +241,8 @@ export class FastSync {
                 // console.log('recv: start iter')
                 for (const object of objectBatch.objects) {
                     try {
-                        await this.options.storageManager.backend.createObject(
+                        await this.options.executeReconciliationOperation(
+                            'createObject',
                             objectBatch.collection,
                             object,
                         )
