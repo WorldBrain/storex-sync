@@ -155,7 +155,7 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
         this._clearChannelTimeout()
         this.channelTimeout = setTimeout(() => {
             this.events.emit('channelTimeout')
-        }, this.channelTimeoutInMilliseconds)
+        }, this.channelTimeoutInMilliseconds) as any
     }
 
     _clearChannelTimeout() {
