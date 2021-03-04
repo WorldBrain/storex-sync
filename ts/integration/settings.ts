@@ -7,5 +7,8 @@ export interface SyncSettingsStore {
         value: SyncSettingValue,
     ): Promise<void>
 }
-export type SyncSetting = 'continuousSyncEnabled' | 'deviceId'
+export type SyncSetting =
+    | 'continuousSyncEnabled'
+    | 'deviceId'
+    | 'lastSyncTimestamp'
 export type SyncSettingValue = boolean | number | string | null
