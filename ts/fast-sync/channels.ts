@@ -53,7 +53,9 @@ abstract class FastSyncChannelBase<UserPackageType> implements FastSyncChannel {
                 innerPackage.type !== options.expectedType
             ) {
                 throw new Error(
-                    `Expected user package with type ${options.expectedType} ` +
+                    `Expected user package with type ${String(
+                        options.expectedType,
+                    )} ` +
                         `in fast sync WebRTC channel, but got ` +
                         `user package with type ${innerPackage.type}`,
                 )
