@@ -12,6 +12,7 @@ export class RecurringTask<TaskOptions = void, TaskReturnType = void> {
                 f: () => void,
                 miliseconds: number,
             ) => ReturnType<typeof setTimeout>
+            clearTimeout?: (timeoutId: ReturnType<typeof setTimeout>) => void
         },
     ) {
         this.schedule()
@@ -62,7 +63,7 @@ export class RecurringTask<TaskOptions = void, TaskReturnType = void> {
 
     private clearTimeout() {
         if (this.timeoutId) {
-            clearTimeout(this.timeoutId)
+            ;(this.options.clearTimeout || clearTimeout)(this.timeoutId)
             this.timeoutId = null
         }
     }
