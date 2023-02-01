@@ -1,4 +1,4 @@
-import { Omit } from 'lodash'
+import Omit from 'lodash/omit'
 import TypedEmitter from 'typed-emitter'
 import { jsonDateParser } from 'json-date-parser'
 import last from 'lodash/last'
@@ -94,7 +94,7 @@ export interface SyncReturnValue {
 export async function shareLogEntries(
     args: CommonSyncOptions & { extraSentInfo?: any },
 ): Promise<{ finished: boolean }> {
-    const preSend: SyncPreSendProcessor = args.preSend || (async args => args)
+    const preSend: SyncPreSendProcessor = args.preSend || (async (args) => args)
     const serializeEntryData = args.serializer
         ? args.serializer.serializeSharedSyncLogEntryData
         : async (data: SharedSyncLogEntryData) => JSON.stringify(data)
@@ -113,12 +113,12 @@ export async function shareLogEntries(
 
         const processedEntries = (
             await Promise.all(
-                entries.map(async entry => (await preSend({ entry })).entry),
+                entries.map(async (entry) => (await preSend({ entry })).entry),
             )
-        ).filter(entry => !!entry) as ClientSyncLogEntry[]
+        ).filter((entry) => !!entry) as ClientSyncLogEntry[]
 
         const sharedLogEntries = await Promise.all(
-            processedEntries.map(async entry => ({
+            processedEntries.map(async (entry) => ({
                 createdOn: entry.createdOn,
                 data: await serializeEntryData({
                     operation: entry.operation,
@@ -175,7 +175,7 @@ export async function receiveLogEntries(
     args: CommonSyncOptions,
 ): Promise<{ finished: boolean }> {
     const postReceive: SyncPostReceiveProcessor =
-        args.postReceive || (async args => args)
+        args.postReceive || (async (args) => args)
     const deserializeEntryData = args.serializer
         ? args.serializer.deserializeSharedSyncLogEntryData
         : async (serialized: string) => JSON.parse(serialized, jsonDateParser)
@@ -201,7 +201,7 @@ export async function receiveLogEntries(
 
         const processedEntries = (
             await Promise.all(
-                logUpdate.entries.map(async entry => {
+                logUpdate.entries.map(async (entry) => {
                     const deserializedEntry: SharedSyncLogEntry<'deserialized-data'> = {
                         ...entry,
                         data: await deserializeEntryData(entry.data),
@@ -216,7 +216,9 @@ export async function receiveLogEntries(
                     return postProcessed.entry
                 }),
             )
-        ).filter(entry => !!entry) as SharedSyncLogEntry<'deserialized-data'>[]
+        ).filter((entry) => !!entry) as SharedSyncLogEntry<
+            'deserialized-data'
+        >[]
 
         if (args.syncEvents) {
             args.syncEvents.emit('receivedSharedEntries', {
