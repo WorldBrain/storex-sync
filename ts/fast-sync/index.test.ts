@@ -142,12 +142,14 @@ async function setupMinimalTest(options: TestOptions) {
         batchSize: 1,
         collections: ['test'],
         preSendProcessor: options.preSendProcessor,
+        executeReconciliationOperation: () => Promise.resolve(),
     })
     const receiverFastSync = new FastSync({
         storageManager: device2.storageManager,
         channel: channels.receiverChannel,
         collections: ['test'],
         preSendProcessor: options.preSendProcessor,
+        executeReconciliationOperation: () => Promise.resolve(),
     })
 
     const senderEventSpy = testSetup.createEventSpy()
@@ -197,7 +199,7 @@ function makeTestFactory(runner: TestRunner) {
         description: string,
         test: (options: TestOptions) => Promise<void>,
     ) => {
-        it(description, async function () {
+        it(description, async function() {
             await runner(test, { skip: () => this.skip() })
         })
     }
@@ -633,7 +635,7 @@ describe('Fast initial sync', () => {
         })
     })
 
-    describe('WebRTC data channel with Firebase signalling', async function () {
+    describe('WebRTC data channel with Firebase signalling', async function() {
         runTests(async (test, options) => {
             if (
                 process.env.SKIP_WEBRTC_TESTS === 'true' ||
