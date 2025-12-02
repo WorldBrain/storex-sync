@@ -1,9 +1,9 @@
-import { MemorySignalTransportManager } from 'simple-signalling/lib/memory'
-import StorageManager from '@worldbrain/storex'
+import { MemorySignalTransportManager } from 'simple-signalling/ts/memory'
+import StorageManager from '@worldbrain/storex/ts'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
-import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
+import inMemory from '@worldbrain/storex-backend-dexie/ts/in-memory'
 import { SharedSyncLogStorage } from '../shared-sync-log/storex'
-import { registerModuleMapCollections } from '@worldbrain/storex-pattern-modules'
+import { registerModuleMapCollections } from '@worldbrain/storex-pattern-modules/ts'
 
 export function lazyMemorySignalTransportFactory() {
     let manager: MemorySignalTransportManager

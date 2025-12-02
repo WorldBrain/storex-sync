@@ -1,6 +1,6 @@
-import { StorageRegistry } from '@worldbrain/storex'
-import { getObjectWithoutPk } from '@worldbrain/storex/lib/utils'
-import { StorageOperationChangeInfo } from '@worldbrain/storex-middleware-change-watcher/lib/types'
+import { StorageRegistry } from '@worldbrain/storex/ts'
+import { getObjectWithoutPk } from '@worldbrain/storex/ts/utils'
+import { StorageOperationChangeInfo } from '@worldbrain/storex-middleware-change-watcher/ts/types'
 import {
     ClientSyncLogEntry,
     ClientSyncLogEntryMetadata,

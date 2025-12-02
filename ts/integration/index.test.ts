@@ -1,6 +1,6 @@
 const wrtc = require('wrtc')
 import expect from 'expect'
-import { RegistryCollections } from '@worldbrain/storex/lib/registry'
+import { RegistryCollections } from '@worldbrain/storex/ts/registry'
 import { setupSyncTestClient, linearTimestampGenerator } from '../index.tests'
 import { TEST_DATA } from '../index.test.data'
 import { InitialSync } from './initial-sync'
@@ -9,7 +9,7 @@ import {
     createMemorySharedSyncLog,
     lazyMemorySignalTransportFactory,
 } from './index.tests'
-import { registerModuleMapCollections } from '@worldbrain/storex-pattern-modules'
+import { registerModuleMapCollections } from '@worldbrain/storex-pattern-modules/ts'
 import { FastSyncEvents } from '../fast-sync'
 import { PromiseContentType } from '../types.test'
 
@@ -58,7 +58,7 @@ describe('Integration helpers', () => {
                     storeSetting: async (key, value) => {
                         settings[key] = value
                     },
-                    retrieveSetting: async key => settings[key],
+                    retrieveSetting: async (key) => settings[key],
                 },
                 toggleSyncLogging: client.syncLoggingMiddleware.toggle.bind(
                     client.syncLoggingMiddleware,
@@ -88,9 +88,8 @@ describe('Integration helpers', () => {
             source: { initialSync: InitialSync }
             target: { initialSync: InitialSync }
         }) => {
-            const {
-                initialMessage,
-            } = await options.source.initialSync.requestInitialSync()
+            const { initialMessage } =
+                await options.source.initialSync.requestInitialSync()
             await options.target.initialSync.answerInitialSync({
                 initialMessage,
             })
@@ -127,7 +126,7 @@ describe('Integration helpers', () => {
 
         await options.insertData(clients)
 
-        integration[0].initialSync.events.once('roleSwitch', event => {
+        integration[0].initialSync.events.once('roleSwitch', (event) => {
             options.validateSenderRoleSwitch(event)
         })
 
@@ -257,9 +256,8 @@ describe('Integration helpers', () => {
             }
         })
 
-        const {
-            initialMessage,
-        } = await integration[0].initialSync.requestInitialSync()
+        const { initialMessage } =
+            await integration[0].initialSync.requestInitialSync()
         await integration[1].initialSync.answerInitialSync({
             initialMessage,
         })
@@ -347,7 +345,7 @@ describe('Integration helpers', () => {
         })
 
         const events: any[] = []
-        integration[0].continuousSync.events.on('syncFinished', event =>
+        integration[0].continuousSync.events.on('syncFinished', (event) =>
             events.push(event),
         )
 

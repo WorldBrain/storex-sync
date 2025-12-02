@@ -1,10 +1,10 @@
-import StorageManager from '@worldbrain/storex'
+import StorageManager from '@worldbrain/storex/ts'
 import {
     StorageMiddleware,
     StorageMiddlewareContext,
-} from '@worldbrain/storex/lib/types/middleware'
+} from '@worldbrain/storex/ts/types/middleware'
 import { ChangeWatchMiddleware } from '@worldbrain/storex-middleware-change-watcher'
-import { StorageOperationChangeInfo } from '@worldbrain/storex-middleware-change-watcher/lib/types'
+import { StorageOperationChangeInfo } from '@worldbrain/storex-middleware-change-watcher/ts/types'
 import { ClientSyncLogStorage } from '../client-sync-log'
 import { ClientSyncLogEntry } from '../client-sync-log/types'
 import {
@@ -19,7 +19,8 @@ export type SyncChangeInfoPreprocessor = (
 export class SyncLoggingMiddleware implements StorageMiddleware {
     public changeInfoPreprocessor: SyncChangeInfoPreprocessor | null = null
 
-    private operationProcessors: OperationProcessorMap = DEFAULT_OPERATION_PROCESSORS
+    private operationProcessors: OperationProcessorMap =
+        DEFAULT_OPERATION_PROCESSORS
     private includeCollections: Set<string>
     private enabled = false
     private deviceId: string | number | null = null
@@ -56,14 +57,14 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         if (typeof context.extraData.changeInfo === 'undefined') {
             const changeWatcher = new ChangeWatchMiddleware({
                 storageManager: this.options.storageManager,
-                shouldWatchCollection: collection =>
+                shouldWatchCollection: (collection) =>
                     this.includeCollections.has(collection),
             })
             return changeWatcher.process({
                 operation: context.operation,
                 extraData: context.extraData,
                 next: {
-                    process: async incoming => {
+                    process: async (incoming) => {
                         const extraData = {
                             ...context.extraData,
                             ...incoming.extraData,
@@ -111,9 +112,8 @@ export class SyncLoggingMiddleware implements StorageMiddleware {
         }
 
         if (this.changeInfoPreprocessor) {
-            const modifiedChangeInfo = await this.changeInfoPreprocessor(
-                changeInfo,
-            )
+            const modifiedChangeInfo =
+                await this.changeInfoPreprocessor(changeInfo)
             if (modifiedChangeInfo) {
                 changeInfo = modifiedChangeInfo
             }

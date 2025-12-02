@@ -2,10 +2,10 @@ import expect from 'expect'
 import * as graphqlModule from 'graphql'
 import update from 'immutability-helper'
 import sortBy from 'lodash/sortBy'
-import { setupStorexTest } from '@worldbrain/storex-pattern-modules/lib/index.tests'
-import { setupTestGraphQLStorexClient } from '@worldbrain/storex-graphql-client/lib/index.tests'
+import { setupStorexTest } from '@worldbrain/storex-pattern-modules/ts/index.tests'
+import { setupTestGraphQLStorexClient } from '@worldbrain/storex-graphql-client/ts/index.tests'
 import { TypeORMStorageBackend } from '@worldbrain/storex-backend-typeorm'
-import { withEmulatedFirestoreBackend } from '@worldbrain/storex-backend-firestore/lib/index.tests'
+import { withEmulatedFirestoreBackend } from '@worldbrain/storex-backend-firestore/ts/index.tests'
 import { SharedSyncLogStorage } from './shared-sync-log/storex'
 import {
     shareLogEntries,
@@ -19,8 +19,8 @@ import { reconcileSyncLog } from './reconciliation'
 import { SharedSyncLog } from './shared-sync-log'
 import { PromiseContentType } from './types.test'
 import { inspect } from 'util'
-import { RegistryCollections } from '@worldbrain/storex/lib/registry'
-import StorageManager, { StorageBackend } from '@worldbrain/storex'
+import { RegistryCollections } from '@worldbrain/storex/ts/registry'
+import StorageManager, { StorageBackend } from '@worldbrain/storex/ts'
 import { ClientSyncLogEntry } from './client-sync-log/types'
 import {
     makeTestFactory,
@@ -54,9 +54,9 @@ function integrationTestSuite(
         getNow: () => number | '$now'
         clients?: { name: string }[]
         collections?: RegistryCollections
-        getBackend?: (options: {
-            sharedSyncLog: SharedSyncLog
-        }) => { modules: { sharedSyncLog: SharedSyncLog } }
+        getBackend?: (options: { sharedSyncLog: SharedSyncLog }) => {
+            modules: { sharedSyncLog: SharedSyncLog }
+        }
     }) {
         let idsGenerated = 0
         const pkGenerator = () => `id-${++idsGenerated}`
@@ -86,12 +86,11 @@ function integrationTestSuite(
                 withModificationMerging: suiteOptions.withModificationMerging,
                 withCompoundPks: suiteOptions.withCompoundPks,
             })
-            clients[
-                name
-            ].deviceId = await backend.modules.sharedSyncLog.createDeviceId({
-                userId,
-                sharedUntil: null,
-            })
+            clients[name].deviceId =
+                await backend.modules.sharedSyncLog.createDeviceId({
+                    userId,
+                    sharedUntil: null,
+                })
             clients[name].syncLoggingMiddleware.enable(clients[name].deviceId)
         }
 
@@ -153,9 +152,8 @@ function integrationTestSuite(
         }
 
         it('should correctly share log entries', async (dependencies: TestDependencies) => {
-            const { backend, clients, userId, share } = await setupShareTest(
-                dependencies,
-            )
+            const { backend, clients, userId, share } =
+                await setupShareTest(dependencies)
 
             await share({ now: 55 })
             expect(
@@ -164,7 +162,7 @@ function integrationTestSuite(
                         userId,
                         deviceId: clients.two.deviceId,
                     })
-                ).entries.map(entry => ({
+                ).entries.map((entry) => ({
                     ...entry,
                     data: JSON.parse(entry.data),
                 })),
@@ -201,14 +199,15 @@ function integrationTestSuite(
         })
 
         it('should not reshare entries that are already shared', async (dependencies: TestDependencies) => {
-            const { backend, userId, clients, share } = await setupShareTest(
-                dependencies,
-            )
+            const { backend, userId, clients, share } =
+                await setupShareTest(dependencies)
 
             await share({ now: 55 })
-            const update = await backend.modules.sharedSyncLog.getUnsyncedEntries(
-                { userId, deviceId: clients.two.deviceId },
-            )
+            const update =
+                await backend.modules.sharedSyncLog.getUnsyncedEntries({
+                    userId,
+                    deviceId: clients.two.deviceId,
+                })
             await share({ now: 60 })
             expect(
                 await backend.modules.sharedSyncLog.getUnsyncedEntries({
@@ -222,9 +221,8 @@ function integrationTestSuite(
         })
 
         it('should share log entries with limited batch sizes', async (dependencies: TestDependencies) => {
-            const { backend, userId, clients, share } = await setupShareTest(
-                dependencies,
-            )
+            const { backend, userId, clients, share } =
+                await setupShareTest(dependencies)
 
             const secondUserObject = suiteOptions.withCompoundPks
                 ? { firstName: 'Jane', lastName: 'Doe' }
@@ -233,11 +231,13 @@ function integrationTestSuite(
                 address: 'jane@doe.com',
             })
             await share({ now: 55, batchSize: 2 })
-            const update = await backend.modules.sharedSyncLog.getUnsyncedEntries(
-                { userId, deviceId: clients.two.deviceId },
-            )
+            const update =
+                await backend.modules.sharedSyncLog.getUnsyncedEntries({
+                    userId,
+                    deviceId: clients.two.deviceId,
+                })
             expect(
-                update.entries.map(entry => ({
+                update.entries.map((entry) => ({
                     ...entry,
                     data: JSON.parse(entry.data),
                 })),
@@ -342,12 +342,8 @@ function integrationTestSuite(
         }
 
         it('should correctly receive unsynced entries and write them to the local log marked as needing integration', async (dependencies: TestDependencies) => {
-            const {
-                backend,
-                clients,
-                userId,
-                receive,
-            } = await setupReceiveTest(dependencies)
+            const { backend, clients, userId, receive } =
+                await setupReceiveTest(dependencies)
 
             const userValues = suiteOptions.withCompoundPks
                 ? { firstName: 'Bob', lastName: 'Doe' }
@@ -360,13 +356,11 @@ function integrationTestSuite(
                 [
                     {
                         createdOn: 5,
-                        data:
-                            '{"operation":"create","collection":"user","pk":"id-2","field":null,"value":{"displayName":"Joe"}}',
+                        data: '{"operation":"create","collection":"user","pk":"id-2","field":null,"value":{"displayName":"Joe"}}',
                     },
                     {
                         createdOn: 7,
-                        data:
-                            '{"operation":"create","collection":"email","pk":"id-3","field":null,"value":{"address":"joe@doe.com"}}',
+                        data: '{"operation":"create","collection":"email","pk":"id-3","field":null,"value":{"address":"joe@doe.com"}}',
                     },
                 ],
                 { now: 55, userId, deviceId: clients.two.deviceId },
@@ -414,34 +408,26 @@ function integrationTestSuite(
             ])
         })
         it('should receive log entries with limited batch sizes', async (dependencies: TestDependencies) => {
-            const {
-                backend,
-                clients,
-                userId,
-                receive,
-            } = await setupReceiveTest(dependencies)
+            const { backend, clients, userId, receive } =
+                await setupReceiveTest(dependencies)
 
             await backend.modules.sharedSyncLog.writeEntries(
                 [
                     {
                         createdOn: 3,
-                        data:
-                            '{"operation":"create","collection":"user","pk":"id-1","field":null,"value":{"displayName":"Joe"}}',
+                        data: '{"operation":"create","collection":"user","pk":"id-1","field":null,"value":{"displayName":"Joe"}}',
                     },
                     {
                         createdOn: 5,
-                        data:
-                            '{"operation":"create","collection":"email","pk":"id-2","field":null,"value":{"address":"joe@doe.com"}}',
+                        data: '{"operation":"create","collection":"email","pk":"id-2","field":null,"value":{"address":"joe@doe.com"}}',
                     },
                     {
                         createdOn: 7,
-                        data:
-                            '{"operation":"create","collection":"user","pk":"id-3","field":null,"value":{"displayName":"Jane"}}',
+                        data: '{"operation":"create","collection":"user","pk":"id-3","field":null,"value":{"displayName":"Jane"}}',
                     },
                     {
                         createdOn: 9,
-                        data:
-                            '{"operation":"create","collection":"email","pk":"id-4","field":null,"value":{"address":"jane@doe.com"}}',
+                        data: '{"operation":"create","collection":"email","pk":"id-4","field":null,"value":{"address":"jane@doe.com"}}',
                     },
                 ],
                 { now: 55, userId, deviceId: clients.two.deviceId },
@@ -533,9 +519,9 @@ function integrationTestSuite(
             dependencies: TestDependencies,
             options?: {
                 collections: RegistryCollections
-                getBackend?: (options: {
-                    sharedSyncLog: SharedSyncLog
-                }) => { modules: { sharedSyncLog: SharedSyncLog } }
+                getBackend?: (options: { sharedSyncLog: SharedSyncLog }) => {
+                    modules: { sharedSyncLog: SharedSyncLog }
+                }
             },
         ) {
             const getNow =
@@ -706,9 +692,8 @@ function integrationTestSuite(
         it(
             'should work with custom serialization/deserialization',
             async (dependencies: TestDependencies) => {
-                const { clients, backend, userId, sync } = await setupSyncTest(
-                    dependencies,
-                )
+                const { clients, backend, userId, sync } =
+                    await setupSyncTest(dependencies)
                 const orig = (
                     await clients.one.storageManager
                         .collection('user')
@@ -717,19 +702,18 @@ function integrationTestSuite(
                 const { emails, ...user } = orig
 
                 const serializer: SyncSerializer = {
-                    serializeSharedSyncLogEntryData: async data =>
+                    serializeSharedSyncLogEntryData: async (data) =>
                         `!!!${JSON.stringify(data)}`,
-                    deserializeSharedSyncLogEntryData: async serialized =>
+                    deserializeSharedSyncLogEntryData: async (serialized) =>
                         JSON.parse(serialized.substr(3)),
                 }
 
                 await sync({ clientName: 'one', serializer })
-                const sharedEntries = await backend.modules.sharedSyncLog.getUnsyncedEntries(
-                    {
+                const sharedEntries =
+                    await backend.modules.sharedSyncLog.getUnsyncedEntries({
                         userId,
                         deviceId: clients.two.deviceId,
-                    },
-                )
+                    })
                 expect(sharedEntries).toEqual({
                     entries: [
                         {
@@ -932,7 +916,7 @@ function integrationTestSuite(
                 await sync({ clientName: 'one' })
                 await sync({
                     clientName: 'two',
-                    postReceive: async params => {
+                    postReceive: async (params) => {
                         if (params.entry.data.operation !== 'create') {
                             return params
                         }
@@ -979,7 +963,7 @@ function integrationTestSuite(
                 await sync({ clientName: 'one' })
                 await sync({
                     clientName: 'two',
-                    postReceive: async params => {
+                    postReceive: async (params) => {
                         if (params.entry.data.operation !== 'create') {
                             return params
                         }
@@ -1053,7 +1037,7 @@ function integrationTestSuite(
                 await sync({ clientName: 'one', extraSentInfo })
                 await sync({
                     clientName: 'two',
-                    postReceive: async params => {
+                    postReceive: async (params) => {
                         receivedExtraInfo.push(params.entry.extraInfo)
                         return params
                     },
@@ -1393,9 +1377,7 @@ if (process.env.TEST_SYNC_FIRESTORE === 'true') {
                             const dumps = {}
                             try {
                                 for (const collectionName of collectionsToDump) {
-                                    dumps[
-                                        collectionName
-                                    ] = await storageManager
+                                    dumps[collectionName] = await storageManager
                                         .collection(collectionName)
                                         .findObjects({ userId: 'alice' })
                                 }

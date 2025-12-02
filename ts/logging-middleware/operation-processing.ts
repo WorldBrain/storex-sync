@@ -1,6 +1,6 @@
 import { ClientSyncLogEntry } from '../client-sync-log/types'
-import { BatchOperation } from '@worldbrain/storex'
-import { StorageOperationChangeInfo } from '@worldbrain/storex-middleware-change-watcher/lib/types'
+import { BatchOperation } from '@worldbrain/storex/ts'
+import { StorageOperationChangeInfo } from '@worldbrain/storex-middleware-change-watcher/ts/types'
 
 export type ExecuteAndLog = (
     batchOperations: BatchOperation[],

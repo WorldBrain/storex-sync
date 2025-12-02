@@ -1,5 +1,5 @@
 import expect from 'expect'
-import StorageManager, { CollectionDefinitionMap } from '@worldbrain/storex'
+import StorageManager, { CollectionDefinitionMap } from '@worldbrain/storex/ts'
 import { getObjectPk, getObjectWithoutPk, setObjectPk } from './utils'
 
 describe('Primary key utils', () => {

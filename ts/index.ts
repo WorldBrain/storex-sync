@@ -2,7 +2,7 @@ import Omit from 'lodash/omit'
 import TypedEmitter from 'typed-emitter'
 import { jsonDateParser } from 'json-date-parser'
 import last from 'lodash/last'
-import StorageManager, { OperationBatch } from '@worldbrain/storex'
+import StorageManager, { OperationBatch } from '@worldbrain/storex/ts'
 import { ClientSyncLogStorage } from './client-sync-log'
 import { SharedSyncLog } from './shared-sync-log'
 import { ReconcilerFunction } from './reconciliation'
@@ -202,10 +202,11 @@ export async function receiveLogEntries(
         const processedEntries = (
             await Promise.all(
                 logUpdate.entries.map(async (entry) => {
-                    const deserializedEntry: SharedSyncLogEntry<'deserialized-data'> = {
-                        ...entry,
-                        data: await deserializeEntryData(entry.data),
-                    }
+                    const deserializedEntry: SharedSyncLogEntry<'deserialized-data'> =
+                        {
+                            ...entry,
+                            data: await deserializeEntryData(entry.data),
+                        }
                     if (!deserializedEntry.data) {
                         return null
                     }
@@ -216,9 +217,9 @@ export async function receiveLogEntries(
                     return postProcessed.entry
                 }),
             )
-        ).filter((entry) => !!entry) as SharedSyncLogEntry<
-            'deserialized-data'
-        >[]
+        ).filter(
+            (entry) => !!entry,
+        ) as SharedSyncLogEntry<'deserialized-data'>[]
 
         if (args.syncEvents) {
             args.syncEvents.emit('receivedSharedEntries', {
@@ -276,9 +277,8 @@ export async function reconcileStorage(
             storageRegistry: options.storageManager.registry,
         })
         if (options.reconciliationProcessor) {
-            reconciliation = await options.reconciliationProcessor(
-                reconciliation,
-            )
+            reconciliation =
+                await options.reconciliationProcessor(reconciliation)
         }
 
         if (options.syncEvents) {
@@ -320,9 +320,8 @@ export async function doSync(options: SyncOptions): Promise<SyncReturnValue> {
     }
 
     if (options.stages?.reconcile ?? true) {
-        const { finished: reconciliationFinished } = await reconcileStorage(
-            options,
-        )
+        const { finished: reconciliationFinished } =
+            await reconcileStorage(options)
         if (!reconciliationFinished) {
             return { finished: false }
         }

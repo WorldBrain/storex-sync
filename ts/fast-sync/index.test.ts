@@ -1,12 +1,12 @@
 import expect from 'expect'
 import { EventEmitter } from 'events'
-import { setupStorexTest } from '@worldbrain/storex-pattern-modules/lib/index.tests'
+import { setupStorexTest } from '@worldbrain/storex-pattern-modules/ts/index.tests'
 const wrtc = require('wrtc')
 import Peer from 'simple-peer'
-import { MemorySignalTransportManager } from 'simple-signalling/lib/memory'
-import { FirebaseSignalTransport } from 'simple-signalling/lib/firebase'
-import { createSignallingFirebaseTestApp } from 'simple-signalling/lib/firebase.tests'
-import { signalSimplePeer } from 'simple-signalling/lib/simple-peer'
+import { MemorySignalTransportManager } from 'simple-signalling/ts/memory'
+import { FirebaseSignalTransport } from 'simple-signalling/ts/firebase'
+import { createSignallingFirebaseTestApp } from 'simple-signalling/ts/firebase.tests'
+import { signalSimplePeer } from 'simple-signalling/ts/simple-peer'
 import { FastSync, FastSyncPreSendProcessor } from '.'
 import {
     createMemoryChannel,
@@ -21,7 +21,7 @@ import {
     FastSyncInfo,
     FastSyncRole,
 } from './types'
-import { SignalTransport } from 'simple-signalling/lib/types'
+import { SignalTransport } from 'simple-signalling/ts/types'
 import { TEST_DATA } from '../index.test.data'
 import { resolvablePromise } from './utils'
 
@@ -58,7 +58,7 @@ async function setupTest(options: TestOptions) {
     }
 
     function createEventSpy() {
-        let emittedEvents: Array<{ eventName: string;[key: string]: any }> = []
+        let emittedEvents: Array<{ eventName: string; [key: string]: any }> = []
         const listen = (events: EventEmitter) => {
             const emit = events.emit.bind(events)
             events.emit = ((eventName: string, event: any) => {
@@ -96,7 +96,7 @@ async function createWebRTCSyncChannels(options: {
             deviceId: 'second',
         }),
     ]
-    await Promise.all(channels.map(channel => channel.connect()))
+    await Promise.all(channels.map((channel) => channel.connect()))
 
     const peers = [new Peer({ initiator: true, wrtc }), new Peer({ wrtc })]
     await Promise.all([
@@ -210,7 +210,8 @@ describe('Fast initial sync', () => {
         it('should work with a very minimal test', async (options: TestOptions) => {
             const setup = await setupMinimalTest(options)
 
-            const firstReceivedMessagePromise = setup.channels.receiverChannel.receiveUserPackage()
+            const firstReceivedMessagePromise =
+                setup.channels.receiverChannel.receiveUserPackage()
             await setup.channels.senderChannel.sendUserPackage({
                 type: 'secret-key',
                 key: '5555',
@@ -220,7 +221,8 @@ describe('Fast initial sync', () => {
                 key: '5555',
             })
 
-            const secondReceivedMessagePromise = setup.channels.senderChannel.receiveUserPackage()
+            const secondReceivedMessagePromise =
+                setup.channels.senderChannel.receiveUserPackage()
             await setup.channels.receiverChannel.sendUserPackage({
                 type: 'device-info',
                 productType: 'app',
@@ -297,7 +299,7 @@ describe('Fast initial sync', () => {
         it('should be able to filter out data to send', async (options: TestOptions) => {
             const setup = await setupMinimalTest({
                 ...options,
-                preSendProcessor: async params => {
+                preSendProcessor: async (params) => {
                     if (params.object.label === 'Foo') {
                         return params
                     } else {
@@ -395,74 +397,74 @@ describe('Fast initial sync', () => {
                 initialRole: FastSyncRole,
                 subsequentRole: FastSyncRole,
             ) => [
-                    {
-                        eventName: 'prepared',
-                        role: initialRole,
-                        syncInfo: {
-                            ...expectedSyncInfoWhileReceiving,
-                        },
+                {
+                    eventName: 'prepared',
+                    role: initialRole,
+                    syncInfo: {
+                        ...expectedSyncInfoWhileReceiving,
                     },
-                    {
-                        eventName: 'progress',
-                        role: initialRole,
-                        progress: {
-                            ...expectedSyncInfoWhileReceiving,
-                            totalObjectsProcessed: 0,
-                        },
+                },
+                {
+                    eventName: 'progress',
+                    role: initialRole,
+                    progress: {
+                        ...expectedSyncInfoWhileReceiving,
+                        totalObjectsProcessed: 0,
                     },
-                    {
-                        eventName: 'progress',
-                        role: initialRole,
-                        progress: {
-                            ...expectedSyncInfoWhileReceiving,
-                            totalObjectsProcessed: 1,
-                        },
+                },
+                {
+                    eventName: 'progress',
+                    role: initialRole,
+                    progress: {
+                        ...expectedSyncInfoWhileReceiving,
+                        totalObjectsProcessed: 1,
                     },
-                    {
-                        eventName: 'roleSwitch',
-                        before: initialRole,
-                        after: subsequentRole,
+                },
+                {
+                    eventName: 'roleSwitch',
+                    before: initialRole,
+                    after: subsequentRole,
+                },
+                {
+                    eventName: 'prepared',
+                    role: subsequentRole,
+                    syncInfo: {
+                        ...expectedSyncInfoWhileSending,
                     },
-                    {
-                        eventName: 'prepared',
-                        role: subsequentRole,
-                        syncInfo: {
-                            ...expectedSyncInfoWhileSending,
-                        },
+                },
+                {
+                    eventName: 'progress',
+                    role: subsequentRole,
+                    progress: {
+                        ...expectedSyncInfoWhileSending,
+                        totalObjectsProcessed: 0,
                     },
-                    {
-                        eventName: 'progress',
-                        role: subsequentRole,
-                        progress: {
-                            ...expectedSyncInfoWhileSending,
-                            totalObjectsProcessed: 0,
-                        },
+                },
+                {
+                    eventName: 'progress',
+                    role: subsequentRole,
+                    progress: {
+                        ...expectedSyncInfoWhileSending,
+                        totalObjectsProcessed: 1,
                     },
-                    {
-                        eventName: 'progress',
-                        role: subsequentRole,
-                        progress: {
-                            ...expectedSyncInfoWhileSending,
-                            totalObjectsProcessed: 1,
-                        },
+                },
+                {
+                    eventName: 'progress',
+                    role: subsequentRole,
+                    progress: {
+                        ...expectedSyncInfoWhileSending,
+                        totalObjectsProcessed: 2,
                     },
-                    {
-                        eventName: 'progress',
-                        role: subsequentRole,
-                        progress: {
-                            ...expectedSyncInfoWhileSending,
-                            totalObjectsProcessed: 2,
-                        },
+                },
+                {
+                    eventName: 'progress',
+                    role: subsequentRole,
+                    progress: {
+                        ...expectedSyncInfoWhileSending,
+                        totalObjectsProcessed: 3,
                     },
-                    {
-                        eventName: 'progress',
-                        role: subsequentRole,
-                        progress: {
-                            ...expectedSyncInfoWhileSending,
-                            totalObjectsProcessed: 3,
-                        },
-                    },
-                ]
+                },
+            ]
             expect(setup.senderEventSpy.popEvents()).toEqual(
                 allExpectedEvents('receiver', 'sender'),
             )
@@ -491,7 +493,7 @@ describe('Fast initial sync', () => {
                 expect.objectContaining({ eventName: 'paused' }),
             ])
             expect(setup.senderFastSync.state).toBe('paused')
-            await new Promise(resolve => setTimeout(resolve, 200))
+            await new Promise((resolve) => setTimeout(resolve, 200))
             expect(setup.receiverFastSync.state).toBe('paused')
             expect(setup.receiverEventSpy.popEvents()).toEqual([
                 expect.objectContaining({ eventName: 'prepared' }),
@@ -554,14 +556,14 @@ describe('Fast initial sync', () => {
             ])
         })
 
-        it('must detect on the receiver side the connection has stalled', async options => {
+        it('must detect on the receiver side the connection has stalled', async (options) => {
             const setup = await setupMinimalTest(options)
             setup.channels.receiverChannel.packageTimeoutInMilliseconds = 100
             setup.channels.senderChannel.preSend = async () => {
-                return new Promise(resolve => setTimeout(resolve, 500))
+                return new Promise((resolve) => setTimeout(resolve, 500))
             }
             const syncPromise = setup.sync()
-            await new Promise(resolve => setTimeout(resolve, 1000))
+            await new Promise((resolve) => setTimeout(resolve, 1000))
             try {
                 expect(setup.receiverEventSpy.popEvents()).toEqual([
                     expect.objectContaining({ eventName: 'stalled' }),
@@ -575,14 +577,14 @@ describe('Fast initial sync', () => {
             }
         })
 
-        it('must detect on the sender side the connection has stalled', async options => {
+        it('must detect on the sender side the connection has stalled', async (options) => {
             const setup = await setupMinimalTest(options)
             setup.channels.senderChannel.packageTimeoutInMilliseconds = 100
             setup.channels.receiverChannel.postReceive = async () => {
-                return new Promise(resolve => setTimeout(resolve, 400))
+                return new Promise((resolve) => setTimeout(resolve, 400))
             }
             const syncPromise = setup.sync()
-            await new Promise(resolve => setTimeout(resolve, 1000))
+            await new Promise((resolve) => setTimeout(resolve, 1000))
             try {
                 expect(setup.senderEventSpy.popEvents()).toEqual([
                     expect.objectContaining({ eventName: 'prepared' }),
@@ -640,10 +642,8 @@ describe('Fast initial sync', () => {
                 options.skip()
             }
 
-            const {
-                app: firebaseApp,
-                collectionName,
-            } = await createSignallingFirebaseTestApp()
+            const { app: firebaseApp, collectionName } =
+                await createSignallingFirebaseTestApp()
             try {
                 await test({
                     createChannels: async () => {

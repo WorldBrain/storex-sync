@@ -1,11 +1,11 @@
-const sortBy = require('lodash/sortBy')
+import sortBy from 'lodash/sortBy'
 import {
     StorageModule,
     StorageModuleConfig,
-} from '@worldbrain/storex-pattern-modules'
+} from '@worldbrain/storex-pattern-modules/ts'
 import { ClientSyncLogEntry } from './types'
 import { SharedSyncLogEntry } from '../shared-sync-log/types'
-import { UpdateObjectsBatchOperation } from '@worldbrain/storex'
+import { UpdateObjectsBatchOperation } from '@worldbrain/storex/ts'
 
 export class ClientSyncLogStorage extends StorageModule {
     getConfig(): StorageModuleConfig {
@@ -164,45 +164,43 @@ export class ClientSyncLogStorage extends StorageModule {
         options: { now: number | '$now' },
     ) {
         await this.insertEntries(
-            sharedEntries.map(
-                (sharedEntry): ClientSyncLogEntry => {
-                    const data = sharedEntry.data
-                    const common = {
-                        createdOn: sharedEntry.createdOn,
-                        sharedOn:
-                            typeof options.now === 'string'
-                                ? Date.now()
-                                : options.now,
-                        deviceId: sharedEntry.deviceId,
-                        needsIntegration: 1 as 1,
-                        collection: data.collection,
-                        pk: data.pk,
+            sharedEntries.map((sharedEntry): ClientSyncLogEntry => {
+                const data = sharedEntry.data
+                const common = {
+                    createdOn: sharedEntry.createdOn,
+                    sharedOn:
+                        typeof options.now === 'string'
+                            ? Date.now()
+                            : options.now,
+                    deviceId: sharedEntry.deviceId,
+                    needsIntegration: 1 as 1,
+                    collection: data.collection,
+                    pk: data.pk,
+                }
+                if (data.operation === 'create') {
+                    return {
+                        ...common,
+                        operation: 'create',
+                        value: data.value,
                     }
-                    if (data.operation === 'create') {
-                        return {
-                            ...common,
-                            operation: 'create',
-                            value: data.value,
-                        }
-                    } else if (data.operation === 'modify') {
-                        return {
-                            ...common,
-                            operation: 'modify',
-                            field: data.field!,
-                            value: data.value,
-                        }
-                    } else if (data.operation === 'delete') {
-                        return {
-                            ...common,
-                            operation: 'delete',
-                        }
-                    } else {
-                        throw new Error(
-                            `Unknown operation received: ${data.operation}`,
-                        )
+                } else if (data.operation === 'modify') {
+                    return {
+                        ...common,
+                        operation: 'modify',
+                        field: data.field!,
+                        value: data.value,
                     }
-                },
-            ),
+                } else if (data.operation === 'delete') {
+                    return {
+                        ...common,
+                        operation: 'delete',
+                    }
+                } else {
+                    throw new Error(
+                        `Unknown operation received: ${data.operation}`,
+                    )
+                }
+            }),
         )
     }
 

@@ -2,10 +2,10 @@ import expect from 'expect'
 import StorageManager, {
     CollectionFields,
     IndexDefinition,
-} from '@worldbrain/storex'
+} from '@worldbrain/storex/ts'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
-import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
-import { registerModuleCollections } from '@worldbrain/storex-pattern-modules'
+import inMemory from '@worldbrain/storex-backend-dexie/ts/in-memory'
+import { registerModuleCollections } from '@worldbrain/storex-pattern-modules/ts'
 import { ClientSyncLogStorage } from '../client-sync-log'
 import { SyncLoggingMiddleware } from '.'
 
@@ -59,9 +59,9 @@ describe('Sync logging middleware', () => {
         await storageManager
             .collection('user')
             .createObject({ id: 53, displayName: 'John Doe' })
-        expect(
-            await storageManager.collection('user').findObjects({}),
-        ).toEqual([{ id: 53, displayName: 'John Doe' }])
+        expect(await storageManager.collection('user').findObjects({})).toEqual(
+            [{ id: 53, displayName: 'John Doe' }],
+        )
         expect(await clientSyncLog.getEntriesCreatedAfter(1)).toEqual([
             {
                 deviceId: 'device-one',
@@ -636,14 +636,11 @@ describe('Sync logging middleware', () => {
 
     it('should not log anything if disabled', async () => {
         let now = 2
-        const {
-            storageManager,
-            clientSyncLog,
-            loggingMiddleware,
-        } = await setupTest({
-            now: () => ++now,
-            deviceId: null,
-        })
+        const { storageManager, clientSyncLog, loggingMiddleware } =
+            await setupTest({
+                now: () => ++now,
+                deviceId: null,
+            })
 
         await storageManager
             .collection('user')
@@ -654,16 +651,13 @@ describe('Sync logging middleware', () => {
 
     it('should be able to modify operations before they get logged', async () => {
         let now = 2
-        const {
-            storageManager,
-            clientSyncLog,
-            loggingMiddleware,
-        } = await setupTest({
-            now: () => ++now,
-        })
-        loggingMiddleware.changeInfoPreprocessor = async args => {
+        const { storageManager, clientSyncLog, loggingMiddleware } =
+            await setupTest({
+                now: () => ++now,
+            })
+        loggingMiddleware.changeInfoPreprocessor = async (args) => {
             return {
-                changes: args.changes.map(change => {
+                changes: args.changes.map((change) => {
                     if (
                         change.type === 'create' &&
                         change.collection === 'user'
@@ -694,16 +688,13 @@ describe('Sync logging middleware', () => {
 
     it('should be able to exclude operations from being logged', async () => {
         let now = 2
-        const {
-            storageManager,
-            clientSyncLog,
-            loggingMiddleware,
-        } = await setupTest({
-            now: () => ++now,
-        })
-        loggingMiddleware.changeInfoPreprocessor = async args => {
+        const { storageManager, clientSyncLog, loggingMiddleware } =
+            await setupTest({
+                now: () => ++now,
+            })
+        loggingMiddleware.changeInfoPreprocessor = async (args) => {
             return {
-                changes: args.changes.filter(change => {
+                changes: args.changes.filter((change) => {
                     return !(
                         change.type === 'modify' && change.collection === 'user'
                     )

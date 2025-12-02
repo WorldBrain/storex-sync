@@ -1,16 +1,16 @@
-import StorageManager, { StorageBackend } from '@worldbrain/storex'
-import { RegistryCollections } from '@worldbrain/storex/lib/registry'
+import StorageManager, { StorageBackend } from '@worldbrain/storex/ts'
+import { RegistryCollections } from '@worldbrain/storex/ts/registry'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
-import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
+import inMemory from '@worldbrain/storex-backend-dexie/ts/in-memory'
 import { ClientSyncLogStorage } from './client-sync-log'
-import { registerModuleMapCollections } from '@worldbrain/storex-pattern-modules'
+import { registerModuleMapCollections } from '@worldbrain/storex-pattern-modules/ts'
 import { CustomAutoPkMiddleware } from './custom-auto-pk'
 import { SyncLoggingMiddleware } from './logging-middleware'
-import { StorageMiddleware } from '@worldbrain/storex/lib/types/middleware'
+import { StorageMiddleware } from '@worldbrain/storex/ts/types/middleware'
 
 export type TestDependencyInjector<
     TestDependencies,
-    TestRunnerOptions = never
+    TestRunnerOptions = never,
 > = (
     body: (dependencies: TestDependencies) => Promise<void>,
     options?: TestRunnerOptions,
@@ -51,10 +51,10 @@ export async function setupSyncTestClient(options: {
 }) {
     const backend = options.createClientStorageBackend
         ? options.createClientStorageBackend()
-        : ((new DexieStorageBackend({
+        : (new DexieStorageBackend({
               dbName: 'test',
               idbImplementation: inMemory(),
-          }) as any) as StorageBackend)
+          }) as any as StorageBackend)
     const storageManager = new StorageManager({ backend })
     storageManager.registry.registerCollections(
         options.collections || {

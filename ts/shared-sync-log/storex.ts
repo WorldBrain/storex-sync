@@ -6,7 +6,7 @@ import {
     StorageModuleConfig,
     StorageModuleConstructorArgs,
     StorageModuleDebugConfig,
-} from '@worldbrain/storex-pattern-modules'
+} from '@worldbrain/storex-pattern-modules/ts'
 import {
     SharedSyncLog,
     SharedSyncLogEntry,
@@ -22,8 +22,10 @@ interface SharedSyncLogEntryBatch {
     data: string
 }
 
-export class SharedSyncLogStorage extends StorageModule
-    implements SharedSyncLog {
+export class SharedSyncLogStorage
+    extends StorageModule
+    implements SharedSyncLog
+{
     constructor(
         private options: StorageModuleConstructorArgs & {
             autoPkType: 'string' | 'int'
@@ -198,13 +200,11 @@ export class SharedSyncLogStorage extends StorageModule
             throw new Error(`No such device: ${options.deviceId}`)
         }
 
-        const entryBatches: Array<SharedSyncLogEntryBatch> = await this.operation(
-            'findUnseenSyncEntries',
-            {
+        const entryBatches: Array<SharedSyncLogEntryBatch> =
+            await this.operation('findUnseenSyncEntries', {
                 userId: options.userId,
                 after: deviceInfo.sharedUntil || 0,
-            },
-        )
+            })
 
         const lastBatch = entryBatches.length
             ? entryBatches[entryBatches.length - 1]
@@ -213,7 +213,7 @@ export class SharedSyncLogStorage extends StorageModule
 
         const entries = flatten(
             entryBatches
-                .filter(batch => batch.deviceId !== options.deviceId)
+                .filter((batch) => batch.deviceId !== options.deviceId)
                 .map((batch): SharedSyncLogEntry[] => {
                     const batchData = JSON.parse(batch.data)
                     return batchData.entries.map(
@@ -244,7 +244,7 @@ export class SharedSyncLogStorage extends StorageModule
     ): Promise<void> {
         const sharedUntil = update.entries.length
             ? update.memo.lastBatchTime
-            : options.now ?? Date.now()
+            : (options.now ?? Date.now())
 
         await this.operation('updateSharedUntil', {
             userId: options.userId,

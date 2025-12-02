@@ -1,4 +1,4 @@
-import StorageManager from '@worldbrain/storex'
+import StorageManager from '@worldbrain/storex/ts'
 import { FastSyncInfo } from './types'
 
 export type ResolvablePromise<ReturnType> = {
@@ -8,7 +8,7 @@ export type ResolvablePromise<ReturnType> = {
 
 export function resolvablePromise<ReturnType>(): ResolvablePromise<ReturnType> {
     let resolve: (value: ReturnType) => void
-    const promise = new Promise<ReturnType>(resolvePromise => {
+    const promise = new Promise<ReturnType>((resolvePromise) => {
         resolve = resolvePromise
     })
     return { resolve: resolve!, promise }

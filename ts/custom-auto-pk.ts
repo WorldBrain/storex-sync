@@ -1,11 +1,11 @@
 import update from 'immutability-helper'
-import { StorageMiddleware } from '@worldbrain/storex/lib/types/middleware'
-import { StorageRegistry } from '@worldbrain/storex'
+import { StorageMiddleware } from '@worldbrain/storex/ts/types/middleware'
+import { StorageRegistry } from '@worldbrain/storex/ts'
 import {
     dissectCreateObjectOperation,
     convertCreateObjectDissectionToBatch,
     reconstructCreatedObjectFromBatchResult,
-} from '@worldbrain/storex/lib/utils'
+} from '@worldbrain/storex/ts/utils'
 
 export type CustomPkGenerator = () => string
 

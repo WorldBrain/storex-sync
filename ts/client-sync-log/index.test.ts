@@ -1,8 +1,8 @@
 import expect from 'expect'
-import StorageManager, { StorageBackend } from '@worldbrain/storex'
+import StorageManager, { StorageBackend } from '@worldbrain/storex/ts'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
-import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
-import { registerModuleCollections } from '@worldbrain/storex-pattern-modules'
+import inMemory from '@worldbrain/storex-backend-dexie/ts/in-memory'
+import { registerModuleCollections } from '@worldbrain/storex-pattern-modules/ts'
 import { ClientSyncLogStorage } from './'
 import { ClientSyncLogEntry } from './types'
 import { TypeORMStorageBackend } from '@worldbrain/storex-backend-typeorm'
@@ -86,7 +86,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
             return entries
         }
 
-        return entries.map(entry => ({
+        return entries.map((entry) => ({
             ...entry,
             field: 'field' in entry && entry.field ? entry.field : null,
             needsIntegration: entry.needsIntegration ? 1 : 0,
@@ -164,7 +164,7 @@ function clientSyncLogTests(dependencies: TestDependencies) {
     }) => {
         const now = 56
         await syncLogStorage.insertReceivedEntries(
-            TEST_LOG_ENTRIES.slice(0, 1).map(entry => ({
+            TEST_LOG_ENTRIES.slice(0, 1).map((entry) => ({
                 userId: 'test-user-1',
                 deviceId: 'u1d1',
                 createdOn: entry.createdOn,
@@ -334,11 +334,11 @@ function clientSyncLogTests(dependencies: TestDependencies) {
 describe('Client sync log with in-memory Dexie IndexedDB backend', () => {
     clientSyncLogTests({
         createBackend: () => {
-            return (new DexieStorageBackend({
+            return new DexieStorageBackend({
                 idbImplementation: inMemory(),
                 dbName: 'unittest',
                 legacyMemexCompatibility: true,
-            }) as any) as StorageBackend
+            }) as any as StorageBackend
         },
     })
 })
@@ -346,12 +346,12 @@ describe('Client sync log with in-memory Dexie IndexedDB backend', () => {
 describe('Client sync log with in-memory TypeORM SQLite backend', () => {
     clientSyncLogTests({
         createBackend: () => {
-            return (new TypeORMStorageBackend({
+            return new TypeORMStorageBackend({
                 connectionOptions: { type: 'sqlite', database: ':memory:' },
-            }) as any) as StorageBackend
+            }) as any as StorageBackend
         },
         destroyBackend: async (backend: StorageBackend) => {
-            const connection = ((backend as any) as TypeORMStorageBackend)
+            const connection = (backend as any as TypeORMStorageBackend)
                 .connection!
             if (connection) {
                 await connection.close()

@@ -1,4 +1,4 @@
-import { StorageRegistry } from '@worldbrain/storex'
+import { StorageRegistry } from '@worldbrain/storex/ts'
 
 export function getObjectPk(
     object: any,

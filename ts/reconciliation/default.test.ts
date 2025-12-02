@@ -1,4 +1,4 @@
-import { StorageRegistry, OperationBatch } from '@worldbrain/storex'
+import { StorageRegistry, OperationBatch } from '@worldbrain/storex/ts'
 import expect from 'expect'
 import { ClientSyncLogEntry } from '../client-sync-log/types'
 import { reconcileSyncLog } from './default'
@@ -197,15 +197,15 @@ describe('Reconciliation', () => {
     if (process.env.SKIP_SYNC_FLOW_CHECKS !== 'true') {
         after('we should have tested all necessary flows', () => {
             const testedFlows = new Set(
-                TEST_CREATOR.tested.map(scenarioInfo =>
+                TEST_CREATOR.tested.map((scenarioInfo) =>
                     scenarioInfo.flow.join(', '),
                 ),
             )
             const requiredFlows = new Set(
-                TEST_FLOWS.map(flow => flow.join(', ')),
+                TEST_FLOWS.map((flow) => flow.join(', ')),
             )
             const missingFlows = new Set(
-                [...requiredFlows].filter(flow => !testedFlows.has(flow)),
+                [...requiredFlows].filter((flow) => !testedFlows.has(flow)),
             )
             expect({ missingFlows }).toEqual({ missingFlows: new Set() })
 

@@ -1,10 +1,10 @@
 import pick from 'lodash/pick'
 import Peer from 'simple-peer'
-import { SignalTransport, SignalChannel } from 'simple-signalling/lib/types'
+import { SignalTransport, SignalChannel } from 'simple-signalling/ts/types'
 import {
     signalSimplePeer,
     SimplePeerSignallingEvents,
-} from 'simple-signalling/lib/simple-peer'
+} from 'simple-signalling/ts/simple-peer'
 import {
     FastSyncEvents,
     FastSyncPreSendProcessor,
@@ -12,7 +12,7 @@ import {
 } from '../fast-sync'
 import { WebRTCFastSyncChannel } from '../fast-sync/channels'
 import TypedEmitter from 'typed-emitter'
-import StorageManager from '@worldbrain/storex'
+import StorageManager from '@worldbrain/storex/ts'
 import {
     FastSyncChannel,
     FastSyncRole,
@@ -74,10 +74,8 @@ export class InitialSync {
         preserveChannel?: boolean
     }): Promise<{ initialMessage: string }> {
         const role = 'sender'
-        const {
-            signalTransport,
-            initialMessage,
-        } = await this._createSignalTransport(role)
+        const { signalTransport, initialMessage } =
+            await this._createSignalTransport(role)
         this.fastSyncInfo = await this._setupInitialSync({
             role,
             signalTransport,
@@ -143,7 +141,7 @@ export class InitialSync {
         delete this.fastSyncInfo
         info.events.emit = () => false
         await Promise.race([
-            new Promise(resolve => setTimeout(resolve, 1000)),
+            new Promise((resolve) => setTimeout(resolve, 1000)),
             info.fastSyncChannel.destroy(),
         ])
     }
@@ -162,13 +160,12 @@ export class InitialSync {
     _createSignalTransport(
         role: 'receiver',
     ): Promise<{ signalTransport: SignalTransport }>
-    async _createSignalTransport(
-        role: FastSyncRole,
-    ): Promise<{
+    async _createSignalTransport(role: FastSyncRole): Promise<{
         signalTransport: SignalTransport
         initialMessage: string | undefined
     }> {
-        const signalTransport: SignalTransport = this.dependencies.signalTransportFactory()
+        const signalTransport: SignalTransport =
+            this.dependencies.signalTransportFactory()
         return {
             signalTransport,
             initialMessage:
@@ -201,8 +198,8 @@ export class InitialSync {
             collections: this.dependencies.syncedCollections,
             preSendProcessor: this.getPreSendProcessor() || undefined,
             batchSize: this.dependencies.batchSize,
-            executeReconciliationOperation: this.dependencies
-                .executeReconciliationOperation,
+            executeReconciliationOperation:
+                this.dependencies.executeReconciliationOperation,
         })
         fastSync.events.emit = ((eventName: any, event: any) => {
             return this.events.emit(eventName, event)
@@ -293,27 +290,29 @@ export class InitialSync {
         }
     }
 
-    getPreSendProcessor(): FastSyncPreSendProcessor | void { }
-    async preSync(options: InitialSyncInfo) { }
+    getPreSendProcessor(): FastSyncPreSendProcessor | void {}
+    async preSync(options: InitialSyncInfo) {}
 
     async getPeer(options: { initiator: boolean }): Promise<Peer.Instance> {
         let iceServers
         try {
             iceServers = await this.dependencies.getIceServers?.()
         } catch (e) {
-            console.warn('An error occurred while trying to get ICE servers, ignoring...')
+            console.warn(
+                'An error occurred while trying to get ICE servers, ignoring...',
+            )
             console.warn(e)
-            this.events.emit('setupContinuingWithoutICE', {e})
+            this.events.emit('setupContinuingWithoutICE', { e })
         }
         return new Peer({
             initiator: options.initiator,
             wrtc: this.wrtc,
             ...(iceServers
                 ? {
-                    config: {
-                        iceServers,
-                    },
-                }
+                      config: {
+                          iceServers,
+                      },
+                  }
                 : {}),
         })
     }

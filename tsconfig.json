@@ -14,7 +14,6 @@
         "preserveConstEnums": true,
         "declaration": true,
         "sourceMap": true,
-        "suppressImplicitAnyIndexErrors": true,
         "typeRoots": ["./node_modules/@types"],
         "outDir": "lib"
     },

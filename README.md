@@ -1,8 +1,8 @@
 This package provides Sync functionality between multiple instances of any applications built on [Storex](https://github.com/WorldBrain/storex). This includes:
 
--   Multiple devices that run an application storing all of it data data in IndexedDB
--   Multiple SQL databases asynchronously sync'ed, like product catelogues in different physical shops
--   In the future, offline-first single-user applications storing their data both on devices and in the cloud
+- Multiple devices that run an application storing all of it data data in IndexedDB
+- Multiple SQL databases asynchronously sync'ed, like product catelogues in different physical shops
+- In the future, offline-first single-user applications storing their data both on devices and in the cloud
 
 By itself, right now this package cannot provide offline-first for multi-user application due to the need for access right management. That being said, its code is modular enough to be able to evolve to support such a scenario, opening up the possibility for permission decentralized applications.
 
@@ -19,14 +19,14 @@ By itself, right now this package cannot provide offline-first for multi-user ap
 ```
 import uuid from 'uuid/v1'
 import StorageManager, { StorageBackend, StorageRegistry } from "@worldbrain/storex"
-import { registerModuleMapCollections, StorageModule } from "@worldbrain/storex-pattern-modules"
+import { registerModuleMapCollections, StorageModule } from "@worldbrain/storex-pattern-modules/ts"
 
-import { CustomAutoPkMiddleware } from '@worldbrain/storex-sync/lib/custom-auto-pk'
-import { SyncLoggingMiddleware } from '@worldbrain/storex-sync/lib/logging-middleware'
-import { ClientSyncLogStorage } from '@worldbrain/storex-sync/lib/client-sync-log'
-import { SharedSyncLog } from '@worldbrain/storex-sync/lib/shared-sync-log'
-import { SharedSyncLogStorage } from '@worldbrain/storex-sync/lib/shared-sync-log/storex'
-import { reconcileSyncLog } from '@worldbrain/storex-sync/lib/reconciliation'
+import { CustomAutoPkMiddleware } from '@worldbrain/storex-sync/ts/custom-auto-pk'
+import { SyncLoggingMiddleware } from '@worldbrain/storex-sync/ts/logging-middleware'
+import { ClientSyncLogStorage } from '@worldbrain/storex-sync/ts/client-sync-log'
+import { SharedSyncLog } from '@worldbrain/storex-sync/ts/shared-sync-log'
+import { SharedSyncLogStorage } from '@worldbrain/storex-sync/ts/shared-sync-log/storex'
+import { reconcileSyncLog } from '@worldbrain/storex-sync/ts/reconciliation'
 import { doSync } from '@worldbrain/storex-sync'
 
 export async function setupClientStorage() {

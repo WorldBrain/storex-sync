@@ -1,4 +1,4 @@
-import { StorageRegistry, OperationBatch } from '@worldbrain/storex'
+import { StorageRegistry, OperationBatch } from '@worldbrain/storex/ts'
 import { ClientSyncLogEntry } from '../client-sync-log/types'
 
 export type ReconcilerFunction = (

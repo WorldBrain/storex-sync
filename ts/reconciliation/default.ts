@@ -1,5 +1,5 @@
 import sortBy from 'lodash/sortBy'
-import { StorageRegistry, OperationBatch } from '@worldbrain/storex'
+import { StorageRegistry, OperationBatch } from '@worldbrain/storex/ts'
 import {
     ClientSyncLogEntry,
     ClientSyncLogCreationEntry,
@@ -144,7 +144,7 @@ export function _processCreationEntry({
             if (doubleCreateBehaviour !== 'merge') {
                 throw new Error(
                     `Detected double create in collection '${
-                    logEntry.collection
+                        logEntry.collection
                     }', pk '${JSON.stringify(logEntry.pk)}'`,
                 )
             }

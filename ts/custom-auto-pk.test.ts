@@ -1,7 +1,7 @@
 import expect from 'expect'
-import StorageManager from '@worldbrain/storex'
+import StorageManager from '@worldbrain/storex/ts'
 import { DexieStorageBackend } from '@worldbrain/storex-backend-dexie'
-import inMemory from '@worldbrain/storex-backend-dexie/lib/in-memory'
+import inMemory from '@worldbrain/storex-backend-dexie/ts/in-memory'
 import { CustomAutoPkMiddleware } from './custom-auto-pk'
 
 describe('CustomAutoPkMiddleware', () => {

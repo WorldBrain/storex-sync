@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import StorageManager from '@worldbrain/storex'
+import StorageManager from '@worldbrain/storex/ts'
 import { SharedSyncLog } from '../shared-sync-log'
 import { reconcileSyncLog } from '../reconciliation'
 import {
@@ -30,7 +30,7 @@ export interface ContinuousSyncDependencies {
     singleBatch?: boolean
     debug?: boolean
     toggleSyncLogging: ((enabled: true, deviceId: string | number) => void) &
-    ((enabled: false) => void)
+        ((enabled: false) => void)
     executeReconciliationOperation?: ExecuteReconciliationOperation
 }
 export interface ContinuousSyncEvents {
@@ -39,9 +39,8 @@ export interface ContinuousSyncEvents {
 }
 
 export class ContinuousSync {
-    public events = new EventEmitter() as TypedEventEmitter<
-        ContinuousSyncEvents
-    >
+    public events =
+        new EventEmitter() as TypedEventEmitter<ContinuousSyncEvents>
     public recurringIncrementalSyncTask?: RecurringTask<
         Partial<SyncOptions>,
         SyncReturnValue | void
@@ -85,7 +84,7 @@ export class ContinuousSync {
                 },
                 {
                     intervalInMs: this.dependencies.frequencyInMs,
-                    onError: () => { },
+                    onError: () => {},
                 },
             )
         }
@@ -99,9 +98,8 @@ export class ContinuousSync {
             )
         }
 
-        const existingDeviceId = await this.dependencies.settingStore.retrieveSetting(
-            'deviceId',
-        )
+        const existingDeviceId =
+            await this.dependencies.settingStore.retrieveSetting('deviceId')
         if (existingDeviceId) {
             this.deviceId = existingDeviceId as number | string
             return
@@ -168,7 +166,7 @@ export class ContinuousSync {
 
         let resolveRunningSync: () => void
         this.runningSync = new Promise(
-            resolve => (resolveRunningSync = resolve),
+            (resolve) => (resolveRunningSync = resolve),
         )
         try {
             this.events.emit('syncStarted')
@@ -238,15 +236,16 @@ export class ContinuousSync {
             serializer: this.getSerializer() || undefined,
             preSend: this.getPreSendProcessor() || undefined,
             postReceive: this.getPostReceiveProcessor() || undefined,
-            executeReconciliationOperation: this.dependencies.executeReconciliationOperation,
+            executeReconciliationOperation:
+                this.dependencies.executeReconciliationOperation,
         }
     }
 
-    getPreSendProcessor(): SyncPreSendProcessor | void { }
+    getPreSendProcessor(): SyncPreSendProcessor | void {}
 
-    getPostReceiveProcessor(): SyncPostReceiveProcessor | void { }
+    getPostReceiveProcessor(): SyncPostReceiveProcessor | void {}
 
-    getSerializer(): SyncSerializer | void { }
+    getSerializer(): SyncSerializer | void {}
 
     _debugLog(...args: any[]) {
         if (this.debug) {

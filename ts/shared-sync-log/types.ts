@@ -2,8 +2,8 @@ import {
     StorageModuleConfig,
     StorageOperationDefinitions,
     AccessRules,
-} from '@worldbrain/storex-pattern-modules'
-import { CollectionDefinitionMap } from '@worldbrain/storex'
+} from '@worldbrain/storex-pattern-modules/ts'
+import { CollectionDefinitionMap } from '@worldbrain/storex/ts'
 import { Omit } from '../types'
 import {
     ClientSyncLogEntry,
@@ -57,9 +57,8 @@ interface SharedSyncLogEntryBase {
 }
 
 export type SharedSyncLogEntry<
-    SerializedData extends
-        | 'serialized-data'
-        | 'deserialized-data' = 'serialized-data'
+    SerializedData extends 'serialized-data' | 'deserialized-data' =
+        'serialized-data',
 > = SharedSyncLogEntryBase &
     (SerializedData extends 'serialized-data'
         ? { data: string }

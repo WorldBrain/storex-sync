@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events'
 import TypedEmitter from 'typed-emitter'
-import StorageManager from '@worldbrain/storex'
+import StorageManager from '@worldbrain/storex/ts'
 import {
     FastSyncInfo,
     FastSyncProgress,
@@ -46,10 +46,12 @@ export interface FastSyncEvents {
 }
 
 export class FastSync {
-    public events: TypedEmitter<
-        FastSyncEvents
-    > = new EventEmitter() as TypedEmitter<FastSyncEvents>
-    processNonFatalError?: (event: { source: 'create-object', error: Error }) => ({ fatal: boolean })
+    public events: TypedEmitter<FastSyncEvents> =
+        new EventEmitter() as TypedEmitter<FastSyncEvents>
+    processNonFatalError?: (event: {
+        source: 'create-object'
+        error: Error
+    }) => { fatal: boolean }
 
     private totalObjectsProcessed: number
     private interruptable: Interruptable | null = null
@@ -133,7 +135,7 @@ export class FastSync {
 
                 await interruptable.forOfLoop(
                     this.options.collections,
-                    async collection => {
+                    async (collection) => {
                         await this.sendObjecsInCollection(collection, {
                             channel,
                             role: options.role,
@@ -155,8 +157,12 @@ export class FastSync {
     }
 
     private setupTimeoutListeners(channel: FastSyncChannel<any>) {
-        channel.events.on('channelTimeout', () => this.events.emit('channelTimeout'))
-        channel.events.on('packageStalled', () => this.events.emit('packageStalled'))
+        channel.events.on('channelTimeout', () =>
+            this.events.emit('channelTimeout'),
+        )
+        channel.events.on('packageStalled', () =>
+            this.events.emit('packageStalled'),
+        )
     }
 
     private async sendObjecsInCollection(
@@ -172,7 +178,7 @@ export class FastSync {
             collection,
             { batchSize: this.options.batchSize || 100 },
         )
-        await this.interruptable!.forOfLoop(batchStream, async objects => {
+        await this.interruptable!.forOfLoop(batchStream, async (objects) => {
             const processedObjects = await this._preproccesObjects({
                 collection,
                 objects,
@@ -203,7 +209,7 @@ export class FastSync {
         const processedObjects = (
             await Promise.all(
                 params.objects.map(
-                    async object =>
+                    async (object) =>
                         (
                             await preSendProcessor({
                                 collection: params.collection,
@@ -212,7 +218,7 @@ export class FastSync {
                         ).object,
                 ),
             )
-        ).filter(object => !!object)
+        ).filter((object) => !!object)
         return processedObjects
     }
 
@@ -247,7 +253,10 @@ export class FastSync {
                             object,
                         )
                     } catch (e) {
-                        const { fatal } = this.processNonFatalError?.({ source: 'create-object', error: e }) ?? { fatal: true }
+                        const { fatal } = this.processNonFatalError?.({
+                            source: 'create-object',
+                            error: e,
+                        }) ?? { fatal: true }
                         if (fatal) {
                             throw e
                         }
